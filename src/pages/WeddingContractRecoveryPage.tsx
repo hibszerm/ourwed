@@ -35,7 +35,7 @@ import type {
   WeddingSourceContract,
 } from '@/features/wedding-contract-recovery/types'
 import {
-  buildRecoveryDecisionGroups,
+  buildRecoveryReviewGroups,
   formatSelectedChangeCount,
   prepareRecoveryProposalForReview,
   recoveryLogicalSelectionCount,
@@ -104,8 +104,8 @@ export function WeddingContractRecoveryPage() {
   })
 
   const groupedDecisions = useMemo(() => {
-    const groups = new Map<RecoveryDecisionGroup['sectionKey'], ReturnType<typeof buildRecoveryDecisionGroups>>()
-    for (const decision of buildRecoveryDecisionGroups(fields)) {
+    const groups = new Map<RecoveryDecisionGroup['sectionKey'], RecoveryDecisionGroup[]>()
+    for (const decision of buildRecoveryReviewGroups(fields)) {
       const list = groups.get(decision.sectionKey) ?? []
       list.push(decision)
       groups.set(decision.sectionKey, list)

@@ -1,14 +1,14 @@
-.header { max-width: 66rem; margin: 0 auto 1.25rem; }
+.header { width: min(100%, 76rem); margin: 0 auto 1.25rem; }
 .eyebrow { margin: 0 0 .65rem; font-size: .875rem; }
 .title { margin: 0 0 .55rem; letter-spacing: -.025em; }
 .description { max-width: 62ch; margin: 0; color: var(--color-text-muted); line-height: 1.55; }
-.panel { width: min(100%, 76rem); margin-inline: auto; display: grid; gap: 1.5rem; }
+.panel { width: min(100%, 76rem); margin-inline: auto; display: grid; gap: 1.2rem; }
 .reviewPanel { padding-bottom: 1rem; }
 .actions { display: flex; flex-wrap: wrap; gap: .75rem; }
-.section { display: grid; gap: .5rem; }
+.section { display: grid; gap: .4rem; }
 .sectionTitle {
-  margin: .65rem 0 0;
-  padding-bottom: .5rem;
+  margin: 0;
+  padding-bottom: .45rem;
   border-bottom: 1px solid var(--color-border);
   font-size: 1.1rem;
   letter-spacing: -.01em;
@@ -17,18 +17,18 @@
 .choice { display: flex; align-items: flex-start; gap: .65rem; }
 .confirmList { margin: 0; padding-left: 1.25rem; }
 .error { margin: 0; color: var(--color-danger); font-size: .9375rem; }
-.reviewIntro { display: grid; gap: .55rem; max-width: 68rem; }
+.reviewIntro { display: grid; gap: .55rem; width: 100%; }
 .reviewIntro h2, .reviewIntro p { margin: 0; }
 .reviewIntro p { color: var(--color-text-muted); max-width: 68ch; line-height: 1.55; }
 .bulkActions { display: flex; flex-wrap: wrap; gap: .5rem; margin-top: .35rem; }
 .selectableFact {
   display: flex;
-  align-items: center;
+  align-items: flex-start;
   gap: .65rem;
   min-height: 2.75rem;
   padding: .55rem .75rem;
   border: 1px solid var(--color-border);
-  border-radius: 14px;
+  border-radius: 12px;
   background: var(--color-surface, white);
   line-height: 1.5;
   overflow-wrap: anywhere;
@@ -36,7 +36,7 @@
 }
 .selectableFact[data-selected='true'] { border-color: var(--color-border-strong); background: color-mix(in srgb, var(--color-primary, #24363d) 3%, var(--color-surface, #fff)); }
 .selectableFact input { position: absolute; width: 1px; height: 1px; opacity: 0; }
-.selectableMark { display: grid; width: 1.25rem; height: 1.25rem; flex: 0 0 auto; place-items: center; border: 1px solid var(--color-border-strong); border-radius: 6px; font-size: .8rem; font-weight: 700; color: transparent; }
+.selectableMark { display: grid; width: 1.1rem; height: 1.1rem; margin-top: .15rem; flex: 0 0 auto; place-items: center; border: 1px solid var(--color-border-strong); border-radius: 5px; font-size: .75rem; font-weight: 700; color: transparent; }
 .selectableFact[data-selected='true'] .selectableMark { color: var(--color-surface, #fff); border-color: var(--color-primary, #24363d); background: var(--color-primary, #24363d); }
 .selectableFact input:focus-visible + .selectableMark { outline: 3px solid var(--color-focus-ring, #667f88); outline-offset: 3px; }
 .reviewFooter {
@@ -49,11 +49,11 @@
   gap: 1rem;
   width: min(100%, 76rem);
   margin: 0 auto;
-  padding: .8rem 1rem;
+  padding: .65rem .85rem;
   border: 1px solid var(--color-border);
-  border-radius: 16px;
+  border-radius: 12px;
   background: color-mix(in srgb, var(--color-surface, #fff) 94%, transparent);
-  box-shadow: 0 8px 28px rgb(20 30 35 / 9%);
+  box-shadow: 0 4px 16px rgb(20 30 35 / 8%);
   backdrop-filter: blur(14px);
 }
 .reviewFooter > span { color: var(--color-text-secondary); font-size: .9rem; font-weight: 600; }

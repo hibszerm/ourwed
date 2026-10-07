@@ -46,7 +46,6 @@ export function RecoveryLogicalComparisonCard({
       <div className={styles.mainRow}>
         <div className={styles.header}>
           <h3 className={styles.label}>{decision.label}</h3>
-          {badge ? <span className={styles.badge}>{badge}</span> : null}
         </div>
 
         <div className={styles.comparison}>

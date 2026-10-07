@@ -1,6 +1,6 @@
 import assert from 'node:assert/strict'
 import { readFileSync } from 'node:fs'
-import { buildRecoveryDecisionGroups, formatRecoveryValue, prepareRecoveryProposalForReview, recoveryLogicalSelectionCount } from './presentation'
+import { buildRecoveryDecisionGroups, buildRecoveryReviewGroups, formatRecoveryValue, prepareRecoveryProposalForReview, recoveryLogicalSelectionCount } from './presentation'
 import type { RecoveryFieldComparison, RecoveryProposal } from './types'
 
 function field(
@@ -10,7 +10,8 @@ function field(
   extractedValue: string | number | null,
   selectedAction: RecoveryFieldComparison['selectedAction'] = state === 'missing_current' ? 'use_extracted' : state === 'different' ? 'keep_current' : 'skip',
 ): RecoveryFieldComparison {
-  const sectionKey = fieldKey.startsWith('partner') ? fieldKey.includes('email') || fieldKey.includes('phone') || fieldKey.includes('address') || fieldKey.includes('postal') || fieldKey.includes('.city') ? 'contact' : 'clients'
+  const sectionKey = fieldKey.startsWith('document.') ? 'source_document'
+    : fieldKey.startsWith('partner') ? fieldKey.includes('email') || fieldKey.includes('phone') || fieldKey.includes('address') || fieldKey.includes('postal') || fieldKey.includes('.city') ? 'contact' : 'clients'
     : fieldKey.startsWith('wedding.') ? 'wedding' : fieldKey.startsWith('finances.') ? 'finances' : 'other'
   return {
     fieldKey,
@@ -48,17 +49,32 @@ const postal = field('partner1.postalCode', 'different', '00-001', '00-002')
 const city = field('partner1.city', 'same', 'Warszawa', 'Warszawa')
 const travel = field('finances.travelStatus', 'different', 'included', 'charged')
 const deadline = field('delivery.dueDate', 'different', '2027-10-21', '2028-03-21')
+const emptyEmail = field('partner2.email', 'same', null, null)
+const emptyContractNumber = field('document.contractNumber', 'unsupported', null, null)
+const sourceOnlySigningDate = field('document.signingDate', 'unsupported', null, '2026-09-22')
 
-const fields = [identity, ...identityParts, email, phone, addressLine, postal, city, travel, deadline]
+const fields = [identity, ...identityParts, email, phone, addressLine, postal, city, travel, deadline, emptyEmail, emptyContractNumber, sourceOnlySigningDate]
+const originalFieldData = JSON.stringify(fields)
 const decisions = buildRecoveryDecisionGroups(fields)
+const reviewDecisions = buildRecoveryReviewGroups(fields)
 const person = decisions.find((item) => item.id === 'partner1.fullName')!
 assert.equal(person.label, 'Osoba 1')
 assert.deepEqual(person.fields.map((item) => item.fieldKey), ['partner1.fullName'])
 assert.equal(decisions.some((item) => item.id.includes('firstName') || item.id.includes('lastName')), false)
 assert.ok(decisions.some((item) => item.id === 'partner1.email'))
 assert.ok(decisions.some((item) => item.id === 'partner1.phone'))
+assert.ok(decisions.some((item) => item.id === 'partner2.email'), 'empty values remain in the underlying decision model')
 assert.equal(decisions.find((item) => item.id === 'finances.travelStatus')?.sectionKey, 'travel')
 assert.equal(decisions.find((item) => item.id === 'delivery.dueDate')?.sectionKey, 'deadlines')
+assert.equal(reviewDecisions.some((item) => item.id === 'partner2.email'), false, 'empty-to-empty contact values are hidden in review')
+assert.equal(reviewDecisions.some((item) => item.id === 'document.contractNumber'), false, 'empty-to-empty source identifiers are hidden in review')
+assert.equal(reviewDecisions.find((item) => item.id === 'document.signingDate')?.extractedValue, '2026-09-22', 'source-only read-only facts remain visible')
+assert.deepEqual(reviewDecisions.find((item) => item.id === 'partner1.address')?.fields.map((item) => item.fieldKey), ['partner1.addressLine', 'partner1.postalCode', 'partner1.city'], 'address grouping remains intact')
+assert.equal(reviewDecisions.find((item) => item.id === 'partner1.fullName')?.actionableFields.length, 1, 'identity authority remains intact')
+assert.equal(JSON.stringify(fields), originalFieldData, 'presentation filtering does not alter persisted proposal values')
+const reviewSections = new Set(reviewDecisions.map((item) => item.sectionKey))
+assert.equal(reviewSections.has('source_document'), true, 'the source-only date keeps its section visible')
+assert.equal(reviewSections.has('other'), false, 'empty review-only sections are not introduced')
 
 const address = decisions.find((item) => item.id === 'partner1.address')!
 assert.deepEqual(address.actionableFields.map((item) => item.fieldKey), ['partner1.addressLine', 'partner1.postalCode'])
@@ -67,6 +83,7 @@ assert.match(address.extractedValue, /Ulica: ul\. Leśna 4/)
 assert.match(address.extractedValue, /Miejscowość: Warszawa/)
 
 assert.equal(recoveryLogicalSelectionCount(fields, { ...proposal, noteProposals: [] }, false), 2, 'selected phone and address count as decisions, while unchanged fields do not count')
+assert.equal(recoveryLogicalSelectionCount(fields, { ...proposal, noteProposals: [] }, false), recoveryLogicalSelectionCount(fields.filter((item) => item !== emptyEmail && item !== emptyContractNumber), { ...proposal, noteProposals: [] }, false), 'hidden empty values do not affect the Apply count')
 assert.equal(formatRecoveryValue(field('finances.contractValue', 'different', 13250, 11100), 13250), '13 250 zł')
 assert.equal(formatRecoveryValue(field('wedding.date', 'different', null, '2027-05-21'), '2027-05-21'), '21 maja 2027')
 
@@ -94,13 +111,18 @@ assert.match(confirmation, /Wróć do sprawdzenia/, 'confirmation returns to rev
 assert.match(readFileSync('src/features/wedding-contract-recovery/components/PackageSnapshotCard.tsx', 'utf8'), /Pokaż szczegóły pakietu/, 'package details remain available by disclosure')
 assert.match(readFileSync('src/features/wedding-contract-recovery/components/RecoveryFieldComparisonRow.tsx', 'utf8'), /aria-label=\{`Zastosuj zmianę:/, 'selection control has a user-facing accessible label')
 assert.match(packageCard, /Pozycje pakietu:/, 'confirmation avoids extraction-oriented wording')
-assert.match(comparisonStyles, /\.mainRow\s*\{[\s\S]*grid-template-columns:\s*minmax\(8\.5rem, \.8fr\)/, 'logical comparisons use a single full-width row grid')
+assert.match(comparisonStyles, /\.mainRow\s*\{[\s\S]*grid-template-columns:\s*minmax\(11rem, 14rem\) minmax\(0, 1fr\) 1\.25rem minmax\(0, 1fr\) minmax\(6\.25rem, 7\.25rem\) minmax\(7\.25rem, 7\.75rem\)/, 'desktop comparisons share six aligned column axes')
+assert.match(comparisonStyles, /\.comparison\s*\{[^}]*display:\s*contents/, 'comparison values participate in the shared grid')
+assert.match(comparisonStyles, /\.rowActions\s*\{[^}]*display:\s*contents/, 'evidence and selection participate in the shared grid')
 assert.doesNotMatch(pageStyles, /\.fieldList\s*\{[^}]*repeat\(2/, 'review sections never use a two-decision desktop grid')
 assert.match(comparisonCard, /aria-expanded=\{evidenceOpen\}[\s\S]*className=\{styles\.evidenceContent\}/, 'evidence toggles inline inside its owning decision row')
 assert.match(comparisonCard, /selected \? 'Wybrano' : 'Zastosuj'/, 'selection labels stay concise without a second status block')
 assert.match(pageStyles, /\.selectableFact\s*\{[\s\S]*min-height:\s*2\.75rem/, 'extras and notes use compact full-width rows')
 assert.match(pageStyles, /\.fieldList\s*\{\s*display:\s*grid;\s*grid-template-columns:\s*minmax\(0, 1fr\)/, 'review list remains one decision per row at every viewport')
 assert.match(packageCard, /className=\{styles\.choice\}[\s\S]*Zapisz pakiet/, 'package selection stays in the rich block header')
+assert.match(readFileSync('src/features/wedding-contract-recovery/components/PackageSnapshotCard.module.css', 'utf8'), /\.card\s*\{[\s\S]*background:\s*var\(--color-surface, #fff\)/, 'package card has a defined neutral surface')
+assert.match(page, /buildRecoveryReviewGroups\(fields\)/, 'review uses a presentation-only group filter')
+assert.match(pageStyles, /\.reviewFooter\s*\{[\s\S]*width:\s*min\(100%, 76rem\)/, 'sticky review footer shares the review content frame')
 assert.doesNotMatch(comparisonCard, /Strona \{/, 'evidence does not display model-supplied page numbers')
 
 console.log('Source Contract presentation acceptance passed')

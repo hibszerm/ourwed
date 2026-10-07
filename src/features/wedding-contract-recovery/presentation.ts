@@ -145,6 +145,18 @@ export function buildRecoveryDecisionGroups(fields: RecoveryFieldComparison[]): 
   )
 }
 
+function hasReviewValue(value: string): boolean {
+  const normalized = value.trim()
+  return normalized.length > 0 && normalized !== '—'
+}
+
+/** Presentation-only filter: preserve persisted fields and Apply decisions while omitting empty rows. */
+export function buildRecoveryReviewGroups(fields: RecoveryFieldComparison[]): RecoveryDecisionGroup[] {
+  return buildRecoveryDecisionGroups(fields).filter((group) =>
+    hasReviewValue(group.currentValue) || hasReviewValue(group.extractedValue),
+  )
+}
+
 export function recoverySectionLabel(sectionKey: RecoveryPresentationSectionKey): string {
   return SECTION_LABELS[sectionKey]
 }
