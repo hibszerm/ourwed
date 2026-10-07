@@ -38,6 +38,10 @@
   width: 100%;
 }
 
+.workspace.sheet {
+  padding: 20px 24px 22px;
+}
+
 .contractColumn,
 .documentsColumn {
   min-width: 0;
@@ -238,7 +242,7 @@
 }
 
 .document {
-  margin-top: 10px;
+  margin-top: 8px;
   max-width: 46rem;
 }
 
@@ -322,7 +326,7 @@
   flex-wrap: wrap;
   align-items: center;
   gap: 8px;
-  margin-top: 14px;
+  margin-top: 12px;
 }
 
 .docAction {
@@ -442,8 +446,8 @@
   display: flex;
   flex-wrap: wrap;
   align-items: center;
-  gap: 2px 2px;
-  margin-top: 8px;
+  gap: 8px;
+  margin-top: 12px;
 }
 
 .workflowAction {
@@ -451,17 +455,14 @@
   align-items: center;
   gap: 7px;
   position: relative;
-  min-height: 36px;
+  min-height: 37px;
   margin: 0;
-  padding: 0 8px;
-  border: 0;
-  border-radius: 6px;
-  background: none;
-  color: color-mix(
-    in srgb,
-    var(--color-accent, #8b7355) 72%,
-    var(--color-text-secondary) 28%
-  );
+  padding: 0 11px;
+  border: 1px solid
+    color-mix(in srgb, var(--border-subtle, var(--color-border)) 68%, transparent);
+  border-radius: 9px;
+  background: color-mix(in srgb, var(--color-bg-elevated) 74%, transparent);
+  color: var(--color-text-secondary);
   font: inherit;
   font-size: 0.8125rem;
   font-weight: 500;
@@ -469,7 +470,11 @@
   line-height: 1.2;
   cursor: pointer;
   text-decoration: none;
-  transition: color var(--modern-motion-fast) var(--modern-ease-out);
+  transition:
+    background-color var(--modern-motion-fast) var(--modern-ease-out),
+    border-color var(--modern-motion-fast) var(--modern-ease-out),
+    color var(--modern-motion-fast) var(--modern-ease-out),
+    transform var(--modern-motion-fast) var(--modern-ease-out);
 }
 
 .workflowIcon {
@@ -490,14 +495,25 @@
 }
 
 .workflowAction:hover {
-  color: var(--color-accent, #8b7355);
-  text-decoration: underline;
-  text-underline-offset: 3px;
-  text-decoration-color: color-mix(in srgb, currentColor 32%, transparent);
+  border-color: color-mix(
+    in srgb,
+    var(--border-subtle, var(--color-border)) 48%,
+    var(--color-text-primary) 15%
+  );
+  background: color-mix(in srgb, var(--color-bg-elevated) 92%, var(--color-text-primary) 3%);
+  color: var(--color-text-primary);
 }
 
-.workflowAction:active {
-  color: var(--color-accent-hover, var(--color-accent, #8b7355));
+.workflowAction:active:not(:disabled) {
+  transform: translateY(1px);
+  background: color-mix(in srgb, var(--color-bg-elevated) 84%, var(--color-text-primary) 6%);
+}
+
+.workflowAction:disabled {
+  border-color: color-mix(in srgb, var(--color-border) 65%, transparent);
+  background: color-mix(in srgb, var(--color-bg-subtle, var(--color-surface)) 78%, transparent);
+  color: var(--color-text-tertiary, var(--color-text-secondary));
+  cursor: not-allowed;
 }
 
 .workflowAction:focus-visible {
@@ -1215,6 +1231,10 @@
     padding: 18px 16px 20px;
   }
 
+  .workspace.sheet {
+    padding: 18px 16px 20px;
+  }
+
   .workspace {
     gap: 18px;
   }
@@ -1245,6 +1265,10 @@
   .docActions,
   .paymentActions {
     justify-content: flex-start;
+  }
+
+  .manageRow {
+    gap: 8px;
   }
 
   .statusRow {
