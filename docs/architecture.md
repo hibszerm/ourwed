@@ -531,7 +531,7 @@ Track contract document lifecycle per wedding (one row per wedding).
 
 ### Entry points
 
-- Wedding Detail / workflow action → `GenerateContractModal`
+- Wedding Detail / workflow action → `/sluby/:weddingId/umowy/nowa` (Option B generation)
 - `weddingActionsService.generateContract`
 
 ### Database

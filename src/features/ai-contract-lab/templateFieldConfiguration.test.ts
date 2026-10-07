@@ -560,22 +560,23 @@ await run('AM–AO — Phase A Lab Edge absent / production surfaces untouched',
     root,
     'src/features/documents/template/ContractTransformationService.ts',
   )
-  const genModal = join(
+  const detailHostModals = join(
     root,
-    'src/features/weddings/actions/GenerateContractModal.tsx',
+    'src/features/weddings/detail/WeddingDetailHostModals.tsx',
   )
   assert(!existsSync(prompt), 'AM retired Phase A Lab Edge prompt is absent')
   assert(existsSync(transform), 'renderer exists')
-  assert(existsSync(genModal), 'generator modal exists')
+  assert(existsSync(detailHostModals), 'wedding detail modal host exists')
+  const hostSrc = readFileSync(detailHostModals, 'utf8')
+  assert(!hostSrc.includes('GenerateContractModal'), 'retired generator modal is not mounted')
   const transformSrc = readFileSync(transform, 'utf8')
   assert(
     !transformSrc.includes('templateFieldConfiguration'),
     'AN production renderer untouched',
   )
-  const genSrc = readFileSync(genModal, 'utf8')
   assert(
-    !genSrc.includes('templateFieldConfiguration'),
-    'AO production generator untouched',
+    existsSync(join(root, 'src/pages/WeddingContractGenerationPage.tsx')),
+    'AO current generation page remains present',
   )
 })
 

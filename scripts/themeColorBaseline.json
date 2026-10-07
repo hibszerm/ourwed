@@ -43,7 +43,6 @@
     "features/wedding-contract-recovery/components/WeddingContractRecoveryStepper.module.css": 3,
     "features/wedding-contract-recovery/components/WeddingSourceContractsPanel.module.css": 3,
     "features/weddings/actions/ContractDocumentPreview.module.css": 21,
-    "features/weddings/actions/GenerateContractModal.module.css": 8,
     "features/weddings/components/WeddingCard.module.css": 3,
     "features/weddings/components/WeddingList.module.css": 1,
     "features/weddings/components/WeddingsViewSwitch.module.css": 1,

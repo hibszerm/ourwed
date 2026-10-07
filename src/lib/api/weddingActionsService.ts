@@ -217,7 +217,7 @@ export const weddingActionsService = {
   },
 
   /**
-   * Mark wedding contract as generated after the modal saves DOCX/PDF.
+   * Mark wedding contract as generated after the generation page saves the DOCX.
    * Document bytes are persisted by saveGeneratedContract — this only updates CRM state.
    */
   async markContractGenerated(
@@ -267,7 +267,7 @@ export const weddingActionsService = {
   },
 
   /**
-   * @deprecated Prefer GenerateContractModal (template picker → completeness → editor).
+   * @deprecated Prefer the authenticated Option B generation route.
    * Kept for any legacy callers that only need status flip.
    */
   async generateContract(weddingId: string): Promise<GenerateContractResult> {

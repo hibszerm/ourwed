@@ -1,22 +1,28 @@
-# Contract generation spike
+# Option B contract generation (current production path)
 
-This offline experiment transforms a source DOCX using authoritative generation input. The source contract and an AI-built literal inventory supply context for planning; deterministic code checks declared authorities, arithmetic, literal survival, and DOCX structure. AI owns language understanding, while an independent reviewer owns semantic correctness.
+This feature implements the approved OurWed contract-generation flow. It is used by the production `contract-generation-boundary` Edge Function and the wedding contract-generation UI. The directory name “spike” is historical; this is not an offline-only experiment.
 
-## Flow
+## Current flow
 
-1. Read the DOCX and build stable `part#pN` references for body paragraphs, table-cell paragraphs, headers, and footers; read supported textual document properties.
-2. Ask a source-inventory model to identify exact source-instance literals. This stage receives the source only, without new CRM or wedding data.
-3. Ask the planner to sweep the complete source and inventory, then return missing inputs, generic fact changes, retained literals, and safe block operations. Non-READY plans expose no executable operations.
-4. Verify authority references, exact declared values, declared arithmetic, inventory dispositions, and operation targets without interpreting contract wording.
-5. Apply READY operations to the original DOCX package, preserving OOXML structure, tables, styles, numbering, and dynamic Word fields. Deterministic candidate checks verify ZIP/XML integrity, literal removals/additions, untouched blocks, fields, and table structure.
-6. Render/open the candidate and send source, authoritative input, inventory, planner provenance, candidate, and a mechanical changed-block diff to a read-only independent AI reviewer. A failure stops; there is no automatic repair.
+1. The wedding UI calls the authenticated boundary client to start or continue a generation run.
+2. The Edge Function verifies the signed-in user and wedding ownership, then loads current wedding, package, template/version, source DOCX, questionnaire, payment, extras, locations, and travel context.
+3. The Generator returns one of `MISSING_INPUT`, `CONFLICT_INPUT`, or `READY`. Missing answers are submitted through the continuation action and checked against the stored requirements and refreshed authority. Conflict verification is bounded to the normal conflict path.
+4. For `READY`, structured BlockEdits are applied to the source DOCX package by the DOCX editor. Deterministic checks validate the edited candidate before the bounded Reviewer is called.
+5. An accepted candidate is temporary and shown in Preview. Preview does not save the contract. The user explicitly saves/finalizes to create a durable document and version.
+6. DOCX is the durable artifact. PDF is converted on demand by the separate `contract-docx-to-pdf` Edge Function. Regeneration, version history, downloads, and sent/signed status use their existing product services.
 
-The model boundary uses whole-block text operations rather than character offsets. Replacements preserve paragraph properties and source run styling. Insertions require a same-part `styleSourceBlockId`; inherited numbering, section properties, page breaks, and keep-next are removed from inserted paragraphs.
+The source DOCX remains the document base. Authority and provenance rules, MissingInput/continuation behavior, source-preserving edits, deterministic validation, Reviewer limits, and explicit finalization are part of the production contract and should not be changed as incidental cleanup.
 
-## Test fixtures
+## Model boundaries
 
-- `fixtures/source-video-standard.docx` is a structural and content test fixture.
-- `fixtures/work-generated-reference.docx` is a reference output fixture.
-- `multi-template-acceptance/cases/` contains isolated acceptance cases and source DOCX/input data.
+Generator, Reviewer, and Conflict Verifier have separate model/configuration boundaries. The production Edge Function reads the dedicated configuration; this document intentionally does not record secret values. Provider-backed flows must not be exercised by offline tests unless those tests explicitly stub the provider.
 
-Fixture names and values are test data, not runtime routing rules. This spike has no production provider client, API key, production UI, or deployment path.
+## Source Contract is separate
+
+The Source Contract feature imports an existing external PDF/DOCX. It supports storing a document without analysis, or analyzing it into a reviewable proposal followed by an explicit atomic Apply. It does not generate a new contract and is documented in `src/features/wedding-contract-recovery/`.
+
+## Tests and fixtures
+
+The tests and fixtures under this directory protect the production protocol, authority handling, source DOCX editing, validation, lifecycle, and UI integration. Keep useful structural and adversarial DOCX fixtures even when they originated during earlier development experiments.
+
+Older sparse/full-rewrite and semantic-mapping generation designs are historical and are not the current Option B route. See `docs/sparse-wedding-contract-migration.md` for the preserved migration record; do not treat its old route or rollback instructions as current production guidance.

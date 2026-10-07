@@ -396,12 +396,9 @@ run('P — package-contract generation does not show Zakres poprawek', () => {
 })
 
 run('Q — user can explicitly update CRM data', () => {
-  // Legacy modal may still offer CRM scope; wedding package route does not.
-  const modal = source('src/features/weddings/actions/GenerateContractModal.tsx')
-  assert(
-    modal.includes('update_wedding') || modal.includes('Zapisz'),
-    'legacy path may retain CRM opt-in',
-  )
+  const gen = source('src/pages/WeddingContractGenerationPage.tsx')
+  assert(gen.includes('finalizeContractGeneration'), 'CRM changes remain behind the explicit finalization flow')
+  assert(!gen.includes('update_wedding'), 'generation page does not restore the retired legacy CRM opt-in')
 })
 
 run('R — structured wedding authority is reconstructed on the server', () => {

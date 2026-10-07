@@ -38,7 +38,6 @@ import { getUserFacingErrorMessage } from '@/lib/errors/userFacingError'
 export type WeddingDetailModalState =
   | { type: 'payment'; asDeposit: boolean; payment?: Payment }
   | { type: 'note' }
-  | { type: 'contract' }
   | { type: 'missing_contract_data' }
   | { type: 'client_collection' }
   | { type: 'travel_fee' }

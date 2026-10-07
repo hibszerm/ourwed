@@ -1,4 +1,6 @@
-# Migration: sparse AI as primary wedding contract engine
+# HISTORICAL / SUPERSEDED — Migration: sparse AI as primary wedding contract engine
+
+> This is an archaeology record of the architecture adopted on 2026-07-27. It does not describe the current production contract-generation path. Current generation uses Option B: the authenticated `contract-generation-boundary`, source DOCX BlockEdits, deterministic validation, bounded Reviewer, Preview, and explicit Save/finalize. Do not use the historical rollback flag or workflow below as current operational instructions. Source Contract import is a separate feature.
 
 Date: 2026-07-27
 

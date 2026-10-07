@@ -1,83 +1,44 @@
-# Contract reproduction workflow
+# OurWed contract workflows
 
-OurWed is a **contract reproduction system**, not a contract builder.
+This document describes the current production contract flows. Contract generation and Source Contract import are separate features with different purposes and persistence.
 
-The studio uploads its own legal contract once. From then on, OurWed recreates
-that same document for each wedding by transforming the original text —
-substituting only dynamic values.
+## Option B — generate a new contract
 
-## Official user journey
+The wedding detail “Generate contract” action checks readiness and navigates to `/sluby/:weddingId/umowy/nowa`. The page uses the authenticated `contract-generation-boundary` client; it does not open the retired legacy generation modal.
 
-1. Upload contract (DOCX/PDF) → Contract Template (AI detects variables once)  
-2. Create questionnaire manually (`/ankiety`)  
-3. Client fills questionnaire → Wedding created  
-4. Open Wedding → **Generate Contract**  
-5. Choose template  
-6. VariableResolver fills Company / Package / Wedding / Couple / Questionnaire automatically  
-7. If nothing missing → generate immediately  
-8. If missing → show ONLY unresolved fields (fill or omit)  
-9. Sparse Full-AI rewrite transforms the **original** contract (values / structure via quality gate)  
-10. Preview / minor edits  
-11. Save DOCX + print/PDF  
-
-## Generation strategy (important)
-
-Generation does **not** fill `{{placeholders}}` and does **not** rebuild legal text from scratch.
-
-### Current primary contract generation
-
-```
-WeddingContractGenerationPage
-  → WeddingSparseContractGenerationService.generate
-  → indexDocxForTransform
-  → buildContractTransformationDataset
-  → runSparseProductTransform
-  → runFullAiRewrite
-  → ai-contract-full-rewrite
-  → runPostReconstructionQualityGate(mode: 'full_ai')
-  → writeTransformedDocx
-  → persist / preview / save
+```text
+wedding UI
+  → authenticated contract-generation-boundary
+  → current wedding/package/template/source and authority context
+  → Generator: MISSING_INPUT | CONFLICT_INPUT | READY
+  → user continuation or bounded conflict verification, when required
+  → source DOCX BlockEdits
+  → deterministic mechanical validation
+  → bounded advisory Reviewer
+  → temporary candidate Preview
+  → explicit Save/finalize
+  → durable DOCX and generated-document version
 ```
 
-### Legacy emergency fallback
+The active template version's source DOCX remains the physical document base. Current authority, package scope, extras, travel and payment rules govern values; source clauses, structure and formatting are preserved subject to the validated edits. MissingInput answers are submitted through the continuation action. The workflow does not add an automatic retry or repair loop.
 
-```
-VITE_USE_SPARSE_WEDDING_CONTRACT_GENERATION=false
-  → WeddingContractGenerationService.generate
-  → prepareVerification
-  → transformContract
-```
+Preview is not persistence. Save/finalize is explicit. DOCX is the retained artifact; PDF is generated on demand by the `contract-docx-to-pdf` function. Regeneration creates another version while prior generated versions remain available. Sent/signed state is a separate manual status operation.
 
-`transformContract` is **deterministic slot rendering** on the uploaded DOCX.
-It does **not** invoke any AI transform Edge function.
+## Source Contract — import an existing document
 
-### Historical note (retired)
+Source Contract is not an Option B input stage. It handles an existing external or historical PDF/DOCX and provides two paths:
 
-An earlier experimental path used Edge `document-ai-transform` for whole-document
-value substitution. That client adapter and repository Edge source are retired.
-It is **not** part of current production generation.
+1. **Store only:** privately upload and record the document without extraction, model analysis, recovery, or wedding-data mutation.
+2. **Analyze and populate:** extract document text, call the authenticated `wedding-contract-recovery-analyze` function, review the proposed values, explicitly select fields, then apply them through the atomic `apply_wedding_contract_recovery` RPC.
 
-### Master document
+Apply is owner- and record-bound, concurrency guarded, and persists selected changes atomically. It synchronizes the approved partner/questionnaire fields and related wedding/package/extras/travel/deadline values according to the reviewed selections.
 
-`document_template_versions.source_docx_path` is always the source of truth.
-The fillable `template_docx_path` (placeholders) is **not** used for generation.
+## Template management and shared documents
 
-## Modules
+Template upload, version pinning, readiness/analysis, durable document persistence, downloads, and version history are supporting product capabilities. Their existence does not make the older generation implementation current. Keep template-management and shared document services distinct from the generator being selected for new contracts.
 
-| Module | Role |
-| --- | --- |
-| `/ustawienia/dokumenty/szablony` | Contract Templates |
-| `/ankiety` | Manual questionnaires |
-| Wedding → Generate Contract | Sparse Full-AI generate + export |
+## Historical architecture notes
 
-## Key code
+The old sparse/full-rewrite generation workflow and its rollback configuration are preserved in [the July 2026 migration note](sparse-wedding-contract-migration.md). That file records a previous architecture and is not current operational guidance. Older deterministic slot-generation and placeholder-filling implementations also remain in the repository; they are not the current Option B route and should not be removed without a separate verified call-graph and compatibility review.
 
-- `WeddingSparseContractGenerationService` — current wedding generation orchestration  
-- `runSparseProductTransform` / `runFullAiRewrite` → `ai-contract-full-rewrite`  
-- `ContractTransformationService.transformContract` — legacy deterministic slots  
-- Import / reanalyze AI (`document-ai-analysis`) — variable detection only  
-
-## Mock / offline
-
-`VITE_DOCUMENT_AI_USE_MOCK=true` uses deterministic example→value replacement
-from the import slot map for **document analysis** (no LLM).
+For the current implementation details, see [the Option B feature README](../src/features/contract-generation-spike/README.md) and the separate Source Contract recovery feature.

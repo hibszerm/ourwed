@@ -377,10 +377,6 @@ await run('CRM status follows artifact persistence in both UIs', async () => {
       new URL('../../../pages/WeddingContractGenerationPage.tsx', import.meta.url),
       'utf8',
     ),
-    readFile(
-      new URL('../../weddings/actions/GenerateContractModal.tsx', import.meta.url),
-      'utf8',
-    ),
   ])
   for (const source of files) {
     const persistence = source.indexOf('await saveGeneratedContract({')

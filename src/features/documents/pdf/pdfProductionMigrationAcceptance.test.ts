@@ -150,14 +150,9 @@ assert(
   !briefConvert.includes('paragraphsToPrintHtml'),
   'brief unrelated',
 )
-const genModal = read('src/features/weddings/actions/GenerateContractModal.tsx')
 assert(
-  genModal.includes('paragraphsToPrintHtml'),
-  'legacy print still exists',
-)
-assert(
-  genModal.includes('Drukuj') || genModal.includes('printHtmlAsPdf') || genModal.includes('print'),
-  'legacy is print not pdfshift',
+  !existsSync(join(ROOT, 'src/features/weddings/actions/GenerateContractModal.tsx')),
+  'legacy modal print path is retired',
 )
 
 console.log('OK pdf-production migration acceptance')

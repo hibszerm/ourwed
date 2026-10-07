@@ -57,13 +57,13 @@ run('modern wedding detail exposes persisted contracts and generation action', (
     'src/features/weddings/modern-detail/ModernWeddingDetailWorkspace.tsx',
   )
   assert(modern.includes('GeneratedWeddingContractService.listForWedding'), 'modern contract listing missing')
-  assert(modern.includes('Generuj umowę'), 'modern generation action missing')
+  assert(modern.includes('Wygeneruj umowę'), 'modern generation action missing')
   assert(workspace.includes('ModernWeddingContractFinanceWorkspace'), 'modern wedding workspace mount missing')
 })
 
 run('generation and saved preview routes are canonical', () => {
   const router = source('src/routes/router.tsx')
-  const detail = ({ includes: () => true, indexOf: () => 0, slice: () => '', length: 0, match: () => null } as { includes: (s: string) => boolean; indexOf: (s: string) => number; slice: (a?: number, b?: number) => string; length: number; match: (r: RegExp) => null })
+  const detail = source('src/features/weddings/detail/useWeddingDetailHost.ts')
   assert(
     router.includes("path: '/sluby/:weddingId/umowy/nowa'"),
     'generation route missing',

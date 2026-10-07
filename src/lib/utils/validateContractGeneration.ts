@@ -1,7 +1,7 @@
 /**
  * On-demand contract generation guard — wedding commercial data only.
- * Studio/company Settings must not block V1 sparse generation.
- * Template-analysis readiness stays in GenerateContractModal / template tools.
+ * Studio/company Settings must not block the current Option B generation flow.
+ * Template-analysis readiness remains in template tools.
  */
 
 import type { CompanyDetails } from '@/types/company'

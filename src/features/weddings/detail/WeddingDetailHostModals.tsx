@@ -1,6 +1,5 @@
 import { AddPaymentModal } from '@/features/weddings/actions/AddPaymentModal'
 import { AddNoteModal } from '@/features/weddings/actions/AddNoteModal'
-import { GenerateContractModal } from '@/features/weddings/actions/GenerateContractModal'
 import { MissingContractDataDialog } from '@/features/weddings/actions/MissingContractDataDialog'
 import { ClientCollectionMissingDialog } from '@/features/weddings/detail/editing/ClientCollectionMissingDialog'
 import { TravelFeeResolveModal } from '@/features/weddings/detail/travel-fee/TravelFeeResolveModal'
@@ -51,11 +50,6 @@ export function WeddingDetailHostModals({ host }: { host: Host }) {
       />
       <AddNoteModal
         open={modal?.type === 'note'}
-        onClose={closeModal}
-        wedding={wedding}
-      />
-      <GenerateContractModal
-        open={modal?.type === 'contract'}
         onClose={closeModal}
         wedding={wedding}
       />

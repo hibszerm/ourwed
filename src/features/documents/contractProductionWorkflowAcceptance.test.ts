@@ -1159,16 +1159,11 @@ await run('AQ', 'contract grids and wizard adapt to narrow screens', () => {
   assert(wizardCss.includes('grid-template-columns: 1fr'), 'wizard fields do not stack')
 })
 
-await run('AR', 'CRM is marked generated only after persistence and never sent or signed', () => {
-  for (const path of [
-    'src/pages/WeddingContractGenerationPage.tsx',
-    'src/features/weddings/actions/GenerateContractModal.tsx',
-  ]) {
-    const ui = source(path)
-    const persistence = ui.indexOf('await saveGeneratedContract({')
-    const crm = ui.indexOf('await weddingActionsService.markContractGenerated')
-    assert(persistence >= 0 && crm > persistence, `${path} updates CRM before persistence`)
-  }
+await run('AR', 'Option B marks generated only after persistence and never sent or signed', () => {
+  const ui = source('src/pages/WeddingContractGenerationPage.tsx')
+  const persistence = ui.indexOf('await saveGeneratedContract({')
+  const crm = ui.indexOf('await weddingActionsService.markContractGenerated')
+  assert(persistence >= 0 && crm > persistence, 'Option B updates CRM after persistence')
   // Generated preview no longer persists/regenerates in-page (edit CTA removed).
   const preview = source('src/pages/WeddingContractPreviewPage.tsx')
   assert(!preview.includes('saveGeneratedContract'), 'preview must not persist')

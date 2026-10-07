@@ -27,8 +27,8 @@ const templateServiceSrc = readFileSync(
   join(root, 'lib/api/documents/templateService.ts'),
   'utf8',
 )
-const modalSrc = readFileSync(
-  join(root, 'features/weddings/actions/GenerateContractModal.tsx'),
+const hostModalsSrc = readFileSync(
+  join(root, 'features/weddings/detail/WeddingDetailHostModals.tsx'),
   'utf8',
 )
 const hooksSrc = readFileSync(
@@ -66,16 +66,8 @@ run('1 — listSummaries uses join projection, not per-template listVersions loo
   assert(!listFn.includes('extractDocx'), 'no docx extract')
 })
 
-run('2 — Generate picker does not invalidate+refetch on open', () => {
-  assert(
-    !modalSrc.includes('invalidateQueries({ queryKey: documentTemplateKeys.all })'),
-    'no blanket invalidate on open',
-  )
-  assert(!/refetchTemplates\(\)/.test(modalSrc), 'no forced refetch on open')
-  assert(
-    modalSrc.includes('useDocumentTemplates()'),
-    'uses shared summaries hook',
-  )
+run('2 — wedding detail does not mount the retired template-picker modal', () => {
+  assert(!hostModalsSrc.includes('GenerateContractModal'), 'legacy picker is not mounted')
 })
 
 run('3 — hooks share document-template-summaries key and cache settings', () => {

@@ -90,26 +90,25 @@ function stubCompany() {
   })
 }
 
-const page = /* deleted */ 'src/pages/WeddingDetailPage.tsx'
 const host = resolve(
   process.cwd(),
   'src/features/weddings/detail/useWeddingDetailHost.ts',
+)
+const hostModals = resolve(
+  process.cwd(),
+  'src/features/weddings/detail/WeddingDetailHostModals.tsx',
 )
 const dialog = resolve(
   process.cwd(),
   'src/features/weddings/actions/MissingContractDataDialog.tsx',
 )
-const generateModal = resolve(
-  process.cwd(),
-  'src/features/weddings/actions/GenerateContractModal.tsx',
-)
 const v2Shell = resolve(
   process.cwd(),
-  'src/features/weddings/detail/v2/WeddingDetailV2.tsx',
+  'src/features/weddings/modern-detail/ModernWeddingDetailWorkspace.tsx',
 )
 const finance = resolve(
   process.cwd(),
-  'src/features/weddings/detail/v2/WeddingContractFinanceWorkspace.tsx',
+  'src/features/weddings/modern-detail/ModernWeddingContractFinanceWorkspace.tsx',
 )
 
 run('1–3. Workspace does not show persistent Gotowość umowy', () => {
@@ -136,10 +135,11 @@ run('4–7. No readiness counts / categories / checklist on detail', () => {
   const financeSrc = readFileSync(finance, 'utf8')
   assert(!financeSrc.includes('progressTrack'), 'no progress')
   assert(!financeSrc.includes('Firma 4'), 'no category counters')
-  assert(financeSrc.includes('Pakiet i usługi'), 'commercial section')
+  assert(financeSrc.includes('Usługi dodatkowe'), 'commercial section')
   assert(
-    financeSrc.includes('Umowa nie została jeszcze wygenerowana'),
-    'lifecycle',
+    financeSrc.includes("headline.kind === 'ready'") &&
+      financeSrc.includes("headline.kind === 'no_template'"),
+    'current contract lifecycle states',
   )
 })
 
@@ -360,35 +360,36 @@ run('14b. Dialog uses travel title override when travel-only', () => {
 })
 
 run('14c. Direct generation route guards unresolved travel', () => {
-  const genPage = resolve(
-    process.cwd(),
-    'src/pages/WeddingContractGenerationPage.tsx',
+  const validationSrc = readFileSync(
+    resolve(process.cwd(), 'src/lib/utils/validateContractGeneration.ts'),
+    'utf8',
   )
-  const src = readFileSync(genPage, 'utf8')
-  assert(src.includes('isTravelFeeResolved'), 'shared travel helper')
-  assert(src.includes('travel-fee-generation-block'), 'block UI')
-  assert(src.includes('Najpierw ustal koszt dojazdu.'), 'polish guidance')
-  assert(
-    src.includes("navigate(`/sluby/${wedding.id}?tab=overview`)"),
-    'back to overview',
-  )
-  assert(
-    src.includes('if (!isTravelFeeResolved(wedding))'),
-    'generate() hard stop',
-  )
+  const hostSrc = readFileSync(host, 'utf8')
+  assert(validationSrc.includes('isTravelFeeResolved'), 'shared travel helper')
+  assert(validationSrc.includes('TRAVEL_ONLY_TITLE'), 'travel-only guidance')
+  assert(validationSrc.includes('const travelUnresolved = !isTravelFeeResolved(wedding)'), 'unresolved travel blocks readiness')
+  assert(hostSrc.includes('validateContractGeneration(wedding)'), 'generate action applies readiness gate')
 })
 
-run('18. Template blockers remain in GenerateContractModal', () => {
-  const src = readFileSync(generateModal, 'utf8')
-  assert(src.includes('incomplete'), 'incomplete templates')
-  assert(src.includes('Dokończ konfigurację'), 'template action')
+run('18. Wedding detail cannot open the retired legacy contract modal', () => {
+  const hostSrc = readFileSync(host, 'utf8')
+  const modalSrc = readFileSync(hostModals, 'utf8')
+  assert(!hostSrc.includes("{ type: 'contract' }"), 'legacy modal state removed')
+  assert(!modalSrc.includes('GenerateContractModal'), 'legacy modal is not mounted')
+  assert(!existsSync(resolve(process.cwd(), 'src/features/weddings/actions/GenerateContractModal.tsx')), 'legacy modal file removed')
+  for (const retainedModal of [
+    'AddPaymentModal',
+    'AddNoteModal',
+    'MissingContractDataDialog',
+    'ClientCollectionMissingDialog',
+    'TravelFeeResolveModal',
+    'DiscardChangesDialog',
+  ]) {
+    assert(modalSrc.includes(retainedModal), `${retainedModal} remains mounted`)
+  }
   assert(
-    src.includes('WeddingContractGenerationService.selectTemplates'),
-    'shared picker service',
-  )
-  assert(
-    !src.includes('evaluateWeddingContractReadiness'),
-    'no wedding readiness UI in modal',
+    hostSrc.includes('navigate(`/sluby/${wedding.id}/umowy/nowa`)'),
+    'generation still navigates to Option B',
   )
 })
 
@@ -402,11 +403,18 @@ run('19. Validation recomputes each attempt (pure function, no cache)', () => {
   assert(hostSrc.includes('validateContractGeneration(wedding)'), 'fresh call')
 })
 
-run('20. V2 uses the page-level generation guard', () => {
-  const pageSrc = readFileSync(page, 'utf8')
+run('20. Both wedding detail shells use the shared generation guard', () => {
+  const modernSrc = readFileSync(
+    resolve(process.cwd(), 'src/features/weddings/modern-detail/ModernWeddingDetailWorkspace.tsx'),
+    'utf8',
+  )
+  const classicSrc = readFileSync(
+    resolve(process.cwd(), 'src/features/weddings/detail/v2/dispatchWeddingNextAction.ts'),
+    'utf8',
+  )
   const hostSrc = readFileSync(host, 'utf8')
-  assert(pageSrc.includes('WeddingDetailV2'), 'v2')
-  assert(!pageSrc.includes('WeddingDetailV1'), 'no v1')
+  assert(modernSrc.includes("onHeroAction('generate_contract')"), 'modern action uses shared handler')
+  assert(classicSrc.includes("case 'generate_contract'"), 'classic action uses shared handler')
   assert(hostSrc.includes('onHeroAction: handleHeroAction'), 'shared')
   assertEq(
     (hostSrc.match(/handleGenerateContract/g) ?? []).length >= 2,
@@ -415,10 +423,7 @@ run('20. V2 uses the page-level generation guard', () => {
   )
 })
 
-run('21. Detail generate does not fetch company for an artificial gate', () => {
-  const shell = readFileSync(v2Shell, 'utf8')
-  assert(!shell.includes('companyDetailsService'), 'v2 no company')
-  assert(!shell.includes('evaluateWeddingContractReadiness'), 'v2 no eval')
+run('21. Detail generate uses the current readiness guard and Option B route', () => {
   const hostSrc = readFileSync(host, 'utf8')
   assert(!hostSrc.includes('companyDetailsService'), 'generate does not load studio_details')
   assert(
