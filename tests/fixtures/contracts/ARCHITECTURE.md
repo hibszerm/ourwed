@@ -1,3 +1,6 @@
+# Historical architecture fixture — not the current production generation path.
+# Current contract generation is documented in `docs/contract-workflow.md`.
+
 # CG1 Architecture Snapshot (audit facts)
 
 Frozen recovery: `086ac1626731ec42ce5210b49b5c636e1ca802e1`

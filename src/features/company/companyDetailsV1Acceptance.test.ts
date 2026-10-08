@@ -59,9 +59,6 @@ const hostSrc = read('src/features/weddings/detail/useWeddingDetailHost.ts')
 const datasetSrc = read(
   'src/features/ai-contract-transform/transformationDataset.ts',
 )
-const sparseService = read(
-  'src/features/documents/template/WeddingSparseContractGenerationService.ts',
-)
 const uploadSrc = read(
   'src/features/documents/template/packageContractTemplateUpload.ts',
 )
@@ -461,24 +458,12 @@ run('J. Quick / Full wedding creation flows are unaffected', () => {
   )
 })
 
-run('K. sparse generation dataset still contains no company fields', () => {
+run('K. shared transformation dataset still contains no company fields', () => {
   assert(
     !datasetSrc.includes('company_name'),
     'dataset builder has no company_name',
   )
   assert(!datasetSrc.includes('CompanyProvider'), 'dataset does not load CompanyProvider')
-  assert(
-    !sparseService.includes('companyDetailsService'),
-    'sparse service does not load studio_details',
-  )
-  assert(
-    !sparseService.includes('CompanyProvider'),
-    'sparse service does not use CompanyProvider',
-  )
-  assert(
-    sparseService.includes('buildContractTransformationDataset'),
-    'sparse path still uses wedding dataset',
-  )
 })
 
 run('L. package contract upload still creates no company bindings', () => {

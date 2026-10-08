@@ -162,11 +162,6 @@ export type { FinalContractGenerationArtifact } from './finalContractGenerationA
 export { resolveContractSaveBytes } from './resolveContractSaveBytes'
 export type { ResolveContractSaveBytesResult } from './resolveContractSaveBytes'
 export {
-  WeddingSparseContractGenerationService,
-  resolveSparseTemplateSource,
-} from './WeddingSparseContractGenerationService'
-export type { SparseGenerationSource } from './WeddingSparseContractGenerationService'
-export {
   uploadPackageContractTemplate,
   downloadPackageContractTemplateSource,
   clearPackageContractTemplate,

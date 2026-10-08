@@ -126,8 +126,8 @@ assert(
 
 // DOCX generation path still present
 assert(
-  existsSync(join(ROOT, 'src/features/documents/template/WeddingSparseContractGenerationService.ts')),
-  'DOCX generation kept',
+  read('src/pages/WeddingContractGenerationPage.tsx').includes('startContractGeneration'),
+  'DOCX generation remains on the authenticated Option B path',
 )
 assert(
   read('src/features/documents/template/ContractExportService.ts').includes('generateDocx'),

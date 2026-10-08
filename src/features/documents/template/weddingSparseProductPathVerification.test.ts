@@ -1,111 +1,60 @@
 /**
- * Architectural + path verification for sparse wedding product generation.
- * Run: npx tsx --tsconfig tsconfig.app.json src/features/documents/template/weddingSparseProductPathVerification.test.ts
+ * Current contract product-path and shared template-upload verification.
+ * Run: npm run test:sparse-wedding-contracts
  */
 
 import { existsSync, readFileSync } from 'node:fs'
 import { resolve } from 'node:path'
 import { detectPaymentSchedule } from './payment-schedule/detectPaymentSchedule'
 import { evaluatePaymentSchedulePolicy } from './payment-schedule/paymentSchedulePolicy'
-import { isSparseWeddingContractGenerationEnabled } from './sparseWeddingContractFlags'
 
-function assert(c: boolean, m: string) {
-  if (!c) throw new Error(m)
+function assert(condition: boolean, message: string) {
+  if (!condition) throw new Error(message)
 }
 
-function source(rel: string): string {
-  return readFileSync(resolve(process.cwd(), rel), 'utf8')
+function source(relativePath: string): string {
+  return readFileSync(resolve(process.cwd(), relativePath), 'utf8')
 }
 
-const sparseService = source(
-  'src/features/documents/template/WeddingSparseContractGenerationService.ts',
-)
 const page = source('src/pages/WeddingContractGenerationPage.tsx')
 const upload = source(
   'src/features/documents/template/packageContractTemplateUpload.ts',
 )
-const transformService = source(
-  'src/features/ai-contract-transform/transformService.ts',
-)
+const packageUi = source('src/features/studio/PackageContractSection.tsx')
 const preview = source(
   'src/features/documents/contract-experience/ContractDocxPreview.tsx',
 )
-// --- Engine identity after Mode B review fix ---
-assert(
-  transformService.includes('export async function runSparseProductTransform'),
-  'product runner is runSparseProductTransform',
-)
-assert(
-  transformService.includes("mode: 'full_ai'"),
-  'product quality gate uses Mode A / full_ai policy',
-)
-assert(
-  transformService.includes('runFullAiRewrite'),
-  'product invokes ai-contract-full-rewrite sparse Edge',
-)
-assert(
-  !sparseService.includes('runGuardedProductTransform'),
-  'wedding service must not call Mode B product runner',
-)
-assert(
-  sparseService.includes('runSparseProductTransform'),
-  'wedding service uses sparse product runner',
-)
-assert(
-  !sparseService.includes('verifyGuardedTransformation'),
-  'wedding path must not inherit Mode B verifier',
-)
-assert(
-  sparseService.includes("engine: 'sparse_full_ai'"),
-  'provenance engine sparse_full_ai',
-)
 
-// 1. New package template — no AI on upload
-assert(!upload.includes('activeAiDocumentAnalyzer'), '1: no AI upload')
-assert(upload.includes('extractDocxDocumentModel'), '1: DOCX validate')
-assert(upload.includes('linkContractTemplate'), '1: link package')
+// Current generation stays on the authenticated Option B boundary.
+assert(page.includes('startContractGeneration'), 'generation starts through Option B')
+assert(page.includes('continueContractGeneration'), 'MissingInput uses Option B continuation')
+assert(page.includes('finalizeContractGeneration'), 'transaction cleanup uses Option B finalization')
+assert(page.includes('downloadAcceptedContractCandidate'), 'preview uses the accepted candidate')
+assert(page.includes('saveGeneratedContract'), 'saving remains explicit')
+assert(!page.includes('isSparseWeddingContractGenerationEnabled'), 'production route is not gated by the retired sparse flag')
+assert(!page.includes('WeddingSparseContractGenerationService'), 'production page does not reference the retired bridge')
+assert(!page.includes('WeddingContractGenerationService'), 'production page does not call the retired generator')
+assert(!page.includes('runSparseProductTransform'), 'production page does not call the historical transform runner')
+assert(!page.includes('SemanticContractGenerationService'), 'production page does not call historical semantic generation')
 
-// 2. Legacy package with slots — ignored
-assert(sparseService.includes('slots: []'), '2: payment/slots ignored')
-assert(
-  !sparseService.includes('parseSlotMap'),
-  '2: no slot_map read for generate',
-)
-assert(
-  sparseService.includes('sourceDocxPath'),
-  '2: generates from DOCX bytes',
-)
+// Package template management remains a lightweight DOCX upload flow.
+assert(upload.includes('extractDocxDocumentModel'), 'upload validates DOCX structure')
+assert(upload.includes('linkContractTemplate'), 'upload links the template to its package')
+assert(!upload.includes('activeAiDocumentAnalyzer'), 'upload does not run AI analysis')
+assert(!upload.includes('buildSlotsFromAnalysis'), 'upload does not build generated slot bindings')
+assert(packageUi.includes('uploadPackageContractTemplate'), 'package UI uses the upload flow')
+assert(!packageUi.includes('assignPackageContractFromDocx'), 'package UI does not invoke retired AI assignment')
+assert(!packageUi.includes('PackageHealthSummary'), 'package UI retains the current template-only surface')
 
-// 3. Missing DOCX bytes — hard block
-assert(
-  sparseService.includes("code: 'source_docx_not_found'"),
-  '3: missing DOCX code',
-)
-assert(
-  sparseService.includes('Brak oryginalnego pliku DOCX'),
-  '3: missing DOCX message',
-)
-
-// 4. Multi-installment — payment dialog path
-assert(
-  sparseService.includes('detectPaymentSchedule'),
-  '4: detects payment schedule',
-)
-assert(
-  sparseService.includes("status: 'manual_input_required'"),
-  '4: can require manual payment',
-)
-assert(page.includes('downloadAcceptedContractCandidate'), '4: accepted candidate preview bridge')
-assert(!page.includes('PaymentScheduleCompletionForm'), '4: no browser payment reconstruction')
-
-const multiPara = [
+// Preserve the shared payment-schedule detector's offline behavior.
+const paragraphs = [
   { index: 0, text: 'Zadatek: 1000 zł' },
   { index: 1, text: 'II rata: 2000 zł' },
   { index: 2, text: 'III rata: 2000 zł' },
 ]
 const detected = detectPaymentSchedule({
   slots: [],
-  paragraphs: multiPara,
+  paragraphs,
   finances: {
     totalContractAmount: 5000,
     depositAmount: 1000,
@@ -119,81 +68,26 @@ const policy = evaluatePaymentSchedulePolicy(detected, {
 })
 assert(
   policy.requiresManualCompletion || detected.entries.length >= 2,
-  '4: multi-installment detectable from paragraphs without slots',
+  'multi-installment schedules remain detectable without slots',
 )
+assert(!page.includes('PaymentScheduleCompletionForm'), 'browser does not reconstruct payment schedules')
 
-// Mode A vs Mode B download policy (prove we do not inherit Mode B completeness block)
-// Mode A vs Mode B download policy difference is encoded in buildQualityReport
-const qualitySrc = source(
-  'src/features/ai-contract-transform/quality/buildQualityReport.ts',
-)
-assert(
-  qualitySrc.includes("if (input.mode === 'guarded')"),
-  '4b: guarded blocks all blockingIssues',
-)
-assert(
-  qualitySrc.includes('MODE_A_FINANCIAL_BLOCK_CODES'),
-  '4b: Mode A financial block codes exist',
-)
-assert(
-  qualitySrc.includes('isModeALocationIntegrityBlock') ||
-    qualitySrc.includes('MODE_A_LOCATION_INTEGRITY'),
-  '4b: Mode A location integrity blocks exist',
-)
-assert(
-  transformService.includes("mode: 'full_ai'"),
-  '4b: product uses Mode A download policy',
-)
-assert(
-  !sparseService.includes("mode: 'guarded'"),
-  '4b: wedding service must not set guarded gate',
-)
-assert(
-  !sparseService.includes('verifyGuardedTransformation'),
-  '4b: no Mode B change-classifier verifier on product path',
-)
-
-// 5. DOCX preview + download wiring
-assert(page.includes('ContractDocxPreview') || page.includes('ContractReadyPreview'), '5: preview')
-assert(page.includes('saveGeneratedContract'), '5: persist/download path')
-assert(preview.includes('docx-preview') || preview.includes('renderAsync'), '5: docx-preview')
-
-// 6. PDF
-assert(
-  page.includes('ContractReadyPreview'),
-  '6: ready preview surface',
-)
+// Existing preview and production PDF boundaries remain intact.
+assert(page.includes('ContractReadyPreview'), 'accepted preview remains present')
+assert(preview.includes('docx-preview') || preview.includes('renderAsync'), 'DOCX preview renderer remains available')
 assert(
   source('src/features/documents/contract-experience/ContractReadyPreview.tsx').includes(
     'ContractPdfActions',
   ),
-  '6: production Cloudmersive PDF actions',
+  'production PDF actions remain available',
 )
 assert(
   source('src/features/documents/pdf/contractPdfAdapter.ts').includes('contract-docx-to-pdf'),
-  '6: Edge contract-docx-to-pdf',
+  'PDF export still uses its production Edge function',
 )
 assert(
-  !existsSync(
-    resolve(process.cwd(), 'src/features/documents/template/gotenbergPdfAdapter.ts'),
-  ),
-  '6: experimental Gotenberg client adapter absent',
+  !existsSync(resolve(process.cwd(), 'src/features/documents/template/gotenbergPdfAdapter.ts')),
+  'experimental Gotenberg client adapter remains absent',
 )
 
-// 7. Production route uses the authenticated Slice 2 boundary; legacy engines stay isolated.
-assert(!page.includes('isSparseWeddingContractGenerationEnabled'), '7: production page is not gated to the legacy engine')
-assert(page.includes('startContractGeneration'), '7: production boundary start')
-assert(!page.includes('WeddingSparseContractGenerationService.generate'), '7: no client-side legacy generation')
-assert(
-  !page.includes('WeddingContractGenerationService.generate'),
-  '7: old generator is disconnected from production page',
-)
-
-// Default flag behavior (env absent → sparse on)
-assert(
-  isSparseWeddingContractGenerationEnabled() === true,
-  '7b: default sparse enabled unless explicitly false',
-)
-
-console.log('ok — weddingSparseProductPathVerification')
-console.log('Wedding Generate path: WeddingContractGenerationPage → authenticated contract-generation-boundary → accepted candidate → existing document save/version flow')
+console.log('ok — authenticated Option B route and shared template/PDF boundaries')

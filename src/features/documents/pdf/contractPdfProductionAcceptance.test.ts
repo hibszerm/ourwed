@@ -84,8 +84,8 @@ assert(modernFinance.includes('Pobierz PDF'), 'modern card PDF label')
 
 // --- DOCX generation unchanged ---
 assert(
-  existsSync(join(ROOT, 'src/features/documents/template/WeddingSparseContractGenerationService.ts')),
-  'sparse DOCX generation kept',
+  read('src/pages/WeddingContractGenerationPage.tsx').includes('startContractGeneration'),
+  'DOCX generation remains on the authenticated Option B path',
 )
 assert(
   read('src/features/documents/template/ContractExportService.ts').includes('generateDocx'),

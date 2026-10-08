@@ -848,14 +848,6 @@ run('pipeline source: insertion wired in quality gate', async () => {
     'utf8',
   )
   assert(gate.includes('insertAdditionalServicesIntoBlocks'), 'gate wires insertion')
-  const svc = readFileSync(
-    resolve(
-      'src/features/documents/template/WeddingSparseContractGenerationService.ts',
-    ),
-    'utf8',
-  )
-  assert(svc.includes('weddingExtraServiceService'), 'loads extras')
-  assert(svc.includes('extras'), 'passes extras to dataset')
 })
 
 if (!process.exitCode) {

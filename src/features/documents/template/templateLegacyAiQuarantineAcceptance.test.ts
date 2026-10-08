@@ -37,9 +37,6 @@ const contractUi = source('src/features/documents/contractUi.ts')
 const deleteModal = source(
   'src/features/documents/components/DeleteContractModal.tsx',
 )
-const sparseGen = source(
-  'src/features/documents/template/WeddingSparseContractGenerationService.ts',
-)
 const router = source('src/routes/router.tsx')
 
 run('1. slim detail has no legacy AI CTA or readiness narrative', () => {
@@ -143,12 +140,7 @@ run('5. delete + detach safety frozen', () => {
   )
 })
 
-run('6. sparse generation wiring untouched', () => {
-  assert(
-    sparseGen.includes('runSparseProductTransform') ||
-      sparseGen.includes('generate'),
-    'sparse service present',
-  )
+run('6. package upload remains a lightweight setup flow', () => {
   assert(
     source('src/features/documents/template/packageContractTemplateUpload.ts').includes(
       'sparseTemplateOnly: true',

@@ -212,7 +212,7 @@ async function main() {
     )
   })
 
-  run('A4-4 regenerate / service boundary blocks missing reception before AI', () => {
+  run('A4-4 readiness blocks missing reception before generation', () => {
     const blocked = generationBlockedByReadiness(
       mayGenerateContract(baseWedding({ receptionLocation: '' })),
     )
@@ -224,16 +224,6 @@ async function main() {
       ),
       'mentions reception',
     )
-    const sparse = readFileSync(
-      resolve(
-        process.cwd(),
-        'src/features/documents/template/WeddingSparseContractGenerationService.ts',
-      ),
-      'utf8',
-    )
-    const guardIdx = sparse.indexOf('const readiness = mayGenerateContract(input.wedding)')
-    const aiIdx = sparse.indexOf('await runSparseProductTransform')
-    assert(guardIdx > 0 && aiIdx > guardIdx, 'readiness before AI transform')
   })
 
   run('A4-5 historical download path not gated by readiness (source)', () => {
@@ -246,14 +236,6 @@ async function main() {
         !preview.includes('validateContractGeneration'),
       'preview/download not readiness-gated',
     )
-    const sparse = readFileSync(
-      resolve(
-        process.cwd(),
-        'src/features/documents/template/WeddingSparseContractGenerationService.ts',
-      ),
-      'utf8',
-    )
-    assert(sparse.includes('mayGenerateContract'), 'sparse generate gated')
   })
 
   run('A4 current generation page uses the authenticated boundary', () => {
@@ -428,7 +410,6 @@ async function main() {
       'src/lib/utils/contractGenerationIntegrity.ts',
       'src/lib/utils/weddingContractReadiness.ts',
       'src/features/ai-contract-transform/quality/buildQualityReport.ts',
-      'src/features/documents/template/WeddingSparseContractGenerationService.ts',
     ]
     for (const rel of files) {
       const src = readFileSync(resolve(process.cwd(), rel), 'utf8')

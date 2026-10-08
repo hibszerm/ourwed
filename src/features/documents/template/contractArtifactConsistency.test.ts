@@ -250,16 +250,6 @@ async function main() {
     )
   })
 
-  await run('sparse service builds finalArtifact', () => {
-    const sparse = readFileSync(
-      resolve('src/features/documents/template/WeddingSparseContractGenerationService.ts'),
-      'utf8',
-    )
-    assert(sparse.includes('buildFinalContractGenerationArtifact'), 'artifact built')
-    assert(sparse.includes('extractDocxParagraphsIncludingEmpty'), 'paragraphs from final docx')
-    assert(sparse.includes('paragraphInsertions: transform.paragraphInsertions'), 'insertions stored')
-  })
-
   await run('transform service returns paragraphInsertions', () => {
     const transform = readFileSync(
       resolve('src/features/ai-contract-transform/transformService.ts'),

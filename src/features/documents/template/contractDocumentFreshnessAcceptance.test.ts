@@ -247,18 +247,7 @@ function read(rel: string): string {
 
 
 {
-  const sparse = read(
-    'src/features/documents/template/WeddingSparseContractGenerationService.ts',
-  )
   const save = read('src/features/documents/template/saveGeneratedContract.ts')
-  assert.ok(
-    sparse.includes('resolveContractVariables'),
-    'sparse generation resolves variables for freshness snapshot',
-  )
-  assert.ok(
-    !sparse.includes('resolved: {}'),
-    'sparse must not persist an empty resolved bag',
-  )
   assert.ok(
     save.includes('Object.keys(resolvedValues).length === 0'),
     'save fills empty resolvedValues before persist',

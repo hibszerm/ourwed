@@ -39,6 +39,6 @@ Template upload, version pinning, readiness/analysis, durable document persisten
 
 ## Historical architecture notes
 
-The old sparse/full-rewrite generation workflow and its rollback configuration are preserved in [the July 2026 migration note](sparse-wedding-contract-migration.md). That file records a previous architecture and is not current operational guidance. Older deterministic slot-generation and placeholder-filling implementations also remain in the repository; they are not the current Option B route and should not be removed without a separate verified call-graph and compatibility review.
+The old sparse/full-rewrite generation workflow and its rollback configuration are preserved in [the July 2026 migration note](sparse-wedding-contract-migration.md). That file records a previous architecture and is not current operational guidance. The unreferenced `WeddingSparseContractGenerationService` application bridge and its internal barrel export were retired after a repository call-graph review; the shared `transformService`, helpers, evaluation tooling, and historical Edge Functions remain preserved. Older deterministic slot-generation and placeholder-filling implementations also remain in the repository; they are not the current Option B route and should not be removed without a separate verified call-graph and compatibility review.
 
 For the current implementation details, see [the Option B feature README](../src/features/contract-generation-spike/README.md) and the separate Source Contract recovery feature.
