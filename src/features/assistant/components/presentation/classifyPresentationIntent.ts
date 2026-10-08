@@ -141,6 +141,12 @@ const ADDRESS = [
 const SESSION = ['sesja', 'sesji', 'sesje', 'sesje ', 'sesję'] as const
 
 const CALENDAR = [
+  'plan dnia',
+  'harmonogram dnia',
+  'harmonogram slubu',
+  'godziny wydarzen',
+  'o ktorej jest ceremonia',
+  'o ktorej ceremonia',
   'kiedy',
   'termin',
   'wolny termin',
@@ -153,6 +159,15 @@ const CALENDAR = [
   'co mam w',
   'plan na jutro',
   'plan na dzisiaj',
+] as const
+
+const EXPLICIT_ADDRESS_ASK = [
+  'adres',
+  'gdzie',
+  'lokalizacja',
+  'dojazd',
+  'nawiguj',
+  'nawigacja',
 ] as const
 
 const WEDDING = [
@@ -182,6 +197,11 @@ export function classifyPresentationIntent(utterance: string): PresentationInten
   if (hasAny(u, PHONE)) return 'phone'
   // Avoid classifying "mail" inside unrelated words — already normalized
   if (hasAny(u, EMAIL) && !u.includes('email marketing')) return 'email'
+  // Explicit destination asks keep address intent in mixed schedule questions.
+  // Schedule-only wording wins over broad event nouns such as "ceremonia".
+  if (hasAny(u, CALENDAR) && !hasAny(u, EXPLICIT_ADDRESS_ASK)) {
+    return 'calendar'
+  }
   if (hasAny(u, ADDRESS)) return 'address'
   if (hasAny(u, SESSION)) return 'session'
   if (hasAny(u, CALENDAR)) return 'calendar'

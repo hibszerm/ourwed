@@ -398,7 +398,9 @@ function projectListRelatedAddresses(
   const result = call.result as Record<string, unknown>
   const relation =
     typeof result.relation === 'string' ? result.relation : ''
-  if (relation !== 'DAY_PLAN_STOPS' && relation !== 'ROUTE_STOPS') return
+  // DAY_PLAN_STOPS exposes schedule time as `subtitle`; it is not a location
+  // source. Canonical address concepts remain projected by inspect_resource.
+  if (relation !== 'ROUTE_STOPS') return
   const items = Array.isArray(result.items) ? result.items : []
   for (const item of items) {
     if (!isRecord(item)) continue

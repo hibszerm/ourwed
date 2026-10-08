@@ -260,6 +260,60 @@ describe('Assistant UX 2D display policy', () => {
     )
   })
 
+  it('CASE G2 — wedding-day schedule wording is calendar intent and hides unrelated addresses', () => {
+    const original = turn('Plan dnia zawiera ceremonię o 14:00.', [
+      {
+        id: 'a1',
+        kind: 'address',
+        label: 'Przygotowania pana młodego',
+        actions: [{ type: 'navigate_address', address: 'ul. Testowa 4, Warszawa' }],
+      },
+    ])
+    const plan = derivePresentationDisplayPlan({
+      utterance: 'Jaki jest plan dnia ślubu?',
+      presentationTurn: original,
+    })
+
+    expect(classifyPresentationIntent('Jaki jest plan dnia ślubu?')).toBe('calendar')
+    expect(plan.intent).toBe('calendar')
+    expect(actionTypes(plan)).not.toContain('navigate_address')
+  })
+
+  it('CASE G3 — explicit address in a mixed schedule question keeps Navigate', () => {
+    const original = turn('Plan dnia: ceremonia o 14:00. Adres ceremonii: Rynek 1, Wrocław.', [
+      {
+        id: 'a1',
+        kind: 'address',
+        label: 'Ceremonia',
+        actions: [{ type: 'navigate_address', address: 'Rynek 1, Wrocław' }],
+      },
+    ])
+    const plan = derivePresentationDisplayPlan({
+      utterance: 'Podaj plan dnia i adres ceremonii.',
+      presentationTurn: original,
+    })
+
+    expect(plan.intent).toBe('address')
+    expect(actionTypes(plan)).toEqual(['navigate_address'])
+  })
+
+  it('CASE K2 — fallback schedule references do not expose navigation actions', () => {
+    const original = turn('Harmonogram ślubu: ceremonia o 14:00.', [
+      {
+        id: 'a1',
+        kind: 'address',
+        label: 'Ceremonia',
+        actions: [{ type: 'navigate_address', address: '14:00' }],
+      },
+    ])
+    const plan = derivePresentationDisplayPlan({
+      utterance: 'Harmonogram ślubu',
+      presentationTurn: original,
+    })
+
+    expect(actionTypes(plan)).not.toContain('navigate_address')
+  })
+
   it('CASE H — session: Otwórz sesję; Nawiguj only if same-entity address', () => {
     const original = turn('Najbliższa sesja to katalog Jesień.', [
       {

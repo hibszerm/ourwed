@@ -128,12 +128,23 @@ function fallbackPlan(
   turn: AssistantPresentationTurn,
   meta: { rawIntent: PresentationIntent; inherited: boolean },
 ): PresentationDisplayPlan {
+  const mayNavigate = intent === 'address' || intent === 'distance'
+  const displayReferences = (turn.references ?? [])
+    .filter((ref) => mayNavigate || ref.kind !== 'address')
+    .map((ref) =>
+      mayNavigate
+        ? ref
+        : cloneRef(
+            ref,
+            ref.actions.filter((action) => action.type !== 'navigate_address'),
+          ),
+    )
   return {
     intent,
     rawIntent: meta.rawIntent,
     inherited: meta.inherited,
     mode: 'fallback',
-    displayReferences: [...(turn.references ?? [])],
+    displayReferences,
     inlineActions: [],
   }
 }

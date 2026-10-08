@@ -321,6 +321,125 @@ describe('V7 presentation foundation — projection', () => {
     expect(labels).toContain('Przygotowania pana młodego')
   })
 
+  it('schedule times alone never create navigation actions', () => {
+    const { store, handle, binding } = makeStore([WEDDING_A])
+    const p = projectV7PresentationTurn({
+      result: baseResult({
+        toolCalls: [
+          {
+            name: 'list_related',
+            args: { handle, ordinal: 1, relation: 'DAY_PLAN_STOPS' },
+            result: {
+              ok: true,
+              handle,
+              relation: 'DAY_PLAN_STOPS',
+              items: [
+                { title: 'Przygotowania', subtitle: '08:00', meta: null },
+                { title: 'Ceremonia', subtitle: '14:00', meta: null },
+                { title: 'Przyjęcie', subtitle: '16:00', meta: null },
+              ],
+            },
+          },
+        ],
+      }),
+      store,
+      binding,
+      utterance: 'Jaki jest plan dnia ślubu?',
+    })
+
+    expect(actionTypes(p)).not.toContain('navigate_address')
+  })
+
+  it('schedule relation never creates navigation from embedded locations', () => {
+    const { store, handle, binding } = makeStore([WEDDING_A])
+    const p = projectV7PresentationTurn({
+      result: baseResult({
+        toolCalls: [
+          {
+            name: 'list_related',
+            args: { handle, ordinal: 1, relation: 'DAY_PLAN_STOPS' },
+            result: {
+              ok: true,
+              handle,
+              relation: 'DAY_PLAN_STOPS',
+              items: [
+                { title: 'Przygotowania', subtitle: '08:00', meta: 'Apartament · ul. Testowa 1, Warszawa' },
+                { title: 'Ceremonia', subtitle: '14:00', meta: 'Kaplica · ul. Testowa 2, Warszawa' },
+                { title: 'Przyjęcie', subtitle: '16:00', meta: 'Dworek · ul. Testowa 3, Warszawa' },
+              ],
+            },
+          },
+        ],
+      }),
+      store,
+      binding,
+      utterance: 'Jaki jest plan dnia ślubu?',
+    })
+
+    expect(actionTypes(p)).not.toContain('navigate_address')
+  })
+
+  it('route stops retain valid route navigation', () => {
+    const { store, handle, binding } = makeStore([WEDDING_A])
+    const p = projectV7PresentationTurn({
+      result: baseResult({
+        toolCalls: [
+          {
+            name: 'list_related',
+            args: { handle, ordinal: 1, relation: 'ROUTE_STOPS' },
+            result: {
+              ok: true,
+              handle,
+              relation: 'ROUTE_STOPS',
+              items: [{ title: 'Ceremonia', subtitle: 'Rynek 1, Wrocław', meta: '1 · ceremony' }],
+            },
+          },
+        ],
+      }),
+      store,
+      binding,
+      utterance: 'nawiguj do ceremonii',
+    })
+
+    expect(allActions(p)).toContainEqual({
+      type: 'navigate_address',
+      address: 'Rynek 1, Wrocław',
+      label: 'Ceremonia',
+    })
+  })
+
+  it('missing canonical address does not create a navigation destination', () => {
+    const { store, handle, binding } = makeStore([WEDDING_A])
+    const p = projectV7PresentationTurn({
+      result: baseResult({
+        toolCalls: [
+          {
+            name: 'inspect_resource',
+            args: { handle, ordinal: 1, concepts: ['PLACE.CEREMONY_ADDRESS'] },
+            result: {
+              ok: true,
+              handle,
+              ordinal: 1,
+              display_name: 'X',
+              fields: [
+                {
+                  concept: 'PLACE.CEREMONY_ADDRESS',
+                  value: null,
+                  filled: false,
+                },
+              ],
+            },
+          },
+        ],
+      }),
+      store,
+      binding,
+      utterance: 'Podaj adres ceremonii.',
+    })
+
+    expect(actionTypes(p)).not.toContain('navigate_address')
+  })
+
   it('8. wedding reference → exact wedding UUID', () => {
     const { store, handle, binding } = makeStore([WEDDING_A])
     const p = projectV7PresentationTurn({
@@ -777,6 +896,29 @@ describe('V7 presentation foundation — executor', () => {
       { apply: false },
     )
     expect(badPhone.ok).toBe(false)
+
+    for (const time of ['08:00', '14:00', '16:00', '9:30', '14:00:00']) {
+      expect(
+        executeAssistantAction(
+          { type: 'navigate_address', address: time },
+          { apply: false },
+        ),
+      ).toEqual({ ok: false, reason: 'invalid_address' })
+    }
+
+    for (const destination of [
+      'ul. Słoneczna 12, Kraków',
+      'Rynek 1, Wrocław',
+      'Pałac w Żaganiu',
+      'Dworek pod Warszawą',
+    ]) {
+      expect(
+        executeAssistantAction(
+          { type: 'navigate_address', address: destination },
+          { apply: false },
+        ).ok,
+      ).toBe(true)
+    }
 
     expect(labelForAssistantAction({ type: 'call_phone', phone: '+48111' })).toBe(
       'Zadzwoń',

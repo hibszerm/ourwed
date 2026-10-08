@@ -25,6 +25,8 @@ export function isValidPresentationEmail(raw: string): boolean {
 export function isValidPresentationAddress(raw: string): boolean {
   const t = raw.trim()
   if (t.length < 3) return false
+  // A clock value is never a destination, even though it is otherwise safe text.
+  if (/^\d{1,2}:\d{2}(?::\d{2})?$/.test(t)) return false
   if (/^(javascript|data|vbscript):/i.test(t)) return false
   if (/^https?:\/\//i.test(t)) return false
   return true
