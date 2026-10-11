@@ -32,6 +32,7 @@ const LEARN_STEPS = [
   {
     title: 'Przygotuj dzień ślubu',
     body: 'Wyślij parze ankietę przedślubną, a harmonogram, miejsca i najważniejsze ustalenia trafią automatycznie do zlecenia. Na ich podstawie możesz przygotować m.in. Wedding Brief PDF.',
+    note: 'Aby OurWed mógł obliczyć dojazd do pierwszego miejsca w dniu ślubu, ustaw punkt startowy w Ustawienia → Studio → Rozliczanie dojazdu.',
   },
   {
     title: 'Prowadź zlecenie do końca',

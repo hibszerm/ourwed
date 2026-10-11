@@ -90,24 +90,13 @@ run('CTA routes map to existing product paths', () => {
   )
 })
 
-run('Dashboard pages mount FirstRunHome on zero history', () => {
-  const classic = ({ includes: () => true, indexOf: () => 0, slice: () => '', length: 0, match: () => null } as { includes: (s: string) => boolean; indexOf: (s: string) => number; slice: (a?: number, b?: number) => string; length: number; match: (r: RegExp) => null })
+run('Dashboard V3 mounts FirstRunHome on zero history', () => {
   const v3 = read('src/pages/DashboardV3Page.tsx')
-  assert(classic.includes('FirstRunHome'), 'classic imports FirstRunHome')
   assert(v3.includes('FirstRunHome'), 'v3 imports FirstRunHome')
-  assert(classic.includes('shouldShowFirstRunHome'), 'classic discriminator')
   assert(v3.includes('shouldShowFirstRunHome'), 'v3 discriminator')
-  assert(
-    classic.includes('totalWeddingHistoryCount: weddings.length'),
-    'classic uses total list length',
-  )
   assert(
     v3.includes('totalWeddingHistoryCount: weddings.length'),
     'v3 uses total list length',
-  )
-  assert(
-    !classic.includes('getUpcomingAssignments'),
-    'classic first-run not gated on upcoming helper',
   )
   const v3FirstRunStart = v3.indexOf('if (showFirstRun)')
   const v3AfterFirstRun = v3.indexOf('\n  return (', v3FirstRunStart + 1)
@@ -154,6 +143,12 @@ run('FirstRunHome copy + CTAs are present', () => {
     'learn day step describes pre-wedding questionnaire automation',
   )
   assert(home.includes('Wedding Brief PDF'), 'learn day step mentions Wedding Brief')
+  assert(
+    home.includes(
+      'Aby OurWed mógł obliczyć dojazd do pierwszego miejsca w dniu ślubu, ustaw punkt startowy w Ustawienia → Studio → Rozliczanie dojazdu.',
+    ),
+    'learn day step explains the travel start point setting',
+  )
   assert(
     !home.includes(
       'Przed realizacją zbierasz harmonogram, miejsca i najważniejsze ustalenia w jednym miejscu.',
