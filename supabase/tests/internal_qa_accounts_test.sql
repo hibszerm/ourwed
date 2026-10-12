@@ -1,5 +1,5 @@
 begin;
-select plan(29);
+select plan(35);
 
 select has_table('public', 'internal_qa_accounts', 'private QA registry exists');
 select has_table('public', 'internal_qa_provisioning_authorizations', 'one-time authorization table exists');
@@ -66,6 +66,39 @@ select ok(not has_function_privilege('service_role', 'public.on_public_user_crea
   'service role cannot execute billing bootstrap trigger directly');
 select ok(not has_function_privilege('service_role', 'public.provision_official_pre_wedding_presets(uuid)', 'EXECUTE'),
   'service role cannot execute the preset helper directly');
+
+select ok((select p.pronargs = 0
+  from pg_catalog.pg_proc p join pg_catalog.pg_namespace n on n.oid = p.pronamespace
+  where n.nspname = 'public' and p.proname = 'account_has_pro_access'),
+  'Pro helper has no caller-supplied user identifier');
+select ok((select p.prosecdef and p.provolatile = 's'
+      and p.proconfig @> array['search_path=""']
+      and pg_catalog.pg_get_userbyid(p.proowner) = 'postgres'
+  from pg_catalog.pg_proc p join pg_catalog.pg_namespace n on n.oid = p.pronamespace
+  where n.nspname = 'public' and p.proname = 'account_has_pro_access'),
+  'Pro helper remains stable SECURITY DEFINER with empty search path and postgres owner');
+select ok(has_function_privilege('authenticated', 'public.account_has_pro_access()', 'EXECUTE')
+      and has_function_privilege('service_role', 'public.account_has_pro_access()', 'EXECUTE')
+      and not has_function_privilege('anon', 'public.account_has_pro_access()', 'EXECUTE'),
+  'Pro helper grants remain authenticated/service-role only');
+select ok((select pg_catalog.pg_get_functiondef(p.oid) ilike '%auth.uid()%'
+      and pg_catalog.pg_get_functiondef(p.oid) ilike '%internal_qa_accounts%'
+      and pg_catalog.pg_get_functiondef(p.oid) ilike '%resolve_user_entitlement%'
+  from pg_catalog.pg_proc p join pg_catalog.pg_namespace n on n.oid = p.pronamespace
+  where n.nspname = 'public' and p.proname = 'account_has_pro_access'),
+  'Pro helper binds QA check to current actor and retains commercial fallback');
+select ok(exists (select 1 from pg_catalog.pg_index i
+  where i.indrelid = 'public.internal_qa_accounts'::regclass and i.indisprimary),
+  'QA helper lookup is backed by the registry primary-key index');
+select ok(exists (select 1 from pg_catalog.pg_policies
+    where schemaname = 'public' and tablename = 'weddings' and policyname = 'weddings_insert_own'
+      and cmd = 'INSERT' and with_check ilike '%user_id = auth.uid()%'
+      and with_check ilike '%account_has_pro_access()%')
+    and exists (select 1 from pg_catalog.pg_policies
+      where schemaname = 'public' and tablename = 'weddings' and policyname = 'weddings_select_own'
+        and cmd = 'SELECT' and qual ilike '%user_id = auth.uid()%'
+        and qual not ilike '%collaboration%'),
+  'wedding creation remains Pro-gated and wedding reads remain owner-scoped');
 
 select * from finish();
 rollback;

@@ -2,8 +2,10 @@ import assert from 'node:assert/strict'
 import { createHash, randomBytes } from 'node:crypto'
 import { execFileSync } from 'node:child_process'
 import { readFileSync } from 'node:fs'
-import { createClient } from '@supabase/supabase-js'
+import { createClient, type SupabaseClient } from '@supabase/supabase-js'
 import { dispatchEmailUnlessInternalQa } from '../../../supabase/functions/_shared/internalQaEmailGate.ts'
+
+/* eslint-disable @typescript-eslint/no-explicit-any -- fixture tables are intentionally absent from generated production client types. */
 
 const envFile = process.argv[2]
 if (!envFile) throw new Error('Usage: tsx run_auth_matrix.ts /private/tmp/.../local.env')
@@ -25,6 +27,7 @@ const service = createClient(apiUrl, serviceKey, { auth: { autoRefreshToken: fal
 const anon = createClient(apiUrl, anonKey, { auth: { autoRefreshToken: false, persistSession: false } })
 const dbContainer = 'supabase_db_ourwed-internal-qa-harness-20261012'
 const testPassword = 'LocalOnly-48cZ!xv9Yq23'
+type HarnessClient = SupabaseClient<any, 'public', 'public', any, any>
 let passed = 0
 
 function check(condition: unknown, message: string): asserts condition {
@@ -329,6 +332,16 @@ async function setPasswordAndLogin(userId: string, address: string) {
 }
 const qaClient = await setPasswordAndLogin(qaBId, qaBEmail)
 const beforeQaRpc = await counts(qaBId)
+for (const [label, userId, address] of [['QA-A', qaAId, qaAEmail], ['QA-B', qaBId, qaBEmail]] as const) {
+  const actorClient = label === 'QA-B' ? qaClient : await setPasswordAndLogin(userId, address)
+  const entitlementBefore = await counts(userId)
+  for (let call = 0; call < 3; call += 1) {
+    const { data, error } = await actorClient.rpc('account_has_pro_access')
+    assert.ifError(error)
+    check(data === true, `${label} Pro helper is true for authenticated registry actor (call ${call + 1})`)
+  }
+  check(JSON.stringify(await counts(userId)) === JSON.stringify(entitlementBefore), `${label} helper calls create no legal, billing, or trial rows`)
+}
 const { data: qaEntitlementOne, error: qaEntitlementErrorOne } = await qaClient.rpc('get_my_subscription_summary')
 assert.ifError(qaEntitlementErrorOne)
 const { data: qaEntitlementTwo, error: qaEntitlementErrorTwo } = await qaClient.rpc('get_my_subscription_summary')
@@ -339,12 +352,114 @@ check(qaEntitlementOne.entitlement.trialStartedAt === null && qaEntitlementOne.e
 check(JSON.stringify(qaEntitlementTwo) === JSON.stringify(qaEntitlementOne), 'repeated QA entitlement RPC is stable')
 check(JSON.stringify(await counts(qaBId)) === JSON.stringify(beforeQaRpc), 'repeated QA RPC creates no commercial state')
 
+async function insertWedding(client: HarnessClient, ownerId: string, label: string) {
+  const { data, error } = await (client as any).from('weddings').insert({
+    user_id: ownerId,
+    bride_name: `${label} Bride`,
+    groom_name: `${label} Groom`,
+    wedding_date: '2027-06-12',
+  }).select('id,user_id').single()
+  assert.ifError(error)
+  assert.ok(data)
+  check(data.user_id === ownerId, `${label} normal authenticated wedding insert is actor-owned through RLS`)
+  return data.id as string
+}
+const qaAClient = await setPasswordAndLogin(qaAId, qaAEmail)
+const qaAWedding = await insertWedding(qaAClient, qaAId, 'QA-A')
+const qaBWedding = await insertWedding(qaClient, qaBId, 'QA-B')
+const qaQuestionnaire = await (qaClient as any).from('questionnaire_templates').insert({
+  owner_id: qaBId,
+  name: 'QA owner questionnaire regression',
+  source_key: `qa-${randomBytes(5).toString('hex')}`,
+  title: 'QA owner questionnaire regression',
+}).select('owner_id').single()
+assert.ifError(qaQuestionnaire.error)
+check(qaQuestionnaire.data?.owner_id === qaBId, 'Internal QA can create a Pro-gated owner questionnaire through authenticated RLS')
+async function crossAccountBoundary(actor: HarnessClient, targetWeddingId: string, actorLabel: string, targetLabel: string) {
+  const read = await (actor as any).from('weddings').select('id').eq('id', targetWeddingId)
+  assert.ifError(read.error)
+  check(read.data?.length === 0, `${actorLabel} cannot read ${targetLabel} wedding`)
+  const update = await (actor as any).from('weddings').update({ venue: 'Unauthorized venue' }).eq('id', targetWeddingId).select('id')
+  assert.ifError(update.error)
+  check(update.data?.length === 0, `${actorLabel} cannot update ${targetLabel} wedding through RLS`)
+  const remove = await (actor as any).from('weddings').delete().eq('id', targetWeddingId).select('id')
+  assert.ifError(remove.error)
+  check(remove.data?.length === 0, `${actorLabel} cannot delete ${targetLabel} wedding through RLS`)
+}
+await crossAccountBoundary(qaAClient, qaBWedding, 'QA-A', 'QA-B')
+await crossAccountBoundary(qaClient, qaAWedding, 'QA-B', 'QA-A')
+for (const [label, actor, ownerId] of [['QA-A', qaAClient, qaAId], ['QA-B', qaClient, qaBId]] as const) {
+  const own = await (actor as any).from('weddings').select('id,user_id').eq('user_id', ownerId)
+  assert.ifError(own.error)
+  check(own.data?.some((wedding: { user_id: string }) => wedding.user_id === ownerId), `${label} can read their own wedding`)
+}
+const createInviteKey = randomBytes(16).toString('hex').replace(/(.{8})(.{4})(.{4})(.{4})(.{12})/, '$1-$2-$3-$4-$5')
+const createdInvite = await qaAClient.rpc('create_collaboration_invite', {
+  p_email: qaBEmail,
+  p_idempotency_key: createInviteKey,
+})
+assert.ifError(createdInvite.error)
+assert.equal(createdInvite.data?.status, 'created')
+const invitationId = createdInvite.data?.invitation_id as string
+check(!!invitationId, 'global Collaboration 1B invite was created through authenticated RPC')
+const acceptInviteKey = randomBytes(16).toString('hex').replace(/(.{8})(.{4})(.{4})(.{4})(.{12})/, '$1-$2-$3-$4-$5')
+const acceptedInvite = await qaClient.rpc('accept_collaboration_invite', {
+  p_invitation_id: invitationId,
+  p_idempotency_key: acceptInviteKey,
+})
+assert.ifError(acceptedInvite.error)
+check(acceptedInvite.data?.status === 'accepted', 'global Collaboration 1B invite accepted through authenticated RPC')
+await crossAccountBoundary(qaAClient, qaBWedding, 'QA-A after connection', 'QA-B')
+await crossAccountBoundary(qaClient, qaAWedding, 'QA-B after connection', 'QA-A')
+check((await counts(qaAId))[2] === 1 && (await counts(qaBId))[2] === 1, 'global connection does not alter either QA registry identity')
+
 const customerClientForRpc = await setPasswordAndLogin(customerId, customerEmail)
+const { data: customerPro, error: customerProError } = await customerClientForRpc.rpc('account_has_pro_access')
+assert.ifError(customerProError)
+check(customerPro === true, 'normal active trial keeps existing Pro helper result')
 const { data: customerEntitlement, error: customerEntitlementError } = await customerClientForRpc.rpc('get_my_subscription_summary')
 assert.ifError(customerEntitlementError)
 check(customerEntitlement.entitlement.source === 'trial' && customerEntitlement.entitlement.accessLevel === 'pro', 'customer RPC preserves trial Pro behavior')
 check(!!customerEntitlement.entitlement.billingAccountId && !!customerEntitlement.entitlement.subscriptionId && !!customerEntitlement.entitlement.trialEndsAt, 'customer RPC includes billing/trial identifiers and dates')
 check((await counts(customerId))[4] === 1 && (await counts(customerId))[5] === 1, 'customer entitlement RPC preserves billing and trial rows')
+
+const accountForCustomer = sql(`select id from public.billing_accounts where owner_user_id=${quote(customerId)}::uuid`)
+const trialSubId = sql(`select id from public.account_subscriptions where billing_account_id=${quote(accountForCustomer)}::uuid`)
+sql(`update public.account_subscriptions set status='active', current_period_ends_at=pg_catalog.now()+interval '30 days' where id=${quote(trialSubId)}::uuid`)
+const { data: paidPro, error: paidProError } = await customerClientForRpc.rpc('account_has_pro_access')
+assert.ifError(paidProError)
+check(paidPro === true, 'normal paid Pro remains true through existing commercial fallback')
+sql(`update public.account_subscriptions set status='trialing', current_period_ends_at=null where id=${quote(trialSubId)}::uuid`)
+
+const manualEmail = email('manual-pro')
+const manualSignup = await signup(manualEmail, { first_name: 'Manual', last_name: 'Access', ...legal })
+assert.ifError(manualSignup.error)
+assert.ok(manualSignup.data.user)
+const manualId = manualSignup.data.user.id
+const manualAccountId = sql(`select id from public.billing_accounts where owner_user_id=${quote(manualId)}::uuid`)
+sql(`update public.account_subscriptions set status='expired', manual_access_indefinite=true where billing_account_id=${quote(manualAccountId)}::uuid`)
+const manualClient = await setPasswordAndLogin(manualId, manualEmail)
+const { data: manualPro, error: manualProError } = await manualClient.rpc('account_has_pro_access')
+assert.ifError(manualProError)
+check(manualPro === true, 'normal manual Pro remains true through existing commercial fallback')
+
+const noAccessEmail = email('expired-no-access')
+const noAccessSignup = await signup(noAccessEmail, { first_name: 'Expired', last_name: 'Access', ...legal })
+assert.ifError(noAccessSignup.error)
+assert.ok(noAccessSignup.data.user)
+const noAccessId = noAccessSignup.data.user.id
+const noAccessAccountId = sql(`select id from public.billing_accounts where owner_user_id=${quote(noAccessId)}::uuid`)
+sql(`update public.account_subscriptions set status='expired', manual_access_indefinite=false, manual_access_until=null, trial_ends_at=pg_catalog.now()-interval '1 day' where billing_account_id=${quote(noAccessAccountId)}::uuid`)
+const noAccessClient = await setPasswordAndLogin(noAccessId, noAccessEmail)
+const { data: noAccessPro, error: noAccessProError } = await noAccessClient.rpc('account_has_pro_access')
+assert.ifError(noAccessProError)
+check(noAccessPro === false, 'expired no-access customer remains false through existing commercial fallback')
+const deniedWedding = await noAccessClient.from('weddings').insert({
+  user_id: noAccessId, bride_name: 'Denied Bride', groom_name: 'Denied Groom', wedding_date: '2027-06-12',
+}).select('id').maybeSingle()
+check(!!deniedWedding.error && !deniedWedding.data, 'expired no-access customer wedding insert remains RLS-denied')
+const customerWeddingId = await insertWedding(customerClientForRpc, customerId, 'Trial customer')
+check(!!customerWeddingId, 'normal trial customer retains authenticated owner wedding insert')
 
 // Email suppression uses the actual registry lookup; provider calls are local counters only.
 let providerCalls = 0
@@ -406,8 +521,8 @@ check(!!anonAuthzRpc.error, 'anon authorization RPC is denied')
 // Released Collaboration 1B deletion seam: the other account and snapshots survive.
 const pairLow = qaAId < qaBId ? qaAId : qaBId
 const pairHigh = qaAId < qaBId ? qaBId : qaAId
-const connectionId = sql(`insert into public.collaboration_connections(participant_low_id,participant_high_id,participant_low_name_snapshot,participant_high_name_snapshot,status) values (${quote(pairLow)}::uuid,${quote(pairHigh)}::uuid,'QA snapshot A','QA snapshot B','active') returning id`)
-const eventId = sql(`insert into public.collaboration_events(connection_id,actor_user_id,actor_name_snapshot,event_type,metadata) values (${quote(connectionId)}::uuid,${quote(qaAId)}::uuid,'QA snapshot A','collaboration_started','{"harness":true}'::jsonb) returning id`)
+const connectionId = sql(`select id from public.collaboration_connections where status='active' and participant_low_id=${quote(pairLow)}::uuid and participant_high_id=${quote(pairHigh)}::uuid`)
+const eventId = sql(`select id from public.collaboration_events where actor_user_id=${quote(qaAId)}::uuid and event_type='collaboration_invite_created' order by created_at limit 1`)
 const deleteQaA = await service.auth.admin.deleteUser(qaAId)
 assert.ifError(deleteQaA.error)
 const collaborationAfterDelete = JSON.parse(sql(`select json_build_object(

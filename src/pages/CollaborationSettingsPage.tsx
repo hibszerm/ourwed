@@ -39,6 +39,7 @@ export function CollaborationSettingsPage() {
   const { user } = useAuth()
   const queryClient = useQueryClient()
   const [inviteOpen, setInviteOpen] = useState(false)
+  const [endTarget, setEndTarget] = useState<CollaborationConnection | null>(null)
   const [email, setEmail] = useState('')
   const [busy, setBusy] = useState<string | null>(null)
   const [error, setError] = useState<string | null>(null)
@@ -131,16 +132,13 @@ export function CollaborationSettingsPage() {
 
   async function end(connection: CollaborationConnection) {
     if (busy) return
-    const confirmed = window.confirm(
-      'Zakończyć współpracę? To zatrzyma przyszłe zaproszenia do wspólnych zleceń. W przyszłości już zaakceptowane zlecenia nie znikną automatycznie.',
-    )
-    if (!confirmed) return
     setBusy(connection.id)
     setError(null)
     const scope = `end:${connection.id}`
     try {
       await collaborationService.endConnection(connection.id, commandKey(scope))
       idempotencyKeys.current.delete(scope)
+      setEndTarget(null)
       await refresh()
     } catch (err) {
       setError(messageForError(err))
@@ -207,7 +205,7 @@ export function CollaborationSettingsPage() {
                       <p className={styles.name}>{connection.display_name}</p>
                       <p className={styles.meta}>Połączono {formatDate(connection.connected_at)}</p>
                     </div>
-                    <Button type="button" variant="ghost" disabled={busy === connection.id} onClick={() => void end(connection)}>
+                    <Button type="button" variant="ghost" disabled={busy === connection.id} onClick={() => setEndTarget(connection)}>
                       Zakończ współpracę
                     </Button>
                   </li>
@@ -257,6 +255,8 @@ export function CollaborationSettingsPage() {
           onClose={() => setInviteOpen(false)}
           busy={busy === 'send'}
           hideFooter
+          showClose
+          initialFocus="panel"
         >
           <form onSubmit={(event) => void sendInvite(event)}>
             <Input
@@ -280,6 +280,24 @@ export function CollaborationSettingsPage() {
               </Button>
             </div>
           </form>
+        </Modal>
+      ) : null}
+
+      {endTarget ? (
+        <Modal
+          open
+          title="Zakończyć współpracę?"
+          description="To zatrzyma przyszłe zaproszenia do wspólnych zleceń. W przyszłości już zaakceptowane zlecenia nie znikną automatycznie."
+          onClose={() => setEndTarget(null)}
+          busy={busy === endTarget.id}
+          initialFocus="panel"
+          primaryAction={(
+            <Button type="button" variant="primary" disabled={busy === endTarget.id} onClick={() => void end(endTarget)}>
+              {busy === endTarget.id ? 'Zapisywanie…' : 'Zakończ współpracę'}
+            </Button>
+          )}
+        >
+          <p className={styles.name}>{endTarget.display_name}</p>
         </Modal>
       ) : null}
     </SettingsLayout>

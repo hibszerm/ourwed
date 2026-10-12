@@ -216,7 +216,7 @@
 @keyframes sheetSettleIn {
   from {
     opacity: 0;
-    transform: translateY(18px);
+    transform: translateY(0);
   }
   to {
     opacity: 1;
@@ -230,6 +230,9 @@
    * overflow-y:auto alone also enables overflow-x:auto — clip X explicitly.
    */
   .root {
+    inset: 0 0 auto;
+    height: 100vh;
+    height: 100dvh;
     padding: 0;
     align-items: flex-end;
     overflow-x: clip;
@@ -245,11 +248,12 @@
   }
 
   .panel {
+    box-sizing: border-box;
     width: 100%;
     max-width: 100%;
     min-width: 0;
     height: auto;
-    max-height: min(92dvh, 92vh);
+    max-height: calc(100dvh - var(--safe-top) - var(--safe-bottom));
     overflow-x: clip;
     overflow-y: hidden;
     touch-action: pan-y;
@@ -330,6 +334,11 @@
     flex-shrink: 0;
     padding-top: var(--space-3);
     padding-bottom: var(--space-3);
+  }
+
+  .close {
+    width: 44px;
+    height: 44px;
   }
 
   .description {
@@ -413,7 +422,7 @@
 @keyframes sheetIn {
   from {
     opacity: 0;
-    transform: translateY(24px);
+    transform: translateY(0);
   }
   to {
     opacity: 1;

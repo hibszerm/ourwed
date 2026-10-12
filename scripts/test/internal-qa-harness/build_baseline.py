@@ -172,15 +172,37 @@ create table public.admin_members (
   last_access_at timestamptz,
   check (role = 'owner')
 );
+create table public.weddings (
+  id uuid primary key default extensions.gen_random_uuid(),
+  user_id uuid not null references public.users(id) on delete cascade,
+  bride_name text not null,
+  groom_name text not null,
+  email text,
+  phone text,
+  wedding_date date,
+  venue text,
+  created_at timestamptz not null default timezone('utc', now()),
+  updated_at timestamptz not null default timezone('utc', now())
+);
+alter table public.weddings enable row level security;
+alter table public.weddings force row level security;
+grant select, insert, update, delete on public.weddings to authenticated;
+alter table public.questionnaire_templates enable row level security;
+alter table public.questionnaire_templates force row level security;
+grant select, insert, update, delete on public.questionnaire_templates to authenticated;
 
 """
 
 functions = [
+    ("20260811230000_pro_mutation_gate.sql", "account_has_pro_access"),
+    ("20261012133531_collaboration_v1_global_connections.sql", "create_collaboration_invite"),
+    ("20261012133531_collaboration_v1_global_connections.sql", "accept_collaboration_invite"),
     ("20260907200000_user_legal_acceptances.sql", "current_production_legal_version"),
     ("20260811200000_subscription_foundation.sql", "billing_plan_catalog"),
     ("20260811200000_subscription_foundation.sql", "ensure_billing_account_for_user"),
     ("20260811200000_subscription_foundation.sql", "initialize_trial_subscription"),
     ("20260811200000_subscription_foundation.sql", "resolve_account_entitlement"),
+    ("20260811200000_subscription_foundation.sql", "resolve_user_entitlement"),
     ("20260811200000_subscription_foundation.sql", "get_my_subscription_summary"),
     ("20260811200000_subscription_foundation.sql", "admin_get_subscription_metrics"),
     ("20260811200000_subscription_foundation.sql", "admin_list_subscriptions"),
@@ -201,6 +223,20 @@ collaboration_tables = "\n\n".join(
 out = [ddl, collaboration_tables, "\n"]
 out.extend(function(source, name) + "\n" for source, name in functions)
 out.append(r"""
+-- Test-only notification sink. Collaboration RPCs retain their released code;
+-- this disposable harness does not create or deliver notification records.
+create function public.enqueue_notification_event(
+  uuid, text, text, uuid, text, jsonb, text, text, text
+) returns uuid language sql volatile security definer set search_path = ''
+as $$ select null::uuid $$;
+
+revoke all on function public.account_has_pro_access() from public, anon;
+grant execute on function public.account_has_pro_access() to authenticated, service_role;
+revoke all on function public.create_collaboration_invite(text, uuid) from public, anon;
+revoke all on function public.accept_collaboration_invite(uuid, uuid) from public, anon;
+grant execute on function public.create_collaboration_invite(text, uuid) to authenticated;
+grant execute on function public.accept_collaboration_invite(uuid, uuid) to authenticated;
+
 create trigger on_auth_user_created after insert on auth.users
   for each row execute function public.handle_new_user();
 create trigger on_public_users_created_billing after insert on public.users
@@ -229,6 +265,18 @@ create policy profiles_owner_select on public.profiles for select to authenticat
 create policy profiles_owner_update on public.profiles for update to authenticated using (id=auth.uid()) with check (id=auth.uid());
 create policy users_owner_select on public.users for select to authenticated using (id=auth.uid());
 create policy users_owner_update on public.users for update to authenticated using (id=auth.uid()) with check (id=auth.uid());
+create policy weddings_select_own on public.weddings for select to authenticated using (user_id=auth.uid());
+create policy weddings_insert_own on public.weddings for insert to authenticated with check (user_id=auth.uid() and public.account_has_pro_access());
+create policy weddings_update_own on public.weddings for update to authenticated using (user_id=auth.uid() and public.account_has_pro_access()) with check (user_id=auth.uid() and public.account_has_pro_access());
+create policy weddings_delete_own on public.weddings for delete to authenticated using (user_id=auth.uid() and public.account_has_pro_access());
+create policy qt_select_own on public.questionnaire_templates for select to authenticated using (owner_id=auth.uid());
+create policy qt_insert_own on public.questionnaire_templates for insert to authenticated
+  with check (owner_id = auth.uid() and public.account_has_pro_access());
+create policy qt_update_own on public.questionnaire_templates for update to authenticated
+  using (owner_id = auth.uid() and public.account_has_pro_access())
+  with check (owner_id = auth.uid() and public.account_has_pro_access());
+create policy qt_delete_own on public.questionnaire_templates for delete to authenticated
+  using (owner_id = auth.uid() and public.account_has_pro_access());
 
 grant select, insert, update, delete on all tables in schema public to service_role;
 grant execute on function public.admin_get_subscription_metrics() to authenticated;
