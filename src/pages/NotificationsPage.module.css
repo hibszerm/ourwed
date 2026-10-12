@@ -1,0 +1,12 @@
+.weddingInvitationsLink {
+  display: inline-flex;
+  align-items: center;
+  min-height: 44px;
+  margin-bottom: 12px;
+  color: var(--color-text-secondary);
+  text-decoration: none;
+}
+
+.weddingInvitationsLink:hover {
+  color: var(--color-text-primary);
+}

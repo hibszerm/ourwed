@@ -1,5 +1,5 @@
 begin;
-select plan(146);
+select plan(146 + 28);
 
 select has_table('public','wedding_collaboration_invitations','wedding invitations exist');
 select has_table('public','wedding_collaboration_memberships','membership periods exist');
@@ -63,6 +63,65 @@ select set_config('request.jwt.claim.sub','11000000-0000-4000-8000-000000000001'
 select is(public.create_wedding_collaboration_invite('21000000-0000-4000-8000-000000000001',
   '11000000-0000-4000-8000-000000000002',1500,'41000000-0000-4000-8000-000000000001')->>'status','created',
   'owner creates invite and over-CV proposal is allowed');
+select set_config('test.first_invite_id',(select id::text from public.wedding_collaboration_invitations
+  where idempotency_key='41000000-0000-4000-8000-000000000001'),true);
+select ok(has_function_privilege('authenticated','public.get_wedding_collaboration_invitation_preview(uuid)','EXECUTE'),
+  'authenticated can call the invitee preview RPC');
+select ok(not has_function_privilege('anon','public.get_wedding_collaboration_invitation_preview(uuid)','EXECUTE'),
+  'anon cannot call the invitee preview RPC');
+select ok(has_function_privilege('authenticated','public.get_wedding_collaboration_state(uuid)','EXECUTE'),
+  'authenticated can call the owner state RPC');
+select ok(has_function_privilege('authenticated','public.list_my_wedding_collaboration_invitations()','EXECUTE'),
+  'authenticated can call the incoming invitation RPC');
+select ok(not exists(select 1 from pg_catalog.pg_proc p join pg_catalog.pg_namespace n on n.oid=p.pronamespace
+  where n.nspname='public' and p.proname in ('get_wedding_collaboration_invitation_preview',
+    'get_wedding_collaboration_state','list_my_wedding_collaboration_invitations')
+    and not coalesce(p.proconfig @> array['search_path=""'],false)),
+  'all new SECURITY DEFINER read RPCs use an empty search_path');
+select ok(not has_table_privilege('authenticated','public.wedding_collaboration_invitations','SELECT'),
+  'new read RPCs do not grant direct invitation-table SELECT');
+set local role authenticated;
+select set_config('request.jwt.claim.sub','11000000-0000-4000-8000-000000000002',true);
+select is(public.get_wedding_collaboration_invitation_preview(current_setting('test.first_invite_id')::uuid)->>'status','pending',
+  'invitee can preview their own pending invitation');
+select is((select array_agg(k order by k)::text from pg_catalog.jsonb_object_keys(
+  public.get_wedding_collaboration_invitation_preview(current_setting('test.first_invite_id')::uuid)) as keys(k)),
+  '{accepted_at,cancelled_at,contract_value,couple_first_name,couple_second_name,created_at,currency,declined_at,expired_at,expires_at,invitation_id,inviter_display_name,membership_status,package_label,proposed_share_amount,reason,status,superseded_at,wedding_date}',
+  'preview returns exactly the allow-listed snapshot and lifecycle fields');
+select is(public.get_wedding_collaboration_invitation_preview(current_setting('test.first_invite_id')::uuid)->>'inviter_display_name','one',
+  'preview identifies the inviter without exposing account email');
+reset role;
+select set_config('request.jwt.claim.sub','11000000-0000-4000-8000-000000000001',true);
+select is(public.get_wedding_collaboration_invitation_preview(current_setting('test.first_invite_id')::uuid),null,
+  'owner cannot use invitee preview to read the invitation');
+select is(jsonb_array_length(public.get_wedding_collaboration_state('21000000-0000-4000-8000-000000000001')->'invitations'),1,
+  'owner state returns only invitations for the owned wedding');
+select is(public.get_wedding_collaboration_state('21000000-0000-4000-8000-000000000003'),null,
+  'owner state does not enumerate another owner wedding');
+select ok(not exists(select 1 from pg_catalog.pg_proc p where p.oid='public.get_wedding_collaboration_invitation_preview(uuid)'::regprocedure
+  and p.pronargs<>1),'preview accepts only an invitation ID and no caller-supplied wedding ID');
+set local role authenticated;
+select set_config('request.jwt.claim.sub','11000000-0000-4000-8000-000000000003',true);
+select is(public.get_wedding_collaboration_invitation_preview(current_setting('test.first_invite_id')::uuid),null,
+  'third authenticated user cannot preview another users invitation');
+select is(public.get_wedding_collaboration_invitation_preview('51000000-0000-4000-8000-000000000099'),null,
+  'random invitation ID returns no private data');
+reset role;
+set local role authenticated;
+select set_config('request.jwt.claim.sub','11000000-0000-4000-8000-000000000002',true);
+select is(jsonb_array_length(public.list_my_wedding_collaboration_invitations()),1,
+  'incoming RPC returns only the authenticated invitees invitation');
+select ok(not exists(select 1 from jsonb_array_elements(public.list_my_wedding_collaboration_invitations()) as rows(item)
+  where item ? 'wedding_id' or item ? 'terms_snapshot' or item ? 'extras_snapshot'),
+  'incoming list does not expose wedding IDs or unrestricted commercial snapshots');
+reset role;
+select is((select count(*)::int from public.notifications where user_id='11000000-0000-4000-8000-000000000002'
+  and entity_type='wedding_collaboration' and entity_id=(select id from public.wedding_collaboration_invitations
+    where idempotency_key='41000000-0000-4000-8000-000000000001')),
+  1,'invitation creation produces one in-app notification for the invitee');
+reset role;
+set local role authenticated;
+select set_config('request.jwt.claim.sub','11000000-0000-4000-8000-000000000002',true);
 set local role authenticated;
 select set_config('request.jwt.claim.sub','11000000-0000-4000-8000-000000000002',true);
 select is((select count(*)::int from public.weddings where id='21000000-0000-4000-8000-000000000001'),0,
@@ -110,6 +169,9 @@ select set_config('request.jwt.claim.sub','11000000-0000-4000-8000-000000000003'
 select is(public.decline_wedding_collaboration_invite(
   (select id from public.wedding_collaboration_invitations where invitee_user_id='11000000-0000-4000-8000-000000000003' and wedding_id='21000000-0000-4000-8000-000000000001'),
   '41000000-0000-4000-8000-000000000012')->>'status','declined','invitee may decline their own invitation');
+select is(public.get_wedding_collaboration_invitation_preview((select id from public.wedding_collaboration_invitations
+  where invitee_user_id='11000000-0000-4000-8000-000000000003' and wedding_id='21000000-0000-4000-8000-000000000001'))->>'status','declined',
+  'declined preview remains available to its invitee without actions');
 select is(public.decline_wedding_collaboration_invite(
   (select id from public.wedding_collaboration_invitations where invitee_user_id='11000000-0000-4000-8000-000000000003' and wedding_id='21000000-0000-4000-8000-000000000001'),
   '41000000-0000-4000-8000-000000000012')->>'duplicate','true','decline replay is idempotent');
@@ -130,9 +192,20 @@ select is(public.cancel_wedding_collaboration_invite(
 select is(public.cancel_wedding_collaboration_invite(
   (select id from public.wedding_collaboration_invitations where invitee_user_id='11000000-0000-4000-8000-000000000004' and wedding_id='21000000-0000-4000-8000-000000000002'),
   '41000000-0000-4000-8000-000000000015')->>'duplicate','true','cancel replay is idempotent');
+select set_config('request.jwt.claim.sub','11000000-0000-4000-8000-000000000004',true);
+select is(public.get_wedding_collaboration_invitation_preview((select id from public.wedding_collaboration_invitations
+  where invitee_user_id='11000000-0000-4000-8000-000000000004' and wedding_id='21000000-0000-4000-8000-000000000002'))->>'status','cancelled',
+  'cancelled preview remains available to its invitee without actions');
+select set_config('request.jwt.claim.sub','11000000-0000-4000-8000-000000000001',true);
 
 select set_config('request.jwt.claim.sub','11000000-0000-4000-8000-000000000002',true);
 select is(public.accept_wedding_collaboration_invite((select id from public.wedding_collaboration_invitations where invitee_user_id='11000000-0000-4000-8000-000000000002'),'42000000-0000-4000-8000-000000000001')->>'status','accepted','invitee accepts their own invite');
+select is(public.get_wedding_collaboration_invitation_preview((select id from public.wedding_collaboration_invitations
+  where invitee_user_id='11000000-0000-4000-8000-000000000002' and status='accepted'))->>'status','accepted',
+  'accepted invitee can still read terminal invitation status');
+select is(public.get_wedding_collaboration_invitation_preview((select id from public.wedding_collaboration_invitations
+  where invitee_user_id='11000000-0000-4000-8000-000000000002' and status='accepted'))->>'membership_status','active',
+  'accepted preview reflects the invitees active membership period');
 select is((select status from public.wedding_collaboration_memberships where member_user_id='11000000-0000-4000-8000-000000000002'),'active','acceptance creates active membership');
 select is((select status from public.wedding_collaboration_invitations where invitee_user_id='11000000-0000-4000-8000-000000000002'),'accepted','invitation and membership lifecycle remain distinct');
 select throws_ok($$update public.wedding_collaboration_invitations set accepted_at=null where id=(select accepted_invitation_id from public.wedding_collaboration_memberships where member_user_id='11000000-0000-4000-8000-000000000002')$$,
@@ -175,6 +248,13 @@ select is(public.revoke_wedding_collaboration_membership(
   (select id from public.wedding_collaboration_memberships where member_user_id='11000000-0000-4000-8000-000000000002' and status='active'),
   '43000000-0000-4000-8000-000000000005')->>'status','revoked','owner can revoke active membership');
 select is((select status from public.wedding_collaboration_memberships where member_user_id='11000000-0000-4000-8000-000000000002' and status='revoked'),'revoked','revocation preserves a historical membership period');
+select set_config('test.revoked_invitation_id',(select accepted_invitation_id::text from public.wedding_collaboration_memberships
+  where member_user_id='11000000-0000-4000-8000-000000000002' and status='revoked'),true);
+set local role authenticated;
+select set_config('request.jwt.claim.sub','11000000-0000-4000-8000-000000000002',true);
+select is(public.get_wedding_collaboration_invitation_preview(current_setting('test.revoked_invitation_id')::uuid)->>'membership_status','revoked',
+  'accepted invitation history does not imply an active membership after revocation');
+reset role;
 select set_config('request.jwt.claim.sub','11000000-0000-4000-8000-000000000002',true);
 select is((select (public.accept_wedding_collaboration_invite(accepted_invitation_id,'42000000-0000-4000-8000-000000000001')->>'status')
   || ':' || (public.accept_wedding_collaboration_invite(accepted_invitation_id,'42000000-0000-4000-8000-000000000001')->>'duplicate')
@@ -236,6 +316,14 @@ select '21000000-0000-4000-8000-000000000001',id,25,'Additional service',2
 from public.extra_services where slug='harness-service' and is_system_template is true;
 select is((select collaboration_terms_version from public.weddings where id='21000000-0000-4000-8000-000000000001'),2,'extra row changes increment terms version');
 select is((select status from public.wedding_collaboration_invitations where invitee_user_id='11000000-0000-4000-8000-000000000004' and wedding_id='21000000-0000-4000-8000-000000000001'),'superseded','extra changes supersede pending proposal');
+select set_config('request.jwt.claim.sub','11000000-0000-4000-8000-000000000004',true);
+select is(public.get_wedding_collaboration_invitation_preview((select id from public.wedding_collaboration_invitations
+  where invitee_user_id='11000000-0000-4000-8000-000000000004' and wedding_id='21000000-0000-4000-8000-000000000001'))->>'status','superseded',
+  'superseded preview is visible but remains terminal');
+select is((public.get_wedding_collaboration_invitation_preview((select id from public.wedding_collaboration_invitations
+  where invitee_user_id='11000000-0000-4000-8000-000000000004' and wedding_id='21000000-0000-4000-8000-000000000001'))->>'contract_value')::numeric,
+  1000::numeric,'superseded preview preserves the original frozen contract value');
+select set_config('request.jwt.claim.sub','11000000-0000-4000-8000-000000000001',true);
 select is(public.create_wedding_collaboration_invite('21000000-0000-4000-8000-000000000001',
   '11000000-0000-4000-8000-000000000004',null,'45000000-0000-4000-8000-000000000002')->>'status','created','fresh proposal captures updated extra snapshot');
 select is((select jsonb_array_length(extras_snapshot) from public.wedding_collaboration_invitations
@@ -388,6 +476,15 @@ select is(public.accept_wedding_collaboration_invite((select id from public.wedd
   where idempotency_key='45000000-0000-4000-8000-000000000003'),
   '45000000-0000-4000-8000-000000000004')->>'status','expired',
   'expired invitation is denied and transitioned at acceptance without cron');
+select set_config('request.jwt.claim.sub','11000000-0000-4000-8000-000000000004',true);
+select is((select item->>'status' from jsonb_array_elements(public.list_my_wedding_collaboration_invitations()) as rows(item)
+  where item->>'invitation_id'=(select id::text from public.wedding_collaboration_invitations
+    where idempotency_key='45000000-0000-4000-8000-000000000003')),'expired',
+  'incoming list retains the invitees expired terminal state');
+select is(public.get_wedding_collaboration_invitation_preview((select id from public.wedding_collaboration_invitations
+  where idempotency_key='45000000-0000-4000-8000-000000000003'))->>'status','expired',
+  'expired invitation preview preserves its terminal state');
+select set_config('request.jwt.claim.sub','11000000-0000-4000-8000-000000000001',true);
 select is((select status from public.wedding_collaboration_invitations
   where idempotency_key='45000000-0000-4000-8000-000000000003'),'expired',
   'expiry transition leaves the invitation unusable');
@@ -472,6 +569,14 @@ select is((select reason from public.wedding_collaboration_invitations where ide
 select ok((select owner_user_id is null and couple_first_name_snapshot is null and terms_snapshot='{}'::jsonb
   from public.wedding_collaboration_invitations where idempotency_key='51000000-0000-4000-8000-000000000008'),
   'owner erasure redacts accepted invitation references and commercial snapshot');
+select set_config('test.erased_invitation_id',(select id::text from public.wedding_collaboration_invitations
+  where idempotency_key='51000000-0000-4000-8000-000000000001'),true);
+set local role authenticated;
+select set_config('request.jwt.claim.sub','11000000-0000-4000-8000-000000000006',true);
+select is(public.get_wedding_collaboration_invitation_preview(current_setting('test.erased_invitation_id')::uuid),null,
+  'owner erasure removes invitee identity association so historical preview returns no private data');
+reset role;
+select set_config('request.jwt.claim.sub','11000000-0000-4000-8000-000000000005',true);
 select is((select count(*)::int from public.wedding_collaboration_events
   where wedding_id_snapshot='21000000-0000-4000-8000-000000000003'
     and event_type='membership_revoked' and reason='account_deleted'

@@ -28,6 +28,7 @@ import { SubscriptionSettingsPage } from '@/pages/SubscriptionSettingsPage'
 import { NotificationSettingsPage } from '@/pages/NotificationSettingsPage'
 import { CollaborationSettingsPage } from '@/pages/CollaborationSettingsPage'
 import { NotificationsPage } from '@/pages/NotificationsPage'
+import { WeddingInvitationListPage, WeddingInvitationPreviewPage } from '@/features/collaboration/WeddingInvitationPages'
 import { FinancePage } from '@/pages/FinancePage'
 import { TasksPage } from '@/pages/TasksPage'
 import { PrzewodnikPage } from '@/pages/PrzewodnikPage'
@@ -131,6 +132,8 @@ export const router = createBrowserRouter([
             element: <Navigate to="/dashboard" replace />,
           },
           { path: '/powiadomienia', element: <NotificationsPage /> },
+          { path: '/wspolpraca/zaproszenia', element: <WeddingInvitationListPage /> },
+          { path: '/wspolpraca/zaproszenie/:invitationId', element: <WeddingInvitationPreviewPage /> },
           { path: '/finanse', element: <FinancePage /> },
           // Retired experimental Dashboard V2 — bookmarks redirect to production Pulpit.
           { path: '/dashboard-v2', element: <Navigate to="/dashboard" replace /> },

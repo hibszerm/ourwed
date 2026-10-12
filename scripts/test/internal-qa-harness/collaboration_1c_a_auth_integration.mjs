@@ -92,23 +92,34 @@ async function insertFixture(table, row) {
 
 let owner
 let member
+let otherCollaborator
+let thirdParty
 let weddingId
+let otherWeddingId
 try {
   owner = await signup('owner')
   member = await signup('member')
-  const [low, high] = [owner.id, member.id].sort()
-  await request('/rest/v1/collaboration_connections', {
-    key: serviceKey,
-    method: 'POST',
-    prefer: 'return=minimal',
-    body: {
-      participant_low_id: low,
-      participant_high_id: high,
-      participant_low_name_snapshot: 'Local owner',
-      participant_high_name_snapshot: 'Local member',
-      status: 'active',
-    },
-  })
+  otherCollaborator = await signup('other-collaborator')
+  thirdParty = await signup('third-party')
+  async function connect(participantA, participantB, names) {
+    const [low, high] = [participantA.id, participantB.id].sort()
+    await request('/rest/v1/collaboration_connections', {
+      key: serviceKey,
+      method: 'POST',
+      prefer: 'return=minimal',
+      body: {
+        participant_low_id: low,
+        participant_high_id: high,
+        participant_low_name_snapshot: names[0],
+        participant_high_name_snapshot: names[1],
+        status: 'active',
+      },
+    })
+    return { low, high }
+  }
+  const { low, high } = await connect(owner, member, ['Local owner', 'Local member'])
+  await connect(owner, otherCollaborator, ['Local owner', 'Other collaborator'])
+  await connect(otherCollaborator, thirdParty, ['Other collaborator', 'Local third party'])
 
   const created = await request('/rest/v1/weddings', {
     method: 'POST', token: owner.token, prefer: 'return=representation',
@@ -123,6 +134,12 @@ try {
   })
   weddingId = created?.[0]?.id
   assert.ok(weddingId, 'normal customer creates an owner-scoped wedding through RLS')
+  const otherWedding = await request('/rest/v1/weddings', {
+    method: 'POST', token: otherCollaborator.token, prefer: 'return=representation',
+    body: { user_id: otherCollaborator.id, bride_name: 'Other', groom_name: 'Wedding', wedding_date: '2027-06-02', contract_value: 500, currency: 'PLN' },
+  })
+  otherWeddingId = otherWedding?.[0]?.id
+  assert.ok(otherWeddingId, 'another connected account creates its own owner-scoped wedding through RLS')
 
   const childResources = []
   const weddingChildTables = [
@@ -195,6 +212,19 @@ try {
   checkedStages.push('active global connection')
   await assertChildIsolation('active global connection')
 
+  const tamperedInvite = await attemptWrite('/rest/v1/rpc/create_wedding_collaboration_invite', {
+    token: owner.token,
+    method: 'POST',
+    body: {
+      p_wedding_id: weddingId,
+      p_invitee_user_id: thirdParty.id,
+      p_proposed_share_amount: null,
+      p_idempotency_key: randomUUID(),
+    },
+  })
+  assert.ok(tamperedInvite.status >= 400,
+    'owner cannot turn a client-tampered, unconnected user UUID into a wedding invitation')
+
   const invitation = await rpc('create_wedding_collaboration_invite', owner.token, {
     p_wedding_id: weddingId,
     p_invitee_user_id: member.id,
@@ -202,13 +232,93 @@ try {
     p_idempotency_key: randomUUID(),
   })
   assert.equal(invitation.status, 'created')
+
+  const otherInvitation = await rpc('create_wedding_collaboration_invite', otherCollaborator.token, {
+    p_wedding_id: otherWeddingId,
+    p_invitee_user_id: thirdParty.id,
+    p_proposed_share_amount: null,
+    p_idempotency_key: randomUUID(),
+  })
+  assert.equal(otherInvitation.status, 'created', 'second owner creates a separate invitation for another invitee')
+  const preview = await rpc('get_wedding_collaboration_invitation_preview', member.token, {
+    p_invitation_id: invitation.invitation_id,
+  })
+  assert.equal(preview.status, 'pending', 'invitee preview returns the pending lifecycle status')
+  assert.deepEqual(Object.keys(preview).sort(), [
+    'accepted_at', 'cancelled_at', 'contract_value', 'couple_first_name', 'couple_second_name',
+    'created_at', 'currency', 'declined_at', 'expired_at', 'expires_at', 'invitation_id',
+    'inviter_display_name', 'membership_status', 'package_label', 'proposed_share_amount', 'reason', 'status',
+    'superseded_at', 'wedding_date',
+  ].sort(), 'preview exposes only the approved invitation snapshot allowlist')
+  assert.ok(!JSON.stringify(preview).includes('@'), 'preview does not expose an account email')
+  assert.equal(await rpc('get_wedding_collaboration_invitation_preview', owner.token, {
+    p_invitation_id: invitation.invitation_id,
+  }), null, 'owner cannot call the invitee preview RPC for their own invitation')
+  assert.equal(await rpc('get_wedding_collaboration_invitation_preview', otherCollaborator.token, {
+    p_invitation_id: invitation.invitation_id,
+  }), null, 'another connected collaborator cannot preview this invitation')
+  assert.equal(await rpc('get_wedding_collaboration_invitation_preview', thirdParty.token, {
+    p_invitation_id: invitation.invitation_id,
+  }), null, 'third party cannot preview this invitation')
+  assert.equal(await rpc('get_wedding_collaboration_invitation_preview', thirdParty.token, {
+    p_invitation_id: randomUUID(),
+  }), null, 'random invitation ID reveals no data')
+  assert.equal(await rpc('get_wedding_collaboration_invitation_preview', member.token, {
+    p_invitation_id: otherInvitation.invitation_id,
+  }), null, 'another valid invitation ID for a different invitee reveals no data')
+  assert.equal((await rpc('get_wedding_collaboration_invitation_preview', thirdParty.token, {
+    p_invitation_id: otherInvitation.invitation_id,
+  })).status, 'pending', 'the second invitee can read only their own invitation')
+  const anonPreview = await fetch(`${apiUrl}/rest/v1/rpc/get_wedding_collaboration_invitation_preview`, {
+    method: 'POST',
+    headers: { apikey: anonKey, Authorization: `Bearer ${anonKey}`, 'Content-Type': 'application/json' },
+    body: JSON.stringify({ p_invitation_id: invitation.invitation_id }),
+  })
+  assert.ok(anonPreview.status >= 400, 'anonymous caller cannot execute invitation preview RPC')
+  const crossArgsResponse = await fetch(`${apiUrl}/rest/v1/rpc/get_wedding_collaboration_invitation_preview`, {
+    method: 'POST',
+    headers: { apikey: anonKey, Authorization: `Bearer ${member.token}`, 'Content-Type': 'application/json' },
+    body: JSON.stringify({ p_invitation_id: invitation.invitation_id, p_wedding_id: weddingId }),
+  })
+  assert.ok(crossArgsResponse.status >= 400, 'preview RPC has no caller-supplied wedding-ID overload')
+
+  const incoming = await rpc('list_my_wedding_collaboration_invitations', member.token, {})
+  assert.deepEqual(incoming.map((item) => item.invitation_id), [invitation.invitation_id],
+    'incoming list returns only the authenticated invitees invitation')
+  assert.equal((await rpc('list_my_wedding_collaboration_invitations', owner.token, {})).length, 0,
+    'owner does not see outgoing invitations in the invitee list')
+  assert.deepEqual((await rpc('list_my_wedding_collaboration_invitations', thirdParty.token, {}))
+    .map((item) => item.invitation_id), [otherInvitation.invitation_id],
+  'another authenticated invitee list contains only their own invitation')
+  const ownerState = await rpc('get_wedding_collaboration_state', owner.token, { p_wedding_id: weddingId })
+  assert.equal(ownerState.invitations.length, 1, 'owner reads the invitation state for their wedding')
+  assert.equal(await rpc('get_wedding_collaboration_state', owner.token, { p_wedding_id: otherWeddingId }), null,
+    'owner cannot enumerate another account wedding state')
+  assert.equal((await rpc('get_wedding_collaboration_state', otherCollaborator.token, { p_wedding_id: weddingId })), null,
+    'another connected collaborator cannot read owner state')
+  assert.equal(await rpc('get_wedding_collaboration_state', member.token, { p_wedding_id: weddingId }), null,
+    'accepted-invitation invitee cannot read owner state')
+  assert.equal(await rpc('get_wedding_collaboration_state', thirdParty.token, { p_wedding_id: weddingId }), null,
+    'unrelated authenticated account cannot read owner state')
+  assert.equal(await rpc('get_wedding_collaboration_state', owner.token, { p_wedding_id: randomUUID() }), null,
+    'random wedding ID returns no owner state')
+  const inviteNotification = await request(`/rest/v1/notifications?entity_type=eq.wedding_collaboration&entity_id=eq.${invitation.invitation_id}&select=id,title`, { key: serviceKey })
+  assert.equal(inviteNotification.length, 1, 'invitation creates one in-app attention item through existing notification table')
+
   checkedStages.push('pending wedding invitation')
   await assertChildIsolation('pending wedding invitation')
+  const otherWeddingRows = await request(`/rest/v1/weddings?id=eq.${weddingId}&select=id`, { token: otherCollaborator.token })
+  assert.deepEqual(otherWeddingRows, [], 'another active global collaborator still has zero wedding SELECT access')
   const accepted = await rpc('accept_wedding_collaboration_invite', member.token, {
     p_invitation_id: invitation.invitation_id,
     p_idempotency_key: randomUUID(),
   })
   assert.equal(accepted.status, 'accepted')
+  assert.equal((await rpc('get_wedding_collaboration_invitation_preview', member.token, {
+    p_invitation_id: invitation.invitation_id,
+  })).status, 'accepted', 'accepted invitee retains only the terminal invitation preview')
+  const ownerNotification = await request(`/rest/v1/notifications?entity_type=eq.wedding_collaboration&entity_id=eq.${invitation.invitation_id}&select=id`, { key: serviceKey })
+  assert.equal(ownerNotification.length, 2, 'acceptance adds an in-app state item while preserving the invitee item')
   checkedStages.push('accepted 1C-A membership')
   await assertChildIsolation('accepted 1C-A membership')
 
@@ -258,12 +368,15 @@ try {
   assert.equal(ended.status, 'ended')
   const membership = await request(`/rest/v1/wedding_collaboration_memberships?wedding_id=eq.${weddingId}&member_user_id=eq.${member.id}&select=status`, { key: serviceKey })
   assert.deepEqual(membership, [{ status: 'active' }], 'global connection end preserves accepted membership')
-  console.log(`Auth/PostgREST integration: PASS (${childResources.length} child resources x ${checkedStages.length} stages; ${mutationCases.length} denied child writes plus wedding UPDATE/DELETE; 2 normal local users; zero Internal QA accounts)`)
+  console.log(`Auth/PostgREST integration: PASS (${childResources.length} child resources x ${checkedStages.length} stages; ${mutationCases.length} denied child writes plus wedding UPDATE/DELETE; preview/list/owner-state IDOR matrix; 4 normal local users; zero Internal QA accounts)`)
 } finally {
   if (weddingId) {
     await request(`/rest/v1/weddings?id=eq.${weddingId}`, { key: serviceKey, method: 'DELETE' }).catch(() => {})
   }
-  for (const user of [member, owner]) {
+  if (otherWeddingId) {
+    await request(`/rest/v1/weddings?id=eq.${otherWeddingId}`, { key: serviceKey, method: 'DELETE' }).catch(() => {})
+  }
+  for (const user of [thirdParty, otherCollaborator, member, owner]) {
     if (user?.id) await request(`/auth/v1/admin/users/${user.id}`, { key: serviceKey, method: 'DELETE' }).catch(() => {})
   }
 }

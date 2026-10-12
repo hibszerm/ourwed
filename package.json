@@ -10,6 +10,7 @@
     "validate:production-supabase-artifact": "node scripts/validateProductionSupabaseArtifact.mjs",
     "lint": "eslint .",
     "test:collaboration-1b": "TSX_TSCONFIG_PATH=tsconfig.app.json node --import tsx src/features/collaboration/collaboration1bAcceptance.test.ts && TSX_TSCONFIG_PATH=tsconfig.app.json node --import tsx src/features/settings/settingsShellAcceptance.test.ts",
+    "test:collaboration-1c-b": "TSX_TSCONFIG_PATH=tsconfig.app.json node --import tsx src/features/collaboration/collaboration1cBAcceptance.test.ts && node scripts/test/internal-qa-harness/collaboration_1c_b_mobile_viewport.mjs",
     "preview": "vite preview",
     "test:travel-fee": "npx tsx --tsconfig tsconfig.app.json src/lib/utils/travelFeeCommercialAcceptance.test.ts",
     "test:travel-settings-ux": "npx tsx --tsconfig tsconfig.app.json src/features/travel/travelSettingsUxAcceptance.test.ts",

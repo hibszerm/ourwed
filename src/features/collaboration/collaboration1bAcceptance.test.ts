@@ -55,7 +55,7 @@ assert(settings.includes('initialFocus="panel"') && settings.includes('showClose
 assert(settings.includes("import { Modal } from '@/components/ui/Modal'") && settings.includes('<Modal'), 'uses the accessible app modal with focus trap and Escape handling')
 assert(settings.includes('await refreshAfterActionFailure()') && settings.includes('queryClient.resetQueries'), 'clears stale rows before reconciling after failed mutations')
 assert(!settings.includes('Wyślij ponownie') && !settings.includes('token'), 'does not keep resend-token or invitation-token UX')
-assert(!router.includes('CollaborationInvitationPage') && !router.includes('/wspolpraca/zaproszenie'), 'removes the credential route')
+assert(!router.includes('CollaborationInvitationPage') && router.includes('/wspolpraca/zaproszenie/:invitationId'), 'keeps 1B token routes removed while registering the authenticated wedding preview')
 assert(!auth.includes('REGISTRATION_ENABLED = true'), 'does not enable general registration')
 assert(!config.includes('[functions.collaboration-invitation]'), 'removes unused invite edge-function configuration')
 

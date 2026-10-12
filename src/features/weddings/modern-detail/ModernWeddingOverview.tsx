@@ -26,6 +26,7 @@ import type { WeddingNextAction } from '@/lib/workflow/resolveWeddingNextAction'
 import type { QuestionnaireStatus, Wedding } from '@/types/wedding'
 import type { WeddingPlace } from '@/types/travel'
 import styles from './ModernWeddingOverview.module.css'
+import { WeddingCollaborationOwnerPanel } from '@/features/collaboration/WeddingCollaborationOwnerPanel'
 
 const COMMERCIAL_OWNED_IDS = new Set([
   'overdue_payment',
@@ -121,6 +122,7 @@ export function ModernWeddingOverview({
       {extras.length > 0 ? (
         <Readiness extras={extras} onAction={onStoryAction} />
       ) : null}
+      <WeddingCollaborationOwnerPanel wedding={wedding} />
     </div>
   )
 }

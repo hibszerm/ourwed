@@ -1,0 +1,296 @@
+.ownerPanel,
+.invitePage,
+.inviteListPage {
+  min-width: 0;
+  border: 1px solid var(--border-subtle, var(--color-border));
+  border-radius: 16px;
+  background: var(--surface-primary, var(--color-surface));
+  color: var(--text-primary, var(--color-text-primary));
+}
+
+.ownerPanel {
+  grid-column: 1 / -1;
+  padding: 18px 20px;
+}
+
+.ownerHeading,
+.invitationRow,
+.formActions,
+.rowActions {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 12px;
+}
+
+.ownerHeading h2,
+.pageTitle {
+  margin: 3px 0 0;
+  font-size: 1.05rem;
+  font-weight: 630;
+  letter-spacing: -0.02em;
+}
+
+.eyebrow {
+  margin: 0;
+  color: var(--color-text-secondary);
+  font-size: 0.7rem;
+  letter-spacing: 0.08em;
+  text-transform: uppercase;
+}
+
+.invitationList {
+  margin: 14px 0 0;
+  padding: 0;
+  list-style: none;
+}
+
+.invitationRow {
+  min-height: 56px;
+  border-top: 1px solid var(--border-subtle, var(--color-border));
+}
+
+.invitationIdentity {
+  display: grid;
+  min-width: 0;
+  gap: 3px;
+}
+
+.invitationIdentity span,
+.muted,
+.field small {
+  color: var(--color-text-secondary);
+  font-size: 0.85rem;
+}
+
+.createPanel {
+  display: grid;
+  gap: 14px;
+  margin-top: 16px;
+  padding: 16px 0 0;
+  border-top: 1px solid var(--border-subtle, var(--color-border));
+}
+
+.field {
+  display: grid;
+  gap: 7px;
+  font-size: 0.9rem;
+  font-weight: 560;
+}
+
+.field select,
+.field input {
+  width: 100%;
+  min-width: 0;
+  min-height: 46px;
+  padding: 10px 12px;
+  border: 1px solid var(--border-subtle, var(--color-border));
+  border-radius: 10px;
+  background: var(--surface-primary, var(--color-surface));
+  color: inherit;
+  font: inherit;
+}
+
+.amountField {
+  display: flex;
+  align-items: center;
+  gap: 10px;
+}
+
+.amountField span {
+  flex: 0 0 auto;
+  color: var(--color-text-secondary);
+  font-size: 0.88rem;
+}
+
+.review {
+  padding: 12px 14px;
+  border-radius: 10px;
+  background: var(--surface-secondary, var(--color-bg));
+  font-size: 0.9rem;
+}
+
+.review p {
+  margin: 4px 0;
+}
+
+.quietButton,
+.primaryButton,
+.textButton {
+  min-height: 44px;
+  padding: 9px 13px;
+  border-radius: 10px;
+  font: inherit;
+  font-weight: 570;
+  cursor: pointer;
+}
+
+.quietButton {
+  border: 1px solid var(--border-subtle, var(--color-border));
+  background: transparent;
+  color: inherit;
+}
+
+.primaryButton {
+  border: 1px solid var(--text-primary, var(--color-text-primary));
+  background: var(--text-primary, var(--color-text-primary));
+  color: var(--surface-primary, var(--color-surface));
+}
+
+.textButton {
+  border: 0;
+  background: transparent;
+  color: var(--color-text-secondary);
+}
+
+.quietButton:disabled,
+.primaryButton:disabled,
+.textButton:disabled {
+  cursor: not-allowed;
+  opacity: 0.55;
+}
+
+.error {
+  margin: 0;
+  color: var(--color-danger, #a13e3e);
+  font-size: 0.88rem;
+}
+
+.inviteListPage,
+.invitePage {
+  width: min(100% - 32px, 680px);
+  margin: clamp(20px, 5vh, 56px) auto;
+  padding: clamp(20px, 4vw, 32px);
+}
+
+.invitePage {
+  max-height: calc(100dvh - max(24px, env(safe-area-inset-top)) - max(24px, env(safe-area-inset-bottom)));
+  overflow-y: auto;
+  overscroll-behavior: contain;
+}
+
+.previewHeader {
+  padding-bottom: 20px;
+  border-bottom: 1px solid var(--border-subtle, var(--color-border));
+}
+
+.coupleNames {
+  margin: 16px 0 4px;
+  font-size: clamp(1.55rem, 5vw, 2.1rem);
+  font-weight: 620;
+  letter-spacing: -0.035em;
+  line-height: 1.15;
+  overflow-wrap: anywhere;
+}
+
+.previewFacts {
+  display: grid;
+  gap: 16px;
+  margin: 20px 0 0;
+}
+
+.previewFact {
+  display: grid;
+  gap: 4px;
+}
+
+.previewFact dt {
+  color: var(--color-text-secondary);
+  font-size: 0.76rem;
+  letter-spacing: 0.07em;
+  text-transform: uppercase;
+}
+
+.previewFact dd {
+  margin: 0;
+  font-size: 1rem;
+  overflow-wrap: anywhere;
+}
+
+.previewActions {
+  display: grid;
+  grid-template-columns: 1fr 1fr;
+  gap: 10px;
+  margin-top: 26px;
+}
+
+.previewActions > button {
+  min-height: 48px;
+}
+
+.successState,
+.terminalState {
+  margin-top: 22px;
+  padding: 14px 16px;
+  border-radius: 12px;
+  background: var(--surface-secondary, var(--color-bg));
+  line-height: 1.55;
+}
+
+.inviteList {
+  display: grid;
+  gap: 10px;
+  margin: 22px 0 0;
+  padding: 0;
+  list-style: none;
+}
+
+.inviteListItem {
+  display: grid;
+  gap: 5px;
+  padding: 16px;
+  border: 1px solid var(--border-subtle, var(--color-border));
+  border-radius: 12px;
+  color: inherit;
+  text-decoration: none;
+}
+
+.inviteListItem:hover {
+  border-color: var(--text-primary, var(--color-text-primary));
+}
+
+.inviteListItem span {
+  color: var(--color-text-secondary);
+  font-size: 0.88rem;
+  overflow-wrap: anywhere;
+}
+
+.backLink {
+  display: inline-flex;
+  align-items: center;
+  min-height: 44px;
+  margin-top: 18px;
+  color: var(--color-text-secondary);
+  text-decoration: none;
+}
+
+@media (max-width: 600px) {
+  .ownerPanel {
+    padding: 16px;
+  }
+
+  .ownerHeading,
+  .invitationRow {
+    align-items: flex-start;
+  }
+
+  .ownerHeading {
+    flex-direction: column;
+  }
+
+  .rowActions {
+    flex-direction: column;
+    align-items: flex-end;
+  }
+
+  .invitePage,
+  .inviteListPage {
+    width: min(100% - 20px, 680px);
+    margin: max(10px, env(safe-area-inset-top)) auto max(10px, env(safe-area-inset-bottom));
+    padding: 20px;
+  }
+
+  .invitePage {
+    max-height: calc(100dvh - max(20px, env(safe-area-inset-top)) - max(20px, env(safe-area-inset-bottom)));
+  }
+}

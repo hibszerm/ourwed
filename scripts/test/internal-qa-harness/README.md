@@ -16,6 +16,7 @@ docker exec -i supabase_db_ourwed-internal-qa-harness-20261012 psql -U postgres 
 docker exec -i supabase_db_ourwed-internal-qa-harness-20261012 psql -U postgres -d postgres -v ON_ERROR_STOP=1 < supabase/migrations/20261012154736_internal_qa_accounts.sql
 docker exec -i supabase_db_ourwed-internal-qa-harness-20261012 psql -U postgres -d postgres -v ON_ERROR_STOP=1 < supabase/migrations/20261012175953_internal_qa_pro_entitlement_gate.sql
 docker exec -i supabase_db_ourwed-internal-qa-harness-20261012 psql -U postgres -d postgres -v ON_ERROR_STOP=1 < supabase/migrations/20261012193244_collaboration_1c_a_wedding_lifecycle_foundation.sql
+docker exec -i supabase_db_ourwed-internal-qa-harness-20261012 psql -U postgres -d postgres -v ON_ERROR_STOP=1 < supabase/migrations/20261012212404_collaboration_1c_b_secure_invitation_reads.sql
 ```
 
 The baseline fixture includes the invitation-visible wedding commercial
@@ -27,6 +28,8 @@ regression after loading the 1C-A migration:
 scripts/test/internal-qa-harness/run_pgtap.sh supabase/tests/collaboration_v1_1b_test.sql
 scripts/test/internal-qa-harness/run_pgtap.sh supabase/tests/collaboration_v1_1c_a_test.sql
 scripts/test/internal-qa-harness/run_pgtap.sh supabase/tests/internal_qa_accounts_test.sql
+TSX_TSCONFIG_PATH=tsconfig.app.json node --import tsx src/features/collaboration/collaboration1cBAcceptance.test.ts
+node scripts/test/internal-qa-harness/collaboration_1c_b_mobile_viewport.mjs
 ```
 
 Before repeating the load, reset only the disposable database's `public` schema and remove its synthetic Auth users. Do not run a repository-wide migration reset as this project deliberately skips historical migrations.
@@ -58,6 +61,14 @@ rows for contacts, notes, tasks, questionnaires and responses, documents and
 drafts, calendar/timeline, wedding brief/places, operational times/completions,
 extras, travel, contract generation/recovery, sessions, and payments at global
 connection, pending invitation, and accepted membership stages.
+
+For 1C-B the same loopback-only Auth/PostgREST runner also verifies the explicit
+preview allowlist and invitee-only IDOR boundary, third-party and connected
+collaborator denial, owner-only state RPC, invitee-only incoming list, safe
+in-app notification creation, and unchanged zero wedding access. The viewport
+fixture uses the production invitation layout stylesheet at 390×844, 375×812,
+393×852, and desktop; it checks overflow, dynamic-height scrolling, and action
+reachability. These commands target only the disposable local harness.
 
 The concurrency runner opens separate `psql` sessions and holds the first
 transaction's row locks briefly after its state transition. It covers the

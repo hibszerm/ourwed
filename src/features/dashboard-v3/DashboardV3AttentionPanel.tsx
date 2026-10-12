@@ -15,6 +15,7 @@ import {
   studioAttentionIssueLabel,
 } from '@/features/dashboard/attention/studioAttentionPresentation'
 import { useStudioAttention } from '@/features/dashboard/attention/useStudioAttention'
+import { useMyWeddingInvitations } from '@/features/collaboration/useWeddingCollaboration'
 import type {
   StudioAttentionItem,
   StudioAttentionKind,
@@ -29,13 +30,22 @@ import styles from './DashboardV3AttentionPanel.module.css'
  */
 export function DashboardV3AttentionPanel() {
   const attentionQuery = useStudioAttention()
+  const invitationsQuery = useMyWeddingInvitations()
   const items = attentionQuery.data ?? []
-  const loading = attentionQuery.isLoading && !attentionQuery.data
+  const pendingInvitations = (invitationsQuery.data ?? []).filter(
+    (invitation) => invitation.status === 'pending',
+  )
+  const invitationAttentionCount = pendingInvitations.length > 0 ? 1 : 0
+  const attentionCount = items.length + invitationAttentionCount
+  const loading =
+    attentionQuery.isLoading && !attentionQuery.data && invitationsQuery.isLoading
   const refreshing =
     attentionQuery.isFetching && Boolean(attentionQuery.data)
-  const mobileCount = Math.min(items.length, STUDIO_ATTENTION_MOBILE_VISIBLE)
   /** Positive zero only after successful resolve — never from error/idle. */
-  const showZeroState = attentionQuery.isSuccess && items.length === 0
+  const showZeroState =
+    attentionQuery.isSuccess &&
+    invitationsQuery.isSuccess &&
+    attentionCount === 0
 
   return (
     <section
@@ -48,13 +58,16 @@ export function DashboardV3AttentionPanel() {
         <h2 id="dashboard-v3-attention-title" className={styles.title}>
           Wymaga uwagi
         </h2>
-        {items.length > 0 ? (
+        {attentionCount > 0 ? (
           <>
             <span className={styles.countDesktop}>
-              {attentionItemCountLabel(items.length)}
+              {attentionItemCountLabel(attentionCount)}
             </span>
             <span className={styles.countMobile}>
-              {attentionItemCountLabel(mobileCount)}
+              {attentionItemCountLabel(
+                Math.min(items.length, STUDIO_ATTENTION_MOBILE_VISIBLE) +
+                  invitationAttentionCount,
+              )}
             </span>
           </>
         ) : null}
@@ -62,14 +75,41 @@ export function DashboardV3AttentionPanel() {
 
       {loading ? (
         <div className={styles.loading} aria-hidden />
-      ) : items.length > 0 ? (
-        <ul className={styles.list}>
-          {items.map((item) => (
-            <li key={item.id}>
-              <AttentionRow item={item} />
-            </li>
-          ))}
-        </ul>
+      ) : attentionCount > 0 ? (
+        <>
+          {pendingInvitations.length > 0 ? (
+            <Link
+              to="/wspolpraca/zaproszenia"
+              className={`${styles.row} ${styles.invitationRow}`}
+              aria-label={`${pendingInvitations.length} zaproszeń do współpracy. Otwórz zaproszenia`}
+              data-testid="dashboard-wedding-invitations"
+            >
+              <span className={styles.marker} aria-hidden>
+                <IconDocuments className={styles.markerIcon} aria-hidden />
+              </span>
+              <span className={styles.body}>
+                <span className={styles.name}>Zaproszenie do współpracy</span>
+                <span className={styles.issue}>
+                  {pendingInvitations.length === 1
+                    ? 'Masz nowe zaproszenie do zlecenia.'
+                    : `Masz ${pendingInvitations.length} zaproszenia do zleceń.`}
+                </span>
+              </span>
+              <span className={styles.trailing}>
+                <IconChevronRight className={styles.chevron} aria-hidden />
+              </span>
+            </Link>
+          ) : null}
+          {items.length > 0 ? (
+            <ul className={styles.list}>
+              {items.map((item) => (
+                <li key={item.id}>
+                  <AttentionRow item={item} />
+                </li>
+              ))}
+            </ul>
+          ) : null}
+        </>
       ) : showZeroState ? (
         <div
           className={styles.empty}
