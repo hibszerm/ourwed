@@ -26,6 +26,7 @@ import { AppearanceSettingsPage } from '@/pages/AppearanceSettingsPage'
 import { AccountSettingsPage } from '@/pages/AccountSettingsPage'
 import { SubscriptionSettingsPage } from '@/pages/SubscriptionSettingsPage'
 import { NotificationSettingsPage } from '@/pages/NotificationSettingsPage'
+import { CollaborationSettingsPage } from '@/pages/CollaborationSettingsPage'
 import { NotificationsPage } from '@/pages/NotificationsPage'
 import { FinancePage } from '@/pages/FinancePage'
 import { TasksPage } from '@/pages/TasksPage'
@@ -53,6 +54,7 @@ import { PowierzenieDanychPage } from '@/pages/PowierzenieDanychPage'
 import { RedirectToRootPreserveHash } from '@/routes/RedirectToRootPreserveHash'
 
 /** Redirect legacy `/umowy/szablony/:id…` URLs while preserving the id param. */
+// eslint-disable-next-line react-refresh/only-export-components -- route modules intentionally hold route-only components.
 function RedirectTemplateDeepLink({
   toSuffix = '',
 }: {
@@ -229,6 +231,7 @@ export const router = createBrowserRouter([
         path: '/ustawienia/powiadomienia',
         element: <NotificationSettingsPage />,
       },
+      { path: '/ustawienia/wspolpraca', element: <CollaborationSettingsPage /> },
       { path: '/ustawienia/wyglad', element: <AppearanceSettingsPage /> },
       { path: '/ustawienia/integracje', element: <CalendarIntegrationsPage /> },
       { path: '/ustawienia/firma', element: <CompanyDetailsPage /> },

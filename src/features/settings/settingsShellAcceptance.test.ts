@@ -34,6 +34,7 @@ const REQUIRED_LABELS = [
   'Profil',
   'Wygląd',
   'Preferencje powiadomień',
+  'Współpraca',
   'Kalendarze',
   'Subskrypcja',
 ] as const
@@ -51,6 +52,7 @@ const SETTINGS_CHILD_PAGES = [
   'src/pages/AccountSettingsPage.tsx',
   'src/pages/AppearanceSettingsPage.tsx',
   'src/pages/NotificationSettingsPage.tsx',
+  'src/pages/CollaborationSettingsPage.tsx',
   'src/pages/CalendarIntegrationsPage.tsx',
   'src/pages/SubscriptionSettingsPage.tsx',
 ] as const
@@ -99,13 +101,15 @@ const primaryLabels = SETTINGS_NAV_GROUPS.map(getSettingsPrimaryLabel)
   const profile = getSettingsNavGroup('/ustawienia/konto')
   const appearance = getSettingsNavGroup('/ustawienia/wyglad')
   const prefs = getSettingsNavGroup('/ustawienia/powiadomienia')
+  const collaboration = getSettingsNavGroup('/ustawienia/wspolpraca')
   const calendars = getSettingsNavGroup('/ustawienia/integracje')
   const plan = getSettingsNavGroup('/ustawienia/subskrypcja')
   assert(studio?.id === 'studio' && travel?.id === 'studio', 'C Studio grouping')
   assert(
     profile?.id === 'account' &&
       appearance?.id === 'account' &&
-      prefs?.id === 'account',
+      prefs?.id === 'account' &&
+      collaboration?.id === 'account',
     'D Konto grouping',
   )
   assert(calendars?.id === 'integrations', 'E Integracje grouping')
@@ -129,7 +133,7 @@ const primaryLabels = SETTINGS_NAV_GROUPS.map(getSettingsPrimaryLabel)
   assert(shouldShowSettingsSecondaryNav(profile), 'Konto has secondary')
   assert(
     profile!.destinations.map((d) => d.label).join('|') ===
-      'Profil|Wygląd|Preferencje powiadomień',
+      'Profil|Wygląd|Preferencje powiadomień|Współpraca',
     'H Konto secondary labels',
   )
   assert(!shouldShowSettingsSecondaryNav(calendars), 'Integracje no secondary')
@@ -145,6 +149,7 @@ const primaryLabels = SETTINGS_NAV_GROUPS.map(getSettingsPrimaryLabel)
     '/ustawienia/konto',
     '/ustawienia/wyglad',
     '/ustawienia/powiadomienia',
+    '/ustawienia/wspolpraca',
     '/ustawienia/integracje',
     '/ustawienia/subskrypcja',
   ]

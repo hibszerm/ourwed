@@ -64,6 +64,11 @@ export const SETTINGS_NAV_GROUPS: readonly SettingsNavGroup[] = [
         label: 'Preferencje powiadomień',
         hint: 'Alerty e-mail o ankietach',
       },
+      {
+        path: '/ustawienia/wspolpraca',
+        label: 'Współpraca',
+        hint: 'Połącz się ze współpracownikami',
+      },
     ],
   },
   {

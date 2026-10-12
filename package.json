@@ -9,6 +9,7 @@
     "build": "tsc -b && vite build",
     "validate:production-supabase-artifact": "node scripts/validateProductionSupabaseArtifact.mjs",
     "lint": "eslint .",
+    "test:collaboration-1b": "TSX_TSCONFIG_PATH=tsconfig.app.json node --import tsx src/features/collaboration/collaboration1bAcceptance.test.ts && TSX_TSCONFIG_PATH=tsconfig.app.json node --import tsx src/features/settings/settingsShellAcceptance.test.ts",
     "preview": "vite preview",
     "test:travel-fee": "npx tsx --tsconfig tsconfig.app.json src/lib/utils/travelFeeCommercialAcceptance.test.ts",
     "test:travel-settings-ux": "npx tsx --tsconfig tsconfig.app.json src/features/travel/travelSettingsUxAcceptance.test.ts",
