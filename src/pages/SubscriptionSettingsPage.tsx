@@ -46,6 +46,7 @@ const PRO_VALUE_PILLARS = [
 
 /** Paid or manually granted PRO — do not lead with a purchase funnel. */
 function canChooseSubscriptionPlan(entitlement: AccountEntitlement): boolean {
+  if (entitlement.source === 'internal_qa') return false
   if (entitlement.accessLevel !== 'pro') return true
   return entitlement.source === 'trial'
 }
@@ -88,6 +89,7 @@ export function SubscriptionSettingsPage() {
   const showPlanOffer = entitlement
     ? canChooseSubscriptionPlan(entitlement)
     : false
+  const isInternalQa = entitlement?.source === 'internal_qa'
 
   return (
     <SettingsLayout
@@ -125,13 +127,15 @@ export function SubscriptionSettingsPage() {
               <>
                 <CurrentPlanCard entitlement={state.data.entitlement} />
 
-                {showPlanOffer ? (
+                {isInternalQa ? null : showPlanOffer ? (
                   <PlanOffer />
                 ) : (
                   <WorkflowValue heading="Co obejmuje Twój PRO" />
                 )}
 
-                <HistoryCard entitlement={state.data.entitlement} />
+                {isInternalQa ? null : (
+                  <HistoryCard entitlement={state.data.entitlement} />
+                )}
               </>
             ) : null}
           </div>
@@ -272,6 +276,28 @@ function PlanOffer() {
 }
 
 function CurrentPlanCard({ entitlement }: { entitlement: AccountEntitlement }) {
+  if (entitlement.source === 'internal_qa' && entitlement.accessLevel === 'pro') {
+    return (
+      <section
+        className={styles.current}
+        data-testid="subscription-current"
+        data-state="internal"
+        data-tone="quiet"
+      >
+        <div className={styles.currentMain}>
+          <div className={styles.currentHead}>
+            <div>
+              <p className={styles.eyebrow}>Dostęp</p>
+              <h2>Aktywny</h2>
+            </div>
+            <p className={styles.statusPill}>Pełny</p>
+          </div>
+          <p className={styles.currentLead}>Pełny dostęp do OurWed.</p>
+        </div>
+      </section>
+    )
+  }
+
   if (entitlement.source === 'trial' && entitlement.accessLevel === 'pro') {
     const rem = getTrialTimeRemaining(entitlement.trialEndsAt)
     const remaining = trialRemainingParts(rem)

@@ -15,6 +15,7 @@
 import { createClient } from 'https://esm.sh/@supabase/supabase-js@2.49.1'
 import { parseDeliveryId } from './parseDeliveryRequest.ts'
 import { renderNotificationEmail } from './templates.ts'
+import { dispatchEmailUnlessInternalQa } from '../_shared/internalQaEmailGate.ts'
 
 const corsHeaders: Record<string, string> = {
   'Access-Control-Allow-Origin': '*',
@@ -74,10 +75,6 @@ Deno.serve(async (req) => {
   if (!supabaseUrl || !serviceKey) {
     return json({ ok: false, error: 'misconfigured' }, 500)
   }
-  if (!resendKey) {
-    return json({ ok: false, error: 'resend_not_configured' }, 500)
-  }
-
   let deliveryId: string | null
   try {
     const urlId = new URL(req.url).searchParams.get('delivery_id')
@@ -131,6 +128,45 @@ Deno.serve(async (req) => {
     return json({ ok: false, error: 'event_not_found' }, 404)
   }
 
+  const { data: internalQaAccount, error: qaErr } = await supabase
+    .from('internal_qa_accounts')
+    .select('user_id')
+    .eq('user_id', delivery.recipient_user_id)
+    .maybeSingle()
+
+  if (qaErr) {
+    await supabase
+      .from('notification_deliveries')
+      .update({
+        status: 'failed',
+        last_error_code: 'internal_qa_lookup_failed',
+        updated_at: new Date().toISOString(),
+      })
+      .eq('id', delivery.id)
+    return json({ ok: false, error: 'internal_qa_lookup_failed' }, 503)
+  }
+  if (internalQaAccount) {
+    await dispatchEmailUnlessInternalQa({
+      isInternalQa: true,
+      onSuppressed: async () => {
+        const { error } = await supabase
+          .from('notification_deliveries')
+          .update({
+            status: 'skipped',
+            skip_reason: 'internal_qa_account',
+            updated_at: new Date().toISOString(),
+          })
+          .eq('id', delivery.id)
+        if (error) throw error
+      },
+      send: async () => undefined,
+    })
+    return json({ ok: true, skipped: 'internal_qa_account' })
+  }
+  if (!resendKey) {
+    return json({ ok: false, error: 'resend_not_configured' }, 500)
+  }
+
   // Re-check preference at send time
   const { data: pref } = await supabase
     .from('notification_preferences')
@@ -176,41 +212,63 @@ Deno.serve(async (req) => {
     return json({ ok: true, skipped: 'no_recipient_email' })
   }
 
-  await supabase
-    .from('notification_deliveries')
-    .update({
-      status: 'processing',
-      attempt_count: delivery.attempt_count + 1,
-      updated_at: new Date().toISOString(),
-    })
-    .eq('id', delivery.id)
-
-  const payload = (event.payload_safe ?? {}) as Record<string, unknown>
-  const rendered = renderNotificationEmail({
-    eventType: event.event_type,
-    appBaseUrl: appUrl,
-    payload,
-  })
-
-  const idempotencyKey =
-    delivery.idempotency_key ||
-    `ourwed/${event.id}/${delivery.recipient_user_id}/email`
-
-  const resendRes = await fetch('https://api.resend.com/emails', {
-    method: 'POST',
-    headers: {
-      Authorization: `Bearer ${resendKey}`,
-      'Content-Type': 'application/json',
-      'Idempotency-Key': idempotencyKey.slice(0, 256),
+  const dispatchResult = await dispatchEmailUnlessInternalQa({
+    isInternalQa: false,
+    onSuppressed: async () => {
+      const { error } = await supabase
+        .from('notification_deliveries')
+        .update({
+          status: 'skipped',
+          skip_reason: 'internal_qa_account',
+          updated_at: new Date().toISOString(),
+        })
+        .eq('id', delivery.id)
+      if (error) throw error
     },
-    body: JSON.stringify({
-      from: fromEmail,
-      to: [toEmail],
-      subject: rendered.subject,
-      html: rendered.html,
-      text: rendered.text,
-    }),
+    send: async () => {
+      await supabase
+        .from('notification_deliveries')
+        .update({
+          status: 'processing',
+          attempt_count: delivery.attempt_count + 1,
+          updated_at: new Date().toISOString(),
+        })
+        .eq('id', delivery.id)
+
+      const payload = (event.payload_safe ?? {}) as Record<string, unknown>
+      const rendered = renderNotificationEmail({
+        eventType: event.event_type,
+        appBaseUrl: appUrl,
+        payload,
+      })
+
+      const idempotencyKey =
+        delivery.idempotency_key ||
+        `ourwed/${event.id}/${delivery.recipient_user_id}/email`
+
+      return await fetch('https://api.resend.com/emails', {
+        method: 'POST',
+        headers: {
+          Authorization: `Bearer ${resendKey}`,
+          'Content-Type': 'application/json',
+          'Idempotency-Key': idempotencyKey.slice(0, 256),
+        },
+        body: JSON.stringify({
+          from: fromEmail,
+          to: [toEmail],
+          subject: rendered.subject,
+          html: rendered.html,
+          text: rendered.text,
+        }),
+      })
+    },
   })
+
+  if (dispatchResult.status === 'suppressed') {
+    return json({ ok: true, skipped: 'internal_qa_account' })
+  }
+
+  const resendRes = dispatchResult.value
 
   const resendJson = (await resendRes.json().catch(() => ({}))) as {
     id?: string

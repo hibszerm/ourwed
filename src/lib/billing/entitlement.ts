@@ -3,6 +3,7 @@ export type EntitlementSource =
   | 'trial'
   | 'paid_subscription'
   | 'admin_override'
+  | 'internal_qa'
   | 'none'
 export type BillingInterval = 'month' | 'year' | null
 export type SubscriptionStatus =
@@ -12,6 +13,7 @@ export type SubscriptionStatus =
   | 'past_due'
   | 'canceled'
   | 'manual'
+  | 'internal_qa'
 
 export type AccountEntitlement = {
   accessLevel: AccessLevel
@@ -40,7 +42,7 @@ export type SubscriptionSummary = {
   entitlement: AccountEntitlement
   plans: unknown
   paymentsAvailable: boolean
-  paymentsMessage: string
+  paymentsMessage: string | null
 }
 
 export type TrialRemainingKind =
@@ -167,6 +169,18 @@ export function sidebarSubscriptionCopy(
   progress: number
 } {
   const { source, accessLevel, billingInterval } = entitlement
+
+  if (source === 'internal_qa' && accessLevel === 'pro') {
+    return {
+      title: 'Dostęp aktywny',
+      subtitle: 'Pełny dostęp do OurWed',
+      tone: 'default',
+      cta: null,
+      ctaLabel: null,
+      showProgress: false,
+      progress: 1,
+    }
+  }
 
   if (source === 'admin_override' && accessLevel === 'pro') {
     if (entitlement.manualAccessIndefinite) {
@@ -304,6 +318,8 @@ export function buildSubscriptionHistory(
 ): SubscriptionHistoryItem[] {
   const items: SubscriptionHistoryItem[] = []
 
+  if (entitlement.source === 'internal_qa') return items
+
   if (entitlement.trialStartedAt) {
     const rem = getTrialTimeRemaining(entitlement.trialEndsAt, now)
     const trialLive =
@@ -377,6 +393,9 @@ export function adminSubscriptionBadge(
   entitlement: AccountEntitlement,
   now: Date = new Date(),
 ): string {
+  if (entitlement.source === 'internal_qa' && entitlement.accessLevel === 'pro') {
+    return 'Dostęp wewnętrzny'
+  }
   if (entitlement.source === 'admin_override' && entitlement.accessLevel === 'pro') {
     return 'PRO · ręczny'
   }

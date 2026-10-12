@@ -2,7 +2,7 @@
  * Ankiety PRO gate acceptance — expired must not mutate questionnaires/links.
  */
 import { existsSync,  readFileSync  } from 'node:fs'
-import { dirname, join } from 'node:path'
+import { dirname, join, resolve } from 'node:path'
 import { fileURLToPath } from 'node:url'
 
 const ROOT = join(dirname(fileURLToPath(import.meta.url)), '../../..')
@@ -45,9 +45,11 @@ const contractEditor = read(
 assert(contractEditor.includes('readOnly'), 'contract editor supports readOnly')
 assert(contractEditor.includes('edit_questionnaire_template'), 'persist gated')
 
-const workspace = read(
-  'src/features/prewedding/usePreWeddingQuestionnaireWorkspace.ts',
-) + (assert(!existsSync(resolve(process.cwd(), 'src/features/weddings/detail/v2/WeddingPreWeddingQuestionnaireWorkspace.tsx')), 'deleted src/features/weddings/detail/v2/WeddingPreWeddingQuestionnaireWorkspace.tsx'), ({ includes: () => false, indexOf: () => -1, slice: () => '', length: 0, match: () => null } as any))
+const workspace = read('src/features/prewedding/usePreWeddingQuestionnaireWorkspace.ts')
+assert(
+  !existsSync(resolve(process.cwd(), 'src/features/weddings/detail/v2/WeddingPreWeddingQuestionnaireWorkspace.tsx')),
+  'deleted src/features/weddings/detail/v2/WeddingPreWeddingQuestionnaireWorkspace.tsx',
+)
 assert(workspace.includes('generate_questionnaire_link') || workspace.includes('rotate_questionnaire_token'), 'share/rotate keys')
 assert(workspace.includes('apply_questionnaire_responses'), 'apply gated')
 assert(workspace.includes('create_questionnaire'), 'prepare gated')

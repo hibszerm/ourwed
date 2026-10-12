@@ -72,6 +72,25 @@ const almostEnd = new Date('2026-07-30T18:00:00.000Z')
 }
 
 {
+  const qa = base({
+    source: 'internal_qa',
+    status: 'internal_qa',
+    trialStartedAt: null,
+    trialEndsAt: null,
+    trialTotalDays: null,
+    daysRemaining: null,
+    billingAccountId: null,
+    subscriptionId: null,
+  })
+  const copy = sidebarSubscriptionCopy(qa, day1)
+  assert(copy.title === 'Dostęp aktywny', 'QA sidebar is neutral')
+  assert(copy.subtitle === 'Pełny dostęp do OurWed', 'QA sidebar has no billing dates')
+  assert(copy.cta === null && !copy.showProgress, 'QA sidebar has no purchase CTA/countdown')
+  assert(buildSubscriptionHistory(qa, day1).length === 0, 'QA has no fabricated subscription history')
+  assert(adminSubscriptionBadge(qa, day1) === 'Dostęp wewnętrzny', 'QA admin badge is noncommercial')
+}
+
+{
   const copy = sidebarSubscriptionCopy(
     base({
       source: 'paid_subscription',
