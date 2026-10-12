@@ -15,15 +15,24 @@ python3 scripts/test/internal-qa-harness/build_baseline.py > /private/tmp/ourwed
 docker exec -i supabase_db_ourwed-internal-qa-harness-20261012 psql -U postgres -d postgres -v ON_ERROR_STOP=1 < /private/tmp/ourwed-internal-qa-harness/current_baseline.sql
 docker exec -i supabase_db_ourwed-internal-qa-harness-20261012 psql -U postgres -d postgres -v ON_ERROR_STOP=1 < supabase/migrations/20261012154736_internal_qa_accounts.sql
 docker exec -i supabase_db_ourwed-internal-qa-harness-20261012 psql -U postgres -d postgres -v ON_ERROR_STOP=1 < supabase/migrations/20261012175953_internal_qa_pro_entitlement_gate.sql
+docker exec -i supabase_db_ourwed-internal-qa-harness-20261012 psql -U postgres -d postgres -v ON_ERROR_STOP=1 < supabase/migrations/20261012193244_collaboration_1c_a_wedding_lifecycle_foundation.sql
+```
+
+The baseline fixture includes the invitation-visible wedding commercial
+columns, the frozen extra-service junction, and minimal owner-only RLS rows for
+the child-data isolation matrix. Run the dedicated lifecycle and zero-access
+regression after loading the 1C-A migration:
+
+```sh
+scripts/test/internal-qa-harness/run_pgtap.sh supabase/tests/collaboration_v1_1b_test.sql
+scripts/test/internal-qa-harness/run_pgtap.sh supabase/tests/collaboration_v1_1c_a_test.sql
+scripts/test/internal-qa-harness/run_pgtap.sh supabase/tests/internal_qa_accounts_test.sql
 ```
 
 Before repeating the load, reset only the disposable database's `public` schema and remove its synthetic Auth users. Do not run a repository-wide migration reset as this project deliberately skips historical migrations.
 
-Run the existing pgTAP suite with the extension schema on the path:
-
-```sh
-docker exec -i supabase_db_ourwed-internal-qa-harness-20261012 psql -X -U postgres -d postgres -v ON_ERROR_STOP=1 -c 'set search_path=extensions,public;' -f - < supabase/tests/internal_qa_accounts_test.sql
-```
+The wrapper checks TAP output for assertion failures because `psql` can exit
+successfully even when pgTAP has emitted `not ok` results.
 
 For Auth Admin provisioning and the API matrix, load only the local `API_URL`, `SERVICE_ROLE_KEY`, and `ANON_KEY` from `local.env` into the process environment. Set `INTERNAL_QA_OPERATOR=local disposable QA harness` and `INTERNAL_QA_SKIP_KEYCHAIN=1`, then run:
 
@@ -33,4 +42,29 @@ For Auth Admin provisioning and the API matrix, load only the local `API_URL`, `
 ./node_modules/.bin/tsx scripts/test/internal-qa-harness/run_auth_matrix.ts /private/tmp/ourwed-internal-qa-harness-20261012/local.env
 ```
 
-The matrix uses only local GoTrue/Postgres and mock email callbacks. Its synthetic schema includes the released authenticated Collaboration invite/accept functions and a no-op notification sink. The browser viewport matrix mounts the actual React `Modal` with synthetic incoming, outgoing, and active Collaboration states at 390×844, 375×812, 393×852, and desktop sizes. The provisioner skips macOS Keychain writes only when the target is local and `INTERNAL_QA_SKIP_KEYCHAIN=1` is explicitly set.
+The matrix uses only local GoTrue/Postgres and mock email callbacks. Its synthetic schema includes the released authenticated Collaboration invite/accept/end functions and a no-op notification sink. The browser viewport matrix mounts the actual React `Modal` with synthetic incoming, outgoing, and active Collaboration states at 390×844, 375×812, 393×852, and desktop sizes. The provisioner skips macOS Keychain writes only when the target is local and `INTERNAL_QA_SKIP_KEYCHAIN=1` is explicitly set.
+
+For Collaboration 1C-A Auth and race verification, use the two standalone runners
+below. They create ordinary temporary local Auth users, never Internal QA
+accounts, and delete their local users and weddings in `finally` cleanup:
+
+```sh
+node scripts/test/internal-qa-harness/collaboration_1c_a_auth_integration.mjs /private/tmp/ourwed-internal-qa-harness-20261012/local.env
+node scripts/test/internal-qa-harness/collaboration_1c_a_concurrency.mjs /private/tmp/ourwed-internal-qa-harness-20261012/local.env
+```
+
+The Auth/PostgREST runner verifies owner-readable synthetic rows and zero member
+rows for contacts, notes, tasks, questionnaires and responses, documents and
+drafts, calendar/timeline, wedding brief/places, operational times/completions,
+extras, travel, contract generation/recovery, sessions, and payments at global
+connection, pending invitation, and accepted membership stages.
+
+The concurrency runner opens separate `psql` sessions and holds the first
+transaction's row locks briefly after its state transition. It covers the
+seven existing 1C-A lifecycle races, opposite-direction extra reparenting,
+both start orders for an extra mutation against wedding deletion,
+both start orders for invitee and owner erasure against wedding acceptance, and
+both start orders for global 1B invite decline/cancel against actor erasure.
+Invitation expiry is covered by the permanent pgTAP regression. 1C-A has no
+invitation preview/read RPC, and private invitation tables are not readable by
+clients.

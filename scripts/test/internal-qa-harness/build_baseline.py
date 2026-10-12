@@ -180,13 +180,174 @@ create table public.weddings (
   email text,
   phone text,
   wedding_date date,
+  package_id uuid,
+  package_name text,
+  contract_value numeric(12,2),
+  deposit_amount numeric(12,2),
+  currency text not null default 'PLN',
+  package_items_snapshot jsonb not null default '[]'::jsonb,
+  selected_package_ids text[],
+  final_payment_terms jsonb,
+  final_payment_due_date date,
+  coverage_hours numeric(6,2),
+  coverage_end_time text,
+  overtime_rate numeric(12,2),
+  delivery_months integer,
+  delivery_days integer,
+  delivery_due_date date,
+  delivery_due_source text,
+  delivery_completed_at timestamptz,
+  travel_fee_status text not null default 'unresolved',
+  travel_fee_amount numeric(12,2) not null default 0,
+  travel_fee_free_km_snapshot numeric(10,2),
+  travel_fee_route_distance_m_snapshot integer,
   venue text,
   created_at timestamptz not null default timezone('utc', now()),
   updated_at timestamptz not null default timezone('utc', now())
 );
+create table public.wedding_extra_services (
+  id uuid primary key default extensions.gen_random_uuid(),
+  wedding_id uuid not null references public.weddings(id) on delete cascade,
+  extra_service_id uuid not null references public.extra_services(id) on delete restrict,
+  price_snapshot numeric(12,2) not null check (price_snapshot >= 0),
+  name_snapshot text not null default 'Service',
+  quantity integer not null default 1 check (quantity >= 1),
+  created_at timestamptz not null default timezone('utc', now())
+);
+create table public.payments (
+  id uuid primary key default extensions.gen_random_uuid(),
+  wedding_id uuid not null references public.weddings(id) on delete cascade,
+  type text not null default 'other',
+  amount numeric(12,2) not null default 0,
+  created_at timestamptz not null default timezone('utc', now())
+);
+create table public.wedding_questionnaires (
+  id uuid primary key default extensions.gen_random_uuid(),
+  wedding_id uuid not null references public.weddings(id) on delete cascade,
+  owner_id uuid not null references auth.users(id) on delete cascade,
+  title text not null default ''
+);
+create table public.wedding_questionnaire_responses (
+  id uuid primary key default extensions.gen_random_uuid(),
+  questionnaire_id uuid not null unique references public.wedding_questionnaires(id) on delete cascade,
+  answers_json jsonb not null default '{}'::jsonb
+);
+create table public.sessions (
+  id uuid primary key default extensions.gen_random_uuid(),
+  user_id uuid not null references public.users(id) on delete cascade,
+  linked_wedding_id uuid references public.weddings(id) on delete set null
+);
+create table public.session_payments (
+  id uuid primary key default extensions.gen_random_uuid(),
+  session_id uuid not null references public.sessions(id) on delete cascade,
+  amount numeric(12,2) not null default 0
+);
+create table public.collaboration_child_isolation_fixture (
+  id uuid primary key default extensions.gen_random_uuid(),
+  wedding_id uuid not null references public.weddings(id) on delete cascade,
+  resource_kind text not null
+);
+create table public.notifications (
+  id uuid primary key default extensions.gen_random_uuid(),
+  user_id uuid not null references public.users(id) on delete cascade,
+  type text not null default 'info',
+  title text not null,
+  content text not null,
+  entity_type text,
+  entity_id uuid,
+  link text,
+  event_key text unique,
+  read boolean not null default false,
+  created_at timestamptz not null default timezone('utc', now())
+);
+alter table public.payments enable row level security;
+alter table public.payments force row level security;
+grant select on public.payments to authenticated;
+create policy payments_select_own_wedding on public.payments for select to authenticated
+  using (exists(select 1 from public.weddings w where w.id=payments.wedding_id and w.user_id=auth.uid()));
 alter table public.weddings enable row level security;
 alter table public.weddings force row level security;
 grant select, insert, update, delete on public.weddings to authenticated;
+create function public.is_wedding_owner(p_wedding_id uuid)
+returns boolean language sql stable security definer set search_path = '' as $$
+  select exists(select 1 from public.weddings w where w.id=p_wedding_id and w.user_id=auth.uid())
+$$;
+revoke all on function public.is_wedding_owner(uuid) from public, anon;
+grant execute on function public.is_wedding_owner(uuid) to authenticated, service_role;
+"""
+
+wedding_child_fixture_tables = (
+    "contacts", "notes", "tasks", "timeline_events", "calendar_events",
+    "wedding_places", "travel_segments", "wedding_operational_times",
+    "wedding_briefs", "wedding_documents", "wedding_document_drafts",
+    "wedding_source_contracts", "wedding_contract_recoveries",
+    "wedding_contract_package_snapshots", "wedding_contract_recovery_decisions",
+    "wedding_contract_generation_runs", "wedding_document_generation_sequences",
+    "contracts",
+)
+child_fixture_ddl = "\n".join(
+    f"""create table public.{name} (
+  id uuid primary key default extensions.gen_random_uuid(),
+  wedding_id uuid not null references public.weddings(id) on delete cascade,
+  fixture_value text not null default 'synthetic'
+);
+alter table public.{name} enable row level security;
+alter table public.{name} force row level security;
+grant select on public.{name} to authenticated;
+create policy {name}_select_owner_fixture on public.{name} for select to authenticated
+  using (public.is_wedding_owner(wedding_id));"""
+    for name in wedding_child_fixture_tables
+)
+child_fixture_ddl += r"""
+alter table public.wedding_questionnaires enable row level security;
+alter table public.wedding_questionnaires force row level security;
+grant select on public.wedding_questionnaires to authenticated;
+create policy wedding_questionnaires_select_owner_fixture on public.wedding_questionnaires
+  for select to authenticated using (owner_id=auth.uid());
+alter table public.wedding_questionnaire_responses enable row level security;
+alter table public.wedding_questionnaire_responses force row level security;
+grant select on public.wedding_questionnaire_responses to authenticated;
+create policy wedding_questionnaire_responses_select_owner_fixture on public.wedding_questionnaire_responses
+  for select to authenticated using (exists(select 1 from public.wedding_questionnaires q
+    where q.id=questionnaire_id and q.owner_id=auth.uid()));
+create table public.wedding_operational_completions (
+  wedding_id uuid not null references public.weddings(id) on delete cascade,
+  stop_key text not null,
+  completed_at timestamptz not null default timezone('utc',now()),
+  created_at timestamptz not null default timezone('utc',now()),
+  updated_at timestamptz not null default timezone('utc',now()),
+  primary key (wedding_id,stop_key)
+);
+alter table public.wedding_operational_completions enable row level security;
+alter table public.wedding_operational_completions force row level security;
+grant select on public.wedding_operational_completions to authenticated;
+create policy wedding_operational_completions_select_owner_fixture on public.wedding_operational_completions
+  for select to authenticated using (public.is_wedding_owner(wedding_id));
+alter table public.sessions enable row level security;
+alter table public.sessions force row level security;
+grant select on public.sessions to authenticated;
+create policy sessions_select_owner_fixture on public.sessions for select to authenticated
+  using (user_id=auth.uid());
+alter table public.session_payments enable row level security;
+alter table public.session_payments force row level security;
+grant select on public.session_payments to authenticated;
+create policy session_payments_select_owner_fixture on public.session_payments for select to authenticated
+  using (exists(select 1 from public.sessions s where s.id=session_id and s.user_id=auth.uid()));
+alter table public.collaboration_child_isolation_fixture enable row level security;
+alter table public.collaboration_child_isolation_fixture force row level security;
+grant select on public.collaboration_child_isolation_fixture to authenticated;
+create policy collaboration_child_fixture_select_owner on public.collaboration_child_isolation_fixture
+  for select to authenticated using (public.is_wedding_owner(wedding_id));
+alter table public.wedding_extra_services enable row level security;
+alter table public.wedding_extra_services force row level security;
+grant select on public.wedding_extra_services to authenticated;
+create policy wedding_extra_services_select_owner_fixture on public.wedding_extra_services
+  for select to authenticated using (public.is_wedding_owner(wedding_id));
+"""
+
+ddl += child_fixture_ddl
+
+ddl += r"""
 alter table public.questionnaire_templates enable row level security;
 alter table public.questionnaire_templates force row level security;
 grant select, insert, update, delete on public.questionnaire_templates to authenticated;
@@ -197,6 +358,10 @@ functions = [
     ("20260811230000_pro_mutation_gate.sql", "account_has_pro_access"),
     ("20261012133531_collaboration_v1_global_connections.sql", "create_collaboration_invite"),
     ("20261012133531_collaboration_v1_global_connections.sql", "accept_collaboration_invite"),
+    ("20261012133531_collaboration_v1_global_connections.sql", "decline_collaboration_invite"),
+    ("20261012133531_collaboration_v1_global_connections.sql", "cancel_collaboration_invite"),
+    ("20261012133531_collaboration_v1_global_connections.sql", "end_collaboration"),
+    ("20261012133531_collaboration_v1_global_connections.sql", "get_collaboration_state"),
     ("20260907200000_user_legal_acceptances.sql", "current_production_legal_version"),
     ("20260811200000_subscription_foundation.sql", "billing_plan_catalog"),
     ("20260811200000_subscription_foundation.sql", "ensure_billing_account_for_user"),
@@ -219,6 +384,16 @@ collaboration_tables = "\n\n".join(
     table("20261012133531_collaboration_v1_global_connections.sql", name)
     for name in ("collaboration_invitations", "collaboration_connections", "collaboration_events")
 )
+collaboration_tables += """
+create unique index collaboration_invitations_pending_pair_unique
+  on public.collaboration_invitations(least(inviter_user_id,invitee_user_id),greatest(inviter_user_id,invitee_user_id))
+  where status='pending';
+create unique index collaboration_connections_active_pair_unique
+  on public.collaboration_connections(participant_low_id,participant_high_id)
+  where status='active';
+create unique index collaboration_events_actor_idempotency_unique
+  on public.collaboration_events(actor_user_id,idempotency_key) where idempotency_key is not null;
+"""
 
 out = [ddl, collaboration_tables, "\n"]
 out.extend(function(source, name) + "\n" for source, name in functions)
@@ -227,15 +402,31 @@ out.append(r"""
 -- this disposable harness does not create or deliver notification records.
 create function public.enqueue_notification_event(
   uuid, text, text, uuid, text, jsonb, text, text, text
-) returns uuid language sql volatile security definer set search_path = ''
-as $$ select null::uuid $$;
+) returns uuid language plpgsql volatile security definer set search_path = '' as $$
+declare v_id uuid;
+begin
+  insert into public.notifications(user_id,title,content,entity_type,entity_id,link,event_key)
+  values($1,$7,$8,$3,$4,$9,$5) on conflict(event_key) do nothing returning id into v_id;
+  if v_id is null then select id into v_id from public.notifications where event_key=$5; end if;
+  return v_id;
+end; $$;
 
 revoke all on function public.account_has_pro_access() from public, anon;
 grant execute on function public.account_has_pro_access() to authenticated, service_role;
 revoke all on function public.create_collaboration_invite(text, uuid) from public, anon;
 revoke all on function public.accept_collaboration_invite(uuid, uuid) from public, anon;
+revoke all on function public.end_collaboration(uuid, uuid) from public, anon;
 grant execute on function public.create_collaboration_invite(text, uuid) to authenticated;
 grant execute on function public.accept_collaboration_invite(uuid, uuid) to authenticated;
+grant execute on function public.end_collaboration(uuid, uuid) to authenticated;
+revoke all on function public.decline_collaboration_invite(uuid, uuid) from public, anon;
+revoke all on function public.cancel_collaboration_invite(uuid, uuid) from public, anon;
+revoke all on function public.get_collaboration_state() from public, anon;
+grant execute on function public.decline_collaboration_invite(uuid, uuid) to authenticated;
+grant execute on function public.cancel_collaboration_invite(uuid, uuid) to authenticated;
+grant execute on function public.get_collaboration_state() to authenticated;
+revoke all on function public.collaboration_events_allow_fk_nulling() from public, anon, authenticated;
+revoke all on function public.collaboration_before_user_delete() from public, anon, authenticated;
 
 create trigger on_auth_user_created after insert on auth.users
   for each row execute function public.handle_new_user();
@@ -245,6 +436,26 @@ create trigger collaboration_events_append_only before update or delete on publi
   for each row execute function public.collaboration_events_allow_fk_nulling();
 create trigger collaboration_before_user_delete before delete on public.users
   for each row execute function public.collaboration_before_user_delete();
+
+alter table public.collaboration_invitations enable row level security;
+alter table public.collaboration_invitations force row level security;
+alter table public.collaboration_connections enable row level security;
+alter table public.collaboration_connections force row level security;
+alter table public.collaboration_events enable row level security;
+alter table public.collaboration_events force row level security;
+revoke all on public.collaboration_invitations, public.collaboration_connections, public.collaboration_events
+  from public, anon, authenticated;
+grant select on public.collaboration_invitations, public.collaboration_connections, public.collaboration_events to authenticated;
+grant all on public.collaboration_invitations, public.collaboration_connections, public.collaboration_events to service_role;
+create policy collaboration_invitations_participants_select on public.collaboration_invitations
+  for select to authenticated using (auth.uid() in (inviter_user_id,invitee_user_id));
+create policy collaboration_connections_participants_select on public.collaboration_connections
+  for select to authenticated using (auth.uid() in (participant_low_id,participant_high_id));
+create policy collaboration_events_participants_select on public.collaboration_events for select to authenticated
+  using (actor_user_id=auth.uid() or exists(select 1 from public.collaboration_invitations i
+    where i.id=collaboration_events.invitation_id and auth.uid() in (i.inviter_user_id,i.invitee_user_id))
+    or exists(select 1 from public.collaboration_connections c where c.id=collaboration_events.connection_id
+    and auth.uid() in (c.participant_low_id,c.participant_high_id)));
 
 insert into public.forms (name, slug, category, schema, version, is_active, is_system_template)
 values ('Harness form', 'harness-form', 'other', '{"questions":[]}', 1, true, true);

@@ -81,16 +81,10 @@ insert into auth.users (
   instance_id, id, aud, role, email, encrypted_password, email_confirmed_at,
   raw_app_meta_data, raw_user_meta_data, created_at, updated_at
 ) values
-  ('00000000-0000-0000-0000-000000000000', '10000000-0000-4000-8000-000000000001', 'authenticated', 'authenticated', 'alice@example.test', 'x', now(), '{"provider":"email","providers":["email"]}', '{"first_name":"Alice","last_name":"Owner"}', now(), now()),
-  ('00000000-0000-0000-0000-000000000000', '10000000-0000-4000-8000-000000000002', 'authenticated', 'authenticated', 'bob@example.test', 'x', now(), '{"provider":"email","providers":["email"]}', '{"first_name":"Bob","last_name":"Invitee"}', now(), now()),
-  ('00000000-0000-0000-0000-000000000000', '10000000-0000-4000-8000-000000000003', 'authenticated', 'authenticated', 'carol@example.test', 'x', now(), '{"provider":"email","providers":["email"]}', '{"first_name":"Carol","last_name":"Other"}', now(), now()),
-  ('00000000-0000-0000-0000-000000000000', '10000000-0000-4000-8000-000000000004', 'authenticated', 'authenticated', 'dave@example.test', 'x', now(), '{"provider":"email","providers":["email"]}', '{"first_name":"Dave","last_name":"Cancel"}', now(), now());
-
-insert into public.users (id, email, name) values
-  ('10000000-0000-4000-8000-000000000001', 'alice@example.test', 'Alice Owner'),
-  ('10000000-0000-4000-8000-000000000002', 'bob@example.test', 'Bob Invitee'),
-  ('10000000-0000-4000-8000-000000000003', 'carol@example.test', 'Carol Other'),
-  ('10000000-0000-4000-8000-000000000004', 'dave@example.test', 'Dave Cancel');
+  ('00000000-0000-0000-0000-000000000000', '10000000-0000-4000-8000-000000000001', 'authenticated', 'authenticated', 'alice@example.test', 'x', now(), '{"provider":"email","providers":["email"]}', '{"first_name":"Alice","last_name":"Owner","legal_registration_accepted":"true","terms_version":"1.1","privacy_version":"1.1"}', now(), now()),
+  ('00000000-0000-0000-0000-000000000000', '10000000-0000-4000-8000-000000000002', 'authenticated', 'authenticated', 'bob@example.test', 'x', now(), '{"provider":"email","providers":["email"]}', '{"first_name":"Bob","last_name":"Invitee","legal_registration_accepted":"true","terms_version":"1.1","privacy_version":"1.1"}', now(), now()),
+  ('00000000-0000-0000-0000-000000000000', '10000000-0000-4000-8000-000000000003', 'authenticated', 'authenticated', 'carol@example.test', 'x', now(), '{"provider":"email","providers":["email"]}', '{"first_name":"Carol","last_name":"Other","legal_registration_accepted":"true","terms_version":"1.1","privacy_version":"1.1"}', now(), now()),
+  ('00000000-0000-0000-0000-000000000000', '10000000-0000-4000-8000-000000000004', 'authenticated', 'authenticated', 'dave@example.test', 'x', now(), '{"provider":"email","providers":["email"]}', '{"first_name":"Dave","last_name":"Cancel","legal_registration_accepted":"true","terms_version":"1.1","privacy_version":"1.1"}', now(), now());
 
 -- Two provisioned SSO identities can legally share an email in auth.users;
 -- case-varied values exercise ambiguity-safe matching without storing email.
@@ -98,11 +92,8 @@ insert into auth.users (
   instance_id, id, aud, role, email, encrypted_password, email_confirmed_at,
   raw_app_meta_data, raw_user_meta_data, created_at, updated_at, is_sso_user
 ) values
-  ('00000000-0000-0000-0000-000000000000', '10000000-0000-4000-8000-000000000005', 'authenticated', 'authenticated', 'Shared@example.test', 'x', now(), '{"provider":"sso","providers":["sso"]}', '{}', now(), now(), true),
-  ('00000000-0000-0000-0000-000000000000', '10000000-0000-4000-8000-000000000006', 'authenticated', 'authenticated', 'shared@example.test', 'x', now(), '{"provider":"sso","providers":["sso"]}', '{}', now(), now(), true);
-insert into public.users (id, email, name) values
-  ('10000000-0000-4000-8000-000000000005', 'Shared@example.test', 'Shared One'),
-  ('10000000-0000-4000-8000-000000000006', 'shared@example.test', 'Shared Two');
+  ('00000000-0000-0000-0000-000000000000', '10000000-0000-4000-8000-000000000005', 'authenticated', 'authenticated', 'Shared@example.test', 'x', now(), '{"provider":"sso","providers":["sso"]}', '{"legal_registration_accepted":"true","terms_version":"1.1","privacy_version":"1.1"}', now(), now(), true),
+  ('00000000-0000-0000-0000-000000000000', '10000000-0000-4000-8000-000000000006', 'authenticated', 'authenticated', 'shared@example.test', 'x', now(), '{"provider":"sso","providers":["sso"]}', '{"legal_registration_accepted":"true","terms_version":"1.1","privacy_version":"1.1"}', now(), now(), true);
 
 select set_config('request.jwt.claim.sub', '10000000-0000-4000-8000-000000000001', true);
 update auth.users set banned_until = now() + interval '1 hour'
@@ -258,7 +249,9 @@ select is(public.decline_collaboration_invite(
   (select id from public.collaboration_invitations where invitee_user_id='10000000-0000-4000-8000-000000000003' and status='declined'),
   '40000000-0000-4000-8000-000000000002'::uuid)->>'status', 'declined', 'decline replay is idempotent');
 select is((select count(*)::int from public.collaboration_events
-  where event_type = 'collaboration_invite_declined'), 1, 'decline replay does not duplicate audit event');
+  where invitation_id=(select id from public.collaboration_invitations
+      where invitee_user_id='10000000-0000-4000-8000-000000000003')
+    and event_type = 'collaboration_invite_declined'), 1, 'decline replay does not duplicate audit event');
 select is((select count(*)::int from public.collaboration_connections where participant_low_id =
   least('10000000-0000-4000-8000-000000000001'::uuid, '10000000-0000-4000-8000-000000000003'::uuid)
   and participant_high_id = greatest('10000000-0000-4000-8000-000000000001'::uuid,
@@ -296,20 +289,26 @@ select throws_ok($$select public.accept_collaboration_invite(
   'P0001', 'invitation_unavailable', 'cancelled invitation cannot later be accepted');
 select set_config('request.jwt.claim.sub', '10000000-0000-4000-8000-000000000001', true);
 select is((select count(*)::int from public.collaboration_events
-  where event_type = 'collaboration_invite_cancelled'), 1, 'cancel replay does not duplicate audit event');
+  where invitation_id=(select id from public.collaboration_invitations
+      where invitee_user_id='10000000-0000-4000-8000-000000000004')
+    and event_type = 'collaboration_invite_cancelled'), 1, 'cancel replay does not duplicate audit event');
 
+create temporary table test_connection_to_end(id uuid primary key) on commit drop;
+insert into test_connection_to_end
+select id from public.collaboration_connections where status='active' order by id limit 1;
 select is(public.end_collaboration(
-  (select id from public.collaboration_connections where status='active' limit 1),
+  (select id from test_connection_to_end),
   '60000000-0000-4000-8000-000000000001'::uuid)->>'status', 'ended', 'participant ends active relationship');
-select is((select status from public.collaboration_connections limit 1), 'ended', 'ended connection history remains');
+select is((select status from public.collaboration_connections where id=(select id from test_connection_to_end)), 'ended', 'ended connection history remains');
 select is(public.end_collaboration(
-  (select id from public.collaboration_connections limit 1),
+  (select id from test_connection_to_end),
   '60000000-0000-4000-8000-000000000001'::uuid)->>'status', 'ended', 'end replay is idempotent');
 select throws_ok($$select public.end_collaboration(
-  (select id from public.collaboration_connections limit 1),
+  (select id from test_connection_to_end),
   '60000000-0000-4000-8000-000000000002'::uuid)$$,
   'P0001', 'connection_unavailable', 'ended connection cannot be ended again with a new key');
-select is((select count(*)::int from public.collaboration_events where event_type='collaboration_ended'),
+select is((select count(*)::int from public.collaboration_events
+  where connection_id=(select id from test_connection_to_end) and event_type='collaboration_ended'),
   1, 'end replay does not duplicate audit event');
 
 -- A new pending invite is canceled and its participant FK nulled by account erasure.
