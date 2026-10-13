@@ -72,6 +72,25 @@ const collaborativeDto = {
   wedding_date: '2027-06-01',
   places: [{ role: 'ceremony', formatted_address: 'Local synthetic ceremony address', operational_time: '09:05' }],
 }
+let paginationPages = null
+let freshPaginationPages = null
+let paginationTargetId = null
+let paginationTargetName = 'Full'
+
+function makePaginationPage(start, count, { targetId = null, targetName = null } = {}) {
+  return Array.from({ length: count }, (_, offset) => {
+    const number = start + offset
+    const weddingId = `b2000000-0000-4000-8000-${String(number).padStart(12, '0')}`
+    const target = weddingId === targetId
+    const weddingDate = new Date(Date.UTC(2027, 0, number)).toISOString().slice(0, 10)
+    return {
+      wedding_id: weddingId,
+      couple_first_name: target ? targetName : `Page ${Math.ceil(number / 50)}`,
+      couple_second_name: target ? 'Target' : `Row ${number}`,
+      wedding_date: weddingDate,
+    }
+  })
+}
 
 let users = []
 let vite
@@ -132,9 +151,20 @@ try {
     let actorId = ''
     try { actorId = JSON.parse(Buffer.from(bearer.split('.')[1], 'base64url').toString('utf8')).sub ?? '' } catch {}
     if (name === 'list_my_collaborative_weddings') {
-      const rows = actorId === users[1].id && accessAvailable
-        ? [{ wedding_id: weddingId, couple_first_name: 'Ada', couple_second_name: 'Member', wedding_date: '2027-06-01' }]
-        : []
+      let rows = []
+      if (actorId === users[1].id && (accessAvailable || freshPaginationPages)) {
+        const pages = paginationPages
+          ? (accessAvailable ? paginationPages : freshPaginationPages ?? paginationPages)
+          : [[{ wedding_id: weddingId, couple_first_name: 'Ada', couple_second_name: 'Member', wedding_date: '2027-06-01' }]]
+        const requestBody = request.postDataJSON()
+        const cursorId = requestBody.p_after_wedding_id
+        if (!cursorId) {
+          rows = pages[0] ?? []
+        } else {
+          const pageIndex = pages.findIndex((items) => items.some((item) => item.wedding_id === cursorId))
+          rows = pageIndex >= 0 ? pages[pageIndex + 1] ?? [] : []
+        }
+      }
       await route.fulfill({ status: 200, headers: { ...cors, 'content-type': 'application/json' }, body: JSON.stringify(rows) })
       return
     }
@@ -144,7 +174,13 @@ try {
         heldDetailStarted?.()
         await new Promise((resolve) => { releaseHeldDetail = resolve })
       }
-      const value = actorId === users[1].id && accessAvailable ? collaborativeDto : null
+      const requestBody = request.postDataJSON()
+      const requestedWeddingId = requestBody.p_wedding_id
+      const value = actorId === users[1].id && accessAvailable
+        ? requestedWeddingId === paginationTargetId
+          ? { ...collaborativeDto, wedding_id: paginationTargetId, couple_first_name: paginationTargetName, couple_second_name: 'Target' }
+          : collaborativeDto
+        : null
       await route.fulfill({ status: 200, headers: { ...cors, 'content-type': 'application/json' }, body: JSON.stringify(value) })
       return
     }
@@ -198,29 +234,91 @@ try {
     passed += 3
   }
 
+  const fullPageInitialTarget = 'b2000000-0000-4000-8000-000000000062'
+  paginationTargetId = fullPageInitialTarget
+  paginationPages = [makePaginationPage(1, 50), makePaginationPage(51, 50, { targetId: fullPageInitialTarget, targetName: 'Full' })]
+  const freshFullPages = [
+    makePaginationPage(1, 50),
+    [...makePaginationPage(51, 50).filter((item) => item.wedding_id !== fullPageInitialTarget), ...makePaginationPage(101, 1)],
+    makePaginationPage(102, 1),
+  ]
+  freshPaginationPages = freshFullPages
+  await page.goto(`${origin}/scripts/test/internal-qa-harness/collaboration_1c_c_behavioral.html#/wspolpraca/sluby`)
+  await page.getByRole('link', { name: /^Page 1 i Row 1 / }).waitFor()
+  await page.getByRole('button', { name: 'Pokaż kolejne' }).click()
+  await page.getByRole('link', { name: 'Full i Target' }).waitFor()
+  const loadedPageLengths = await page.evaluate((id) => window.__collabTest.cacheSnapshot(id).collaborativeListPageLengths, users[1].id)
+  assert.deepEqual(loadedPageLengths, [50, 50], 'pagination regression setup loads two full non-final pages')
+  passed += 1
+  await page.getByRole('link', { name: 'Full i Target' }).click()
+  await page.getByRole('heading', { name: 'Full i Target' }).waitFor()
+  await page.evaluate((ids) => window.__collabTest.seedAccessLossIsolation(ids[0], ids[1]), [users[1].id, users[2].id])
+
   let detailStartedResolve
   const detailStarted = new Promise((resolve) => { detailStartedResolve = resolve })
   heldDetailStarted = detailStartedResolve
   accessAvailable = false
   holdNextDetail = true
-  const revalidation = page.evaluate(() => window.__collabTest.refetchDetail())
+  const revalidation = page.evaluate((id) => window.__collabTest.refetchDetail(id), fullPageInitialTarget)
   await detailStarted
   await page.getByText('Sprawdzanie dostępu do zlecenia…').waitFor()
-  assert.equal(await page.getByRole('heading', { name: 'Ada i Member' }).count(), 0,
+  assert.equal(await page.getByRole('heading', { name: 'Full i Target' }).count(), 0,
     'stale private detail is masked while server authorization is revalidated')
   passed += 2
   releaseHeldDetail()
   await revalidation
   await page.waitForFunction(() => window.location.hash === '#/wspolpraca/sluby')
   await page.getByText('Dostęp do tego zlecenia został zakończony.').waitFor()
-  const clearedCache = await page.evaluate((id) => window.__collabTest.cacheSnapshot(id), users[1].id)
+  const clearedCache = await page.evaluate((ids) => window.__collabTest.cacheSnapshot(ids[0], ids[1]), [users[1].id, fullPageInitialTarget])
   assert.equal(clearedCache.collaborativeDetail, undefined, 'unavailable response removes exact collaborative detail cache')
-  assert.equal(clearedCache.collaborativeListHasWedding, false, 'access loss removes wedding from cached collaboration list pages')
-  assert.equal(await page.getByRole('heading', { name: 'Ada i Member' }).count(), 0, 'generic ended state contains no stale couple detail')
-  await page.goBack()
-  await page.waitForFunction((id) => !window.location.hash.includes(id), weddingId)
-  assert.ok(!page.url().includes(weddingId), 'browser back cannot restore the replaced stale detail route')
+  assert.ok(await page.evaluate((id) => window.__collabTest.wasCollaborativeListRemoved(id), users[1].id),
+    'access loss removes the entire current-user collaboration list query')
+  assert.ok(clearedCache.collaborativeListPresent, 'list route creates a fresh query after the previous list query was removed')
+  assert.deepEqual(clearedCache.collaborativeListPageLengths, [50], 'fresh server-authoritative list begins at page one')
+  assert.equal(clearedCache.collaborativeListHasWedding, false, 'fresh list excludes the wedding whose access ended')
+  assert.equal(clearedCache.ownerWedding.brideName, 'Owner cache survives targeted access loss',
+    'targeted collaboration access loss leaves owner wedding cache untouched')
+  assert.equal(await page.evaluate((id) => window.__collabTest.otherIdentityListPresent(id), users[2].id), true,
+    'targeted access loss leaves another identity collaboration list untouched')
   passed += 5
+  assert.equal(await page.getByRole('heading', { name: 'Full i Target' }).count(), 0, 'generic ended state contains no stale couple detail')
+  await page.getByRole('button', { name: 'Pokaż kolejne' }).click()
+  await page.getByRole('link', { name: /Page 2 i Row 51/ }).waitFor()
+  await page.getByRole('button', { name: 'Pokaż kolejne' }).click()
+  await page.getByRole('link', { name: /Page 3 i Row 102/ }).waitFor()
+  const fullScenarioPageLengths = await page.evaluate((id) => window.__collabTest.cacheSnapshot(id).collaborativeListPageLengths, users[1].id)
+  assert.deepEqual(fullScenarioPageLengths, [50, 50, 1], 'later server page remains reachable after revocation from a full non-final page')
+  assert.equal(await page.getByRole('link', { name: 'Full i Target' }).count(), 0, 'revoked wedding is absent after fresh pagination')
+  passed += 3
+  await page.goBack()
+  await page.waitForFunction((id) => !window.location.hash.includes(id), fullPageInitialTarget)
+  assert.ok(!page.url().includes(fullPageInitialTarget), 'browser back cannot restore the replaced stale detail route')
+  passed += 5
+
+  // A short fresh final page still terminates pagination without a synthetic extra cursor.
+  paginationTargetId = 'b2000000-0000-4000-8000-000000000053'
+  paginationTargetName = 'Final'
+  paginationPages = [makePaginationPage(1, 50), makePaginationPage(51, 20, { targetId: paginationTargetId, targetName: 'Final' })]
+  freshPaginationPages = [makePaginationPage(1, 50), makePaginationPage(51, 19)]
+  accessAvailable = true
+  await page.reload()
+  await page.waitForFunction((id) => window.__collabTest.currentUserId() === id, users[1].id)
+  await page.goto(`${origin}/scripts/test/internal-qa-harness/collaboration_1c_c_behavioral.html#/wspolpraca/sluby`)
+  await page.getByRole('link', { name: /^Page 1 i Row 1 / }).waitFor()
+  await page.getByRole('button', { name: 'Pokaż kolejne' }).click()
+  await page.getByRole('link', { name: 'Final i Target' }).waitFor()
+  await page.getByRole('link', { name: 'Final i Target' }).click()
+  await page.getByRole('heading', { name: 'Final i Target' }).waitFor()
+  accessAvailable = false
+  await page.evaluate((id) => window.__collabTest.refetchDetail(id), paginationTargetId)
+  await page.waitForFunction(() => window.location.hash === '#/wspolpraca/sluby')
+  await page.getByRole('button', { name: 'Pokaż kolejne' }).click()
+  await page.waitForFunction(() => document.querySelectorAll('[data-testid="collaborative-wedding-list"] li').length === 69)
+  assert.equal(await page.getByRole('button', { name: 'Pokaż kolejne' }).count(), 0,
+    'fresh short final page ends pagination without looping')
+  const finalPageLengths = await page.evaluate((id) => window.__collabTest.cacheSnapshot(id).collaborativeListPageLengths, users[1].id)
+  assert.deepEqual(finalPageLengths, [50, 19], 'final-page regression uses fresh 50-row and 19-row server pages')
+  passed += 2
 
   accessAvailable = true
   await login(0)

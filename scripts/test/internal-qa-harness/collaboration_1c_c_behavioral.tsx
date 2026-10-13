@@ -20,6 +20,15 @@ const collaborativeDetail: CollaborativeWeddingDetail = {
   ...listItem,
   places: [{ role: 'ceremony', formatted_address: 'Local synthetic ceremony address', operational_time: '09:05' }],
 }
+const removedCollaborativeListUserIds = new Set<string>()
+
+queryClient.getQueryCache().subscribe((event) => {
+  if (event.type !== 'removed') return
+  const key = event.query.queryKey
+  if (key[0] === 'collaboration' && key[1] === 'weddings' && typeof key[2] === 'string') {
+    removedCollaborativeListUserIds.add(key[2])
+  }
+})
 
 declare global {
   interface Window {
@@ -27,15 +36,20 @@ declare global {
       login(email: string, password: string): Promise<void>
       logout(): Promise<void>
       currentUserId(): string | null
-      refetchDetail(): Promise<void>
+      refetchDetail(weddingId?: string): Promise<void>
       seedPrivateCaches(userId: string): void
-      cacheSnapshot(userId: string): {
+      seedAccessLossIsolation(userId: string, otherUserId: string): void
+      wasCollaborativeListRemoved(userId: string): boolean
+      cacheSnapshot(userId: string, weddingId?: string): {
         collaborativeDetail: CollaborativeWeddingDetail | undefined
         collaborativeListHasWedding: boolean
+        collaborativeListPresent: boolean
+        collaborativeListPageLengths: number[]
         ownerWedding: unknown
         ownerWeddingList: unknown
         mutationCount: number
       }
+      otherIdentityListPresent(userId: string): boolean
     }
   }
 }
@@ -51,10 +65,10 @@ function TestControls() {
       },
       logout: auth.logout,
       currentUserId: () => auth.user?.id ?? null,
-      async refetchDetail() {
+      async refetchDetail(targetWeddingId = weddingId) {
         if (!auth.user?.id) throw new Error('local_test_user_required')
         await queryClient.invalidateQueries({
-          queryKey: collaborativeWeddingQueryKeys.detail(auth.user.id, weddingId),
+          queryKey: collaborativeWeddingQueryKeys.detail(auth.user.id, targetWeddingId),
           exact: true,
         })
       },
@@ -78,19 +92,39 @@ function TestControls() {
           mutationFn: async () => null,
         })
       },
-      cacheSnapshot(userId) {
+      seedAccessLossIsolation(userId, otherUserId) {
+        const ownerWedding = {
+          id: weddingId,
+          brideName: 'Owner cache survives targeted access loss',
+          groomName: 'Owner cache survives targeted access loss',
+        }
+        queryClient.setQueryData(['weddings', userId, weddingId], ownerWedding)
+        queryClient.setQueryData(collaborativeWeddingQueryKeys.list(otherUserId), {
+          pages: [[{ ...listItem, wedding_id: 'a1000000-0000-4000-8000-000000000099' }]],
+          pageParams: [{ afterWeddingDate: null, afterWeddingId: null }],
+        })
+      },
+      wasCollaborativeListRemoved(userId) {
+        return removedCollaborativeListUserIds.has(userId)
+      },
+      cacheSnapshot(userId, targetWeddingId = weddingId) {
         const collaborativeList = queryClient.getQueryData<{
           pages: CollaborativeWeddingListItem[][]
         }>(collaborativeWeddingQueryKeys.list(userId))
         return {
           collaborativeDetail: queryClient.getQueryData<CollaborativeWeddingDetail>(
-            collaborativeWeddingQueryKeys.detail(userId, weddingId),
+            collaborativeWeddingQueryKeys.detail(userId, targetWeddingId),
           ),
-          collaborativeListHasWedding: Boolean(collaborativeList?.pages.flat().some((item) => item.wedding_id === weddingId)),
+          collaborativeListHasWedding: Boolean(collaborativeList?.pages.flat().some((item) => item.wedding_id === targetWeddingId)),
+          collaborativeListPresent: queryClient.getQueryData(collaborativeWeddingQueryKeys.list(userId)) !== undefined,
+          collaborativeListPageLengths: collaborativeList?.pages.map((page) => page.length) ?? [],
           ownerWedding: queryClient.getQueryData(['weddings', userId, weddingId]),
           ownerWeddingList: queryClient.getQueryData(['weddings', userId]),
           mutationCount: queryClient.getMutationCache().getAll().length,
         }
+      },
+      otherIdentityListPresent(userId) {
+        return queryClient.getQueryData(collaborativeWeddingQueryKeys.list(userId)) !== undefined
       },
     }
     return () => { delete window.__collabTest }

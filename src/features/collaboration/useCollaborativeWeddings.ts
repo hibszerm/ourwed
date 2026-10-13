@@ -1,10 +1,9 @@
-import { useInfiniteQuery, useQuery, type InfiniteData, type QueryClient } from '@tanstack/react-query'
+import { useInfiniteQuery, useQuery, type QueryClient } from '@tanstack/react-query'
 import { useAuth } from '@/features/auth/AuthProvider'
 import { collaborativeWeddingService } from './collaborativeWeddingService'
 import {
   COLLABORATIVE_WEDDING_PAGE_SIZE,
   type CollaborativeWeddingCursor,
-  type CollaborativeWeddingListItem,
 } from './collaborativeWeddingTypes'
 
 export const collaborativeWeddingQueryKeys = {
@@ -19,12 +18,7 @@ export function clearCollaborativeWeddingAccess(
   weddingId: string,
 ) {
   queryClient.removeQueries({ queryKey: collaborativeWeddingQueryKeys.detail(userId, weddingId), exact: true })
-  queryClient.setQueryData<InfiniteData<CollaborativeWeddingListItem[], CollaborativeWeddingCursor>>(
-    collaborativeWeddingQueryKeys.list(userId),
-    (current) => current
-      ? { ...current, pages: current.pages.map((page) => page.filter((item) => item.wedding_id !== weddingId)) }
-      : current,
-  )
+  queryClient.removeQueries({ queryKey: collaborativeWeddingQueryKeys.list(userId), exact: true })
 }
 
 const freshness = {
