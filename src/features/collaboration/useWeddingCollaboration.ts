@@ -81,8 +81,8 @@ export function useCreateWeddingInvitation(weddingId: string) {
   const userId = useStudioAuthId()
   const queryClient = useQueryClient()
   return useMutation({
-    mutationFn: ({ inviteeUserId, amount }: { inviteeUserId: string; amount: number | null }) =>
-      weddingCollaborationService.createInvitation(weddingId, inviteeUserId, amount),
+    mutationFn: ({ connectionId, amount }: { connectionId: string; amount: number | null }) =>
+      weddingCollaborationService.createInvitation(weddingId, connectionId, amount),
     onSettled: () => invalidateCollaboration(queryClient, userId, { weddingId }),
   })
 }

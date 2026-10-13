@@ -130,13 +130,13 @@ export const weddingCollaborationService = {
 
   async createInvitation(
     weddingId: string,
-    inviteeUserId: string,
+    connectionId: string,
     proposedShareAmount: number | null,
     idempotencyKey = newIdempotencyKey(),
   ) {
-    const { data, error } = await supabase.rpc('create_wedding_collaboration_invite', {
+    const { data, error } = await supabase.rpc('create_wedding_collaboration_invite_from_connection', {
       p_wedding_id: weddingId,
-      p_invitee_user_id: inviteeUserId,
+      p_connection_id: connectionId,
       p_proposed_share_amount: proposedShareAmount,
       p_idempotency_key: idempotencyKey,
     })

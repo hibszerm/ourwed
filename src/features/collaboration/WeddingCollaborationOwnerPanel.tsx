@@ -24,7 +24,7 @@ function amountLabel(value: number | null, currency: string): string {
 
 export function WeddingCollaborationOwnerPanel({ wedding }: { wedding: Wedding }) {
   const [open, setOpen] = useState(false)
-  const [selectedConnection, setSelectedConnection] = useState('')
+  const [selectedConnectionId, setSelectedConnectionId] = useState('')
   const [amountInput, setAmountInput] = useState('')
   const [review, setReview] = useState(false)
   const state = useWeddingCollaborationState(wedding.id)
@@ -41,13 +41,13 @@ export function WeddingCollaborationOwnerPanel({ wedding }: { wedding: Wedding }
   const amountInvalid = amount !== null && (
     !Number.isFinite(amount) || amount < 0 || decimalPlaces > 2 || amount > 9_999_999_999.99
   )
-  const selected = available.find((connection) => connection.id === selectedConnection)
+  const selected = available.find((connection) => connection.id === selectedConnectionId)
   const error = create.error ?? cancel.error ?? revoke.error
 
   async function sendInvitation() {
     if (!selected || amountInvalid) return
-    await create.mutateAsync({ inviteeUserId: selected.id, amount })
-    setSelectedConnection('')
+    await create.mutateAsync({ connectionId: selected.id, amount })
+    setSelectedConnectionId('')
     setAmountInput('')
     setReview(false)
     setOpen(false)
@@ -118,8 +118,8 @@ export function WeddingCollaborationOwnerPanel({ wedding }: { wedding: Wedding }
           <label className={styles.field}>
             <span>Wybierz połączone konto</span>
             <select
-              value={selectedConnection}
-              onChange={(event) => { setSelectedConnection(event.target.value); setReview(false) }}
+              value={selectedConnectionId}
+              onChange={(event) => { setSelectedConnectionId(event.target.value); setReview(false) }}
               disabled={collaborators.isLoading || create.isPending}
             >
               <option value="">Wybierz współpracownika</option>

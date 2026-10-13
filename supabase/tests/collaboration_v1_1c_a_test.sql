@@ -1,5 +1,5 @@
 begin;
-select plan(146 + 28);
+select plan(146 + 28 + 20);
 
 select has_table('public','wedding_collaboration_invitations','wedding invitations exist');
 select has_table('public','wedding_collaboration_memberships','membership periods exist');
@@ -13,11 +13,26 @@ select ok(not has_table_privilege('authenticated','public.wedding_collaboration_
 select ok(not has_table_privilege('authenticated','public.wedding_collaboration_memberships','UPDATE'),'clients cannot mutate memberships');
 select ok(not has_table_privilege('authenticated','public.wedding_collaboration_events','INSERT'),'clients cannot forge audit events');
 select ok(not has_function_privilege('anon','public.create_wedding_collaboration_invite(uuid,uuid,numeric,uuid)','EXECUTE'),'anon cannot create wedding invitations');
+select ok(has_function_privilege('authenticated','public.create_wedding_collaboration_invite_from_connection(uuid,uuid,numeric,uuid)','EXECUTE'),
+  'authenticated can create an invitation from a selected connection');
+select ok(not exists(select 1 from pg_catalog.pg_proc p
+  cross join lateral pg_catalog.aclexplode(coalesce(p.proacl,pg_catalog.acldefault('f',p.proowner))) a
+  where p.oid='public.create_wedding_collaboration_invite_from_connection(uuid,uuid,numeric,uuid)'::regprocedure
+    and a.grantee=0 and a.privilege_type='EXECUTE'),
+  'PUBLIC cannot execute the connection-based invitation RPC');
+select ok(not has_function_privilege('anon','public.create_wedding_collaboration_invite_from_connection(uuid,uuid,numeric,uuid)','EXECUTE'),
+  'anon cannot execute the connection-based invitation RPC');
+select ok((select prosecdef from pg_catalog.pg_proc where oid='public.create_wedding_collaboration_invite_from_connection(uuid,uuid,numeric,uuid)'::regprocedure),
+  'connection-based invitation RPC is SECURITY DEFINER');
+select ok((select coalesce(proconfig @> array['search_path=""'],false) from pg_catalog.pg_proc
+  where oid='public.create_wedding_collaboration_invite_from_connection(uuid,uuid,numeric,uuid)'::regprocedure),
+  'connection-based invitation RPC pins an empty search_path');
 select ok(has_function_privilege('authenticated','public.accept_wedding_collaboration_invite(uuid,uuid)','EXECUTE'),'authenticated can accept through RPC');
 select ok(not exists(select 1 from pg_proc p join pg_namespace n on n.oid=p.pronamespace
   where n.nspname='public' and p.proname in ('create_wedding_collaboration_invite','accept_wedding_collaboration_invite',
   'decline_wedding_collaboration_invite','cancel_wedding_collaboration_invite','revoke_wedding_collaboration_membership',
-  'leave_wedding_collaboration','end_collaboration','decline_collaboration_invite','cancel_collaboration_invite')
+  'leave_wedding_collaboration','end_collaboration','decline_collaboration_invite','cancel_collaboration_invite',
+  'create_wedding_collaboration_invite_from_connection')
   and not coalesce(p.proconfig @> array['search_path=""'],false)),
   'all lifecycle RPCs use an empty search_path');
 select ok((select pg_catalog.pg_get_functiondef(p.oid) ilike '%wedding_collaboration_lock_users(array[v_actor])%'
@@ -53,6 +68,14 @@ insert into public.collaboration_connections(id,participant_low_id,participant_h
  ('31000000-0000-4000-8000-000000000007','11000000-0000-4000-8000-000000000005','11000000-0000-4000-8000-000000000007','Five','Seven','active'),
  ('31000000-0000-4000-8000-000000000008','11000000-0000-4000-8000-000000000005','11000000-0000-4000-8000-000000000008','Five','Eight','active'),
  ('31000000-0000-4000-8000-000000000009','11000000-0000-4000-8000-000000000005','11000000-0000-4000-8000-000000000009','Five','Nine','active');
+insert into public.collaboration_connections(id,participant_low_id,participant_high_id,
+  participant_low_name_snapshot,participant_high_name_snapshot,status,ended_at)
+ values('31000000-0000-4000-8000-000000000010','11000000-0000-4000-8000-000000000001',
+  '11000000-0000-4000-8000-000000000002','One','Two','ended',now());
+insert into public.collaboration_connections(id,participant_low_id,participant_high_id,
+  participant_low_name_snapshot,participant_high_name_snapshot,status)
+ values('31000000-0000-4000-8000-000000000011','11000000-0000-4000-8000-000000000001',
+  '11000000-0000-4000-8000-000000000005','One','Five','active');
 
 set local role authenticated;
 select set_config('request.jwt.claim.sub','11000000-0000-4000-8000-000000000002',true);
@@ -60,9 +83,60 @@ select is((select count(*)::int from public.weddings where id='21000000-0000-400
   'active global connection alone grants zero wedding access');
 reset role;
 select set_config('request.jwt.claim.sub','11000000-0000-4000-8000-000000000001',true);
-select is(public.create_wedding_collaboration_invite('21000000-0000-4000-8000-000000000001',
-  '11000000-0000-4000-8000-000000000002',1500,'41000000-0000-4000-8000-000000000001')->>'status','created',
-  'owner creates invite and over-CV proposal is allowed');
+create temporary table test_connection_invite_result(response jsonb) on commit drop;
+insert into test_connection_invite_result
+select public.create_wedding_collaboration_invite_from_connection('21000000-0000-4000-8000-000000000001',
+  '31000000-0000-4000-8000-000000000001',1500,'41000000-0000-4000-8000-000000000001');
+select is((select response->>'status' from test_connection_invite_result),'created',
+  'owner creates invite from a selected connection and over-CV proposal is allowed');
+select is((select invitee_user_id from public.wedding_collaboration_invitations where id=(select (response->>'invitation_id')::uuid from test_connection_invite_result)),
+  '11000000-0000-4000-8000-000000000002'::uuid,'server resolves the connection peer as invitee');
+select is((select source_connection_id from public.wedding_collaboration_invitations where id=(select (response->>'invitation_id')::uuid from test_connection_invite_result)),
+  '31000000-0000-4000-8000-000000000001'::uuid,'invitation records the exact selected source connection');
+select ok(position('11000000-0000-4000-8000-000000000002' in (select response::text from test_connection_invite_result))=0,
+  'connection RPC response never exposes the peer Auth UUID');
+select is(public.create_wedding_collaboration_invite_from_connection('21000000-0000-4000-8000-000000000001',
+  '31000000-0000-4000-8000-000000000001',1500,'41000000-0000-4000-8000-000000000001')->>'duplicate','true',
+  'same connection request and idempotency key replays successfully');
+select throws_ok($$select public.create_wedding_collaboration_invite_from_connection('21000000-0000-4000-8000-000000000001',
+  '31000000-0000-4000-8000-000000000002',1500,'41000000-0000-4000-8000-000000000001')$$,
+  'P0001','idempotency_conflict','same idempotency key with another connection peer conflicts');
+select throws_ok($$select public.create_wedding_collaboration_invite_from_connection('21000000-0000-4000-8000-000000000001',
+  '31000000-0000-4000-8000-000000000001',1501,'41000000-0000-4000-8000-000000000001')$$,
+  'P0001','idempotency_conflict','same connection key with a different amount conflicts');
+select throws_ok($$select public.create_wedding_collaboration_invite_from_connection('21000000-0000-4000-8000-000000000001',
+  '31000000-0000-4000-8000-000000000005',1500,'41000000-0000-4000-8000-000000000031')$$,
+  'P0001','active_connection_required','actor cannot invite through another pair connection');
+select set_config('request.jwt.claim.sub','11000000-0000-4000-8000-000000000001',true);
+select throws_ok($$select public.create_wedding_collaboration_invite_from_connection('21000000-0000-4000-8000-000000000001',
+  '51000000-0000-4000-8000-000000000099',1500,'41000000-0000-4000-8000-000000000032')$$,
+  'P0001','active_connection_required','random connection UUID receives the uniform safe rejection');
+select throws_ok($$select public.create_wedding_collaboration_invite_from_connection('21000000-0000-4000-8000-000000000001',
+  null,1500,'41000000-0000-4000-8000-000000000036')$$,
+  'P0001','active_connection_required','missing connection UUID receives the uniform safe rejection');
+select throws_ok($$select public.create_wedding_collaboration_invite_from_connection('21000000-0000-4000-8000-000000000001',
+  '31000000-0000-4000-8000-000000000010',1500,'41000000-0000-4000-8000-000000000033')$$,
+  'P0001','active_connection_required','inactive connection receives the uniform safe rejection');
+select is((select count(*)::int from public.wedding_collaboration_invitations where idempotency_key in (
+  '41000000-0000-4000-8000-000000000031','41000000-0000-4000-8000-000000000032',
+  '41000000-0000-4000-8000-000000000033','41000000-0000-4000-8000-000000000036')),0,
+  'invalid connection requests create no invitation');
+select ok(exists(select 1 from pg_catalog.pg_constraint
+    where conrelid='public.collaboration_connections'::regclass
+      and conname='collaboration_connections_canonical_pair'
+      and pg_catalog.pg_get_constraintdef(oid) like '%participant_low_id < participant_high_id%')
+  and pg_catalog.pg_get_functiondef('public.create_wedding_collaboration_invite_from_connection(uuid,uuid,numeric,uuid)'::regprocedure)
+    like '%v_peer = v_actor%',
+  'schema and resolver both reject malformed self relationships');
+select is(public.create_wedding_collaboration_invite_from_connection('21000000-0000-4000-8000-000000000002',
+  '31000000-0000-4000-8000-000000000011',1,'41000000-0000-4000-8000-000000000034')->>'status','created',
+  'second connection fixture creates an invitation for replay-after-end coverage');
+select is(public.end_collaboration('31000000-0000-4000-8000-000000000011',
+  '41000000-0000-4000-8000-000000000035')->>'status','ended',
+  'ending the source connection preserves normal 1B lifecycle behavior');
+select is(public.create_wedding_collaboration_invite_from_connection('21000000-0000-4000-8000-000000000002',
+  '31000000-0000-4000-8000-000000000011',1,'41000000-0000-4000-8000-000000000034')->>'duplicate','true',
+  'same successful request replays after its source connection ends');
 select set_config('test.first_invite_id',(select id::text from public.wedding_collaboration_invitations
   where idempotency_key='41000000-0000-4000-8000-000000000001'),true);
 select ok(has_function_privilege('authenticated','public.get_wedding_collaboration_invitation_preview(uuid)','EXECUTE'),
