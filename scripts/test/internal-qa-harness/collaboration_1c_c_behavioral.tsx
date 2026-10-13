@@ -37,17 +37,20 @@ declare global {
       logout(): Promise<void>
       currentUserId(): string | null
       refetchDetail(weddingId?: string): Promise<void>
+      refetchEditState(weddingId?: string): Promise<void>
       seedPrivateCaches(userId: string): void
       seedAccessLossIsolation(userId: string, otherUserId: string): void
       wasCollaborativeListRemoved(userId: string): boolean
       cacheSnapshot(userId: string, weddingId?: string): {
         collaborativeDetail: CollaborativeWeddingDetail | undefined
+        collaborativeDetailPresent: boolean
         collaborativeListHasWedding: boolean
         collaborativeListPresent: boolean
         collaborativeListPageLengths: number[]
         ownerWedding: unknown
         ownerWeddingList: unknown
         mutationCount: number
+        collaborativeEditStatePresent: boolean
       }
       otherIdentityListPresent(userId: string): boolean
     }
@@ -69,6 +72,13 @@ function TestControls() {
         if (!auth.user?.id) throw new Error('local_test_user_required')
         await queryClient.invalidateQueries({
           queryKey: collaborativeWeddingQueryKeys.detail(auth.user.id, targetWeddingId),
+          exact: true,
+        })
+      },
+      async refetchEditState(targetWeddingId = weddingId) {
+        if (!auth.user?.id) throw new Error('local_test_user_required')
+        await queryClient.invalidateQueries({
+          queryKey: collaborativeWeddingQueryKeys.editState(auth.user.id, targetWeddingId),
           exact: true,
         })
       },
@@ -115,6 +125,13 @@ function TestControls() {
           collaborativeDetail: queryClient.getQueryData<CollaborativeWeddingDetail>(
             collaborativeWeddingQueryKeys.detail(userId, targetWeddingId),
           ),
+          collaborativeDetailPresent: Boolean(queryClient.getQueryCache().find({
+            queryKey: collaborativeWeddingQueryKeys.detail(userId, targetWeddingId),
+            exact: true,
+          })),
+          collaborativeEditStatePresent: queryClient.getQueryData(
+            collaborativeWeddingQueryKeys.editState(userId, targetWeddingId),
+          ) !== undefined,
           collaborativeListHasWedding: Boolean(collaborativeList?.pages.flat().some((item) => item.wedding_id === targetWeddingId)),
           collaborativeListPresent: queryClient.getQueryData(collaborativeWeddingQueryKeys.list(userId)) !== undefined,
           collaborativeListPageLengths: collaborativeList?.pages.map((page) => page.length) ?? [],

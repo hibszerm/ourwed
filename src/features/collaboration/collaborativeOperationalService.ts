@@ -1,4 +1,5 @@
 import { supabase } from '@/lib/supabase'
+import { CollaborativeReadError, collaborativeReadError } from './collaborativeReadError'
 import {
   COLLABORATIVE_PLACE_ROLES,
   isCollaborativePlaceRole,
@@ -69,23 +70,27 @@ function mapEditPlace(value: unknown): CollaborativeWeddingOperationalEditPlace 
 }
 
 function mapEditState(value: unknown): CollaborativeWeddingOperationalEditState {
-  if (!value || typeof value !== 'object' || Array.isArray(value)) throw new Error('SERVER_ERROR')
+  if (!value || typeof value !== 'object' || Array.isArray(value)) throw new CollaborativeReadError('UNKNOWN')
   const row = value as Record<string, unknown>
   if (!exactKeys(row, EDIT_STATE_ROOT_KEYS) || typeof row.wedding_id !== 'string' || !Array.isArray(row.places)) {
-    throw new Error('SERVER_ERROR')
+    throw new CollaborativeReadError('UNKNOWN')
   }
   const places = row.places.map(mapEditPlace)
-  if (places.length !== 4 || places.some((place) => place === null)) throw new Error('SERVER_ERROR')
+  if (places.length !== 4 || places.some((place) => place === null)) throw new CollaborativeReadError('UNKNOWN')
   const mapped = places as CollaborativeWeddingOperationalEditPlace[]
   if (new Set(mapped.map((place) => place.role)).size !== 4 || mapped.some((place) => !ROLE_SET.has(place.role))) {
-    throw new Error('SERVER_ERROR')
+    throw new CollaborativeReadError('UNKNOWN')
   }
   return { wedding_id: row.wedding_id, places: mapped }
 }
 
-function domainError(message: string): Error {
-  for (const code of ['VALIDATION_ERROR', 'CONFLICT', 'UNAVAILABLE'] as const) {
-    if (message.includes(code)) return new Error(code)
+function domainError(error: unknown): Error {
+  if (!error || typeof error !== 'object') return new Error('SERVER_ERROR')
+  const value = error as Record<string, unknown>
+  if (value.code === 'P0001' && typeof value.message === 'string') {
+    for (const code of ['VALIDATION_ERROR', 'CONFLICT', 'UNAVAILABLE'] as const) {
+      if (value.message === code) return new Error(code)
+    }
   }
   return new Error('SERVER_ERROR')
 }
@@ -143,11 +148,16 @@ export function isCollaborationError(error: unknown, code: CollaborationCommandE
 
 export const collaborativeOperationalService = {
   async getEditState(weddingId: string): Promise<CollaborativeWeddingOperationalEditState> {
-    const { data, error } = await supabase.rpc('get_collaborative_wedding_operational_edit_state', {
-      p_wedding_id: weddingId,
-    })
-    if (error) throw domainError(error.message)
-    return mapEditState(data)
+    let result
+    try {
+      result = await supabase.rpc('get_collaborative_wedding_operational_edit_state', {
+        p_wedding_id: weddingId,
+      })
+    } catch (error) {
+      throw collaborativeReadError(error, true)
+    }
+    if (result.error) throw collaborativeReadError(result.error, true)
+    return mapEditState(result.data)
   },
 
   async updatePlace(input: UpdateCollaborativeWeddingPlaceInput): Promise<CollaborativeWeddingPlaceCommandResult> {
@@ -157,7 +167,7 @@ export const collaborativeOperationalService = {
       p_formatted_address: input.formattedAddress,
       p_expected_version: input.expectedVersion,
     })
-    if (error) throw domainError(error.message)
+    if (error) throw domainError(error)
     return mapPlaceCommand(data)
   },
 
@@ -168,7 +178,7 @@ export const collaborativeOperationalService = {
       p_operational_time: input.operationalTime,
       p_expected_version: input.expectedVersion,
     })
-    if (error) throw domainError(error.message)
+    if (error) throw domainError(error)
     return mapTimeCommand(data)
   },
 }

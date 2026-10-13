@@ -104,6 +104,8 @@ let releaseHeldDetail
 let heldDetailStarted
 let holdNextDetail = false
 let accessAvailable = true
+let failNextDetail = false
+let failNextEditState = false
 let passed = 0
 const pageErrors = []
 const port = 4187
@@ -156,6 +158,11 @@ try {
     let actorId = ''
     try { actorId = JSON.parse(Buffer.from(bearer.split('.')[1], 'base64url').toString('utf8')).sub ?? '' } catch {}
     if (name === 'get_collaborative_wedding_operational_edit_state') {
+      if (failNextEditState) {
+        failNextEditState = false
+        await route.fulfill({ status: 503, headers: { ...cors, 'content-type': 'application/json' }, body: JSON.stringify({ code: 'XX000', message: 'temporary backend failure' }) })
+        return
+      }
       if (actorId !== users[1].id || !accessAvailable) {
         await route.fulfill({ status: 400, headers: { ...cors, 'content-type': 'application/json' }, body: JSON.stringify({ code: 'P0001', message: 'UNAVAILABLE' }) })
         return
@@ -243,6 +250,11 @@ try {
         heldDetailStarted?.()
         await new Promise((resolve) => { releaseHeldDetail = resolve })
       }
+      if (failNextDetail) {
+        failNextDetail = false
+        await route.fulfill({ status: 503, headers: { ...cors, 'content-type': 'application/json' }, body: JSON.stringify({ code: 'XX000', message: 'temporary backend failure' }) })
+        return
+      }
       const requestBody = request.postDataJSON()
       const requestedWeddingId = requestBody.p_wedding_id
       const value = actorId === users[1].id && accessAvailable
@@ -274,7 +286,16 @@ try {
   await login(1)
   await page.getByRole('link', { name: 'Open collaboration' }).click()
   await page.getByRole('link', { name: /Ada i Member/ }).waitFor()
+  failNextDetail = true
   await page.getByRole('link', { name: /Ada i Member/ }).click()
+  await page.getByText('Nie udało się odświeżyć danych. Spróbuj ponownie.').waitFor()
+  assert.match(page.url(), new RegExp(`${weddingId}$`), 'initial detail server failure keeps the route')
+  assert.equal(await page.getByRole('heading', { name: 'Ada i Member' }).count(), 0, 'initial failure does not invent or render a private detail')
+  const initialFailureCache = await page.evaluate((id) => window.__collabTest.cacheSnapshot(id), users[1].id)
+  assert.equal(initialFailureCache.collaborativeListPresent, true, 'initial failure keeps the current-user list cache')
+  assert.equal(await page.getByText('Dostęp do tego zlecenia został zakończony.').count(), 0, 'transient failure does not claim access ended')
+  passed += 4
+  await page.getByRole('button', { name: 'Spróbuj ponownie' }).click()
   await page.getByRole('heading', { name: 'Ada i Member' }).waitFor()
   assert.match(page.url(), new RegExp(`${weddingId}$`))
   const initialCache = await page.evaluate((id) => window.__collabTest.cacheSnapshot(id), users[1].id)
@@ -283,10 +304,35 @@ try {
   assert.equal(await page.getByText('Local synthetic ceremony address').count(), 1, 'detail renders the collaborative projection')
   passed += 3
 
+  failNextEditState = true
+  await page.evaluate((id) => window.__collabTest.refetchEditState(id), weddingId)
+  await page.getByText('Nie udało się odświeżyć danych edycji. Spróbuj ponownie.').waitFor()
+  assert.match(page.url(), new RegExp(`${weddingId}$`), 'edit-state server failure keeps the detail route')
+  assert.equal(await page.getByRole('heading', { name: 'Ada i Member' }).count(), 1, 'edit-state failure keeps successful detail visible')
+  assert.equal((await page.evaluate((id) => window.__collabTest.cacheSnapshot(id), users[1].id)).collaborativeEditStatePresent, true,
+    'edit-state failure does not purge the cached edit-state')
+  passed += 3
+  await page.getByRole('button', { name: 'Ponów odświeżanie' }).click()
+  await page.getByText('Nie udało się odświeżyć danych edycji. Spróbuj ponownie.').waitFor({ state: 'detached' })
+
   const ceremonyCard = page.getByTestId('collaborative-place-ceremony')
   await ceremonyCard.getByRole('button', { name: 'Edytuj adres' }).click()
   const addressInput = page.getByTestId('collaborative-address-input')
   await addressInput.fill('My preserved draft')
+  failNextDetail = true
+  await page.evaluate((id) => window.__collabTest.refetchDetail(id), weddingId)
+  await page.getByText('Nie udało się odświeżyć danych. Spróbuj ponownie.').waitFor()
+  assert.match(page.url(), new RegExp(`${weddingId}$`), 'background detail failure keeps the route')
+  assert.equal(await page.getByTestId('collaborative-address-input').inputValue(), 'My preserved draft',
+    'background detail failure preserves the open address draft')
+  assert.equal(await page.getByRole('dialog').count(), 1, 'editor is mounted after a transient background failure')
+  const transientCache = await page.evaluate((id) => window.__collabTest.cacheSnapshot(id), users[1].id)
+  assert.equal(transientCache.collaborativeDetail?.wedding_id, weddingId, 'background failure retains detail cache')
+  assert.equal(transientCache.collaborativeListPresent, true, 'background failure retains list cache')
+  assert.equal(transientCache.collaborativeEditStatePresent, true, 'background failure retains edit-state cache')
+  assert.equal(await page.getByText('Dostęp do tego zlecenia został zakończony.').count(), 0,
+    'background failure is never presented as ended access')
+  passed += 7
   await page.getByRole('button', { name: 'Zapisz' }).click()
   await page.getByText(/Aktualna wartość na serwerze: Server latest/).waitFor()
   assert.equal(await addressInput.inputValue(), 'My preserved draft', 'version conflict preserves the local address draft')
@@ -355,6 +401,19 @@ try {
     passed += 3
   }
 
+  await ceremonyCard.getByRole('button', { name: 'Edytuj adres' }).click()
+  await page.getByTestId('collaborative-address-input').fill('Draft before authoritative mutation denial')
+  accessAvailable = false
+  await page.getByRole('button', { name: 'Zapisz' }).click()
+  await page.waitForFunction(() => window.location.hash === '#/wspolpraca/sluby')
+  await page.getByText('Dostęp do tego zlecenia został zakończony.').waitFor()
+  assert.equal((await page.evaluate((id) => window.__collabTest.cacheSnapshot(id), users[1].id)).collaborativeDetailPresent, false,
+    'mutation UNAVAILABLE still removes the exact detail cache')
+  assert.ok(await page.evaluate((id) => window.__collabTest.wasCollaborativeListRemoved(id), users[1].id),
+    'mutation UNAVAILABLE still removes the current-user list')
+  passed += 2
+  accessAvailable = true
+
   const fullPageInitialTarget = 'b2000000-0000-4000-8000-000000000062'
   paginationTargetId = fullPageInitialTarget
   paginationPages = [makePaginationPage(1, 50), makePaginationPage(51, 50, { targetId: fullPageInitialTarget, targetName: 'Full' })]
@@ -364,7 +423,9 @@ try {
     makePaginationPage(102, 1),
   ]
   freshPaginationPages = freshFullPages
-  await page.goto(`${origin}/scripts/test/internal-qa-harness/collaboration_1c_c_behavioral.html#/wspolpraca/sluby`)
+  await page.goto(`${origin}/scripts/test/internal-qa-harness/collaboration_1c_c_behavioral.html#/`)
+  await page.getByRole('link', { name: 'Open collaboration' }).waitFor()
+  await page.getByRole('link', { name: 'Open collaboration' }).click()
   await page.getByRole('link', { name: /^Page 1 i Row 1 / }).waitFor()
   await page.getByRole('button', { name: 'Pokaż kolejne' }).click()
   await page.getByRole('link', { name: 'Full i Target' }).waitFor()

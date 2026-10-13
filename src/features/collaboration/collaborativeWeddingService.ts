@@ -1,4 +1,5 @@
 import { supabase } from '@/lib/supabase'
+import { CollaborativeReadError, collaborativeReadError } from './collaborativeReadError'
 import {
   isCollaborativePlaceRole,
   isValidOperationalClock,
@@ -27,8 +28,8 @@ function mapListItem(value: unknown): CollaborativeWeddingListItem | null {
 }
 
 function mapDetail(value: unknown): CollaborativeWeddingDetail | null {
-  if (value === null || value === undefined) return null
-  if (typeof value !== 'object' || Array.isArray(value)) throw new Error('collaborative_read_unavailable')
+  if (value === null) return null
+  if (typeof value !== 'object' || Array.isArray(value)) throw new CollaborativeReadError('UNKNOWN')
 
   const row = value as Record<string, unknown>
   if (
@@ -37,7 +38,7 @@ function mapDetail(value: unknown): CollaborativeWeddingDetail | null {
     || typeof row.couple_second_name !== 'string'
     || (row.wedding_date !== null && typeof row.wedding_date !== 'string')
     || !Array.isArray(row.places)
-  ) throw new Error('collaborative_read_unavailable')
+  ) throw new CollaborativeReadError('UNKNOWN')
 
   const places: CollaborativeWeddingPlace[] = []
   for (const rawPlace of row.places) {
@@ -69,16 +70,22 @@ export const collaborativeWeddingService = {
       p_after_wedding_id: cursor.afterWeddingId,
       p_limit: 50,
     })
-    if (error) throw new Error('collaborative_read_unavailable')
+    if (error) throw collaborativeReadError(error)
     if (!Array.isArray(data)) return []
     return data.map(mapListItem).filter((item): item is CollaborativeWeddingListItem => item !== null)
   },
 
   async getCollaborativeWeddingDetail(weddingId: string): Promise<CollaborativeWeddingDetail | null> {
-    const { data, error } = await supabase.rpc('get_collaborative_wedding_detail', {
-      p_wedding_id: weddingId,
-    })
-    if (error) throw new Error('collaborative_read_unavailable')
-    return mapDetail(data)
+    try {
+      const { data, error } = await supabase.rpc('get_collaborative_wedding_detail', {
+        p_wedding_id: weddingId,
+      })
+      if (error) throw collaborativeReadError(error)
+      // The RPC's successful null result is its authoritative unavailable signal.
+      return mapDetail(data)
+    } catch (error) {
+      if (error instanceof CollaborativeReadError) throw error
+      throw collaborativeReadError(error)
+    }
   },
 }

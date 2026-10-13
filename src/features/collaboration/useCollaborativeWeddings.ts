@@ -26,9 +26,17 @@ export function clearCollaborativeWeddingAccess(
   userId: string | undefined,
   weddingId: string,
 ) {
+  clearCollaborativeWeddingDetailAccess(queryClient, userId, weddingId)
+  queryClient.removeQueries({ queryKey: collaborativeWeddingQueryKeys.list(userId), exact: true })
+}
+
+export function clearCollaborativeWeddingDetailAccess(
+  queryClient: QueryClient,
+  userId: string | undefined,
+  weddingId: string,
+) {
   queryClient.removeQueries({ queryKey: collaborativeWeddingQueryKeys.detail(userId, weddingId), exact: true })
   queryClient.removeQueries({ queryKey: collaborativeWeddingQueryKeys.editState(userId, weddingId), exact: true })
-  queryClient.removeQueries({ queryKey: collaborativeWeddingQueryKeys.list(userId), exact: true })
 }
 
 const freshness = {
@@ -107,7 +115,10 @@ function useOperationalMutationCallbacks() {
   async function handleError(error: unknown, weddingId: string) {
     if (isCollaborationError(error, 'UNAVAILABLE')) {
       clearCollaborativeWeddingAccess(queryClient, userId, weddingId)
-      navigate('/wspolpraca/sluby', { replace: true, state: { accessEnded: true } })
+      navigate('/wspolpraca/sluby', {
+        replace: true,
+        state: { accessEnded: true, accessEndedWeddingId: weddingId, accessEndedUserId: userId },
+      })
     } else if (isCollaborationError(error, 'CONFLICT')) {
       await refreshWedding(weddingId)
     }

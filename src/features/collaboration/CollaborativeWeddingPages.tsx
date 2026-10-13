@@ -16,6 +16,7 @@ import {
   validateCollaborativeClock,
 } from './collaborativeOperationalService'
 import {
+  clearCollaborativeWeddingDetailAccess,
   clearCollaborativeWeddingAccess,
   useCollaborativeWedding,
   useCollaborativeWeddingOperationalEditState,
@@ -40,8 +41,23 @@ function coupleName(first: string, second: string) {
 export function CollaborativeWeddingListPage() {
   const query = useCollaborativeWeddings()
   const location = useLocation()
-  const ended = Boolean((location.state as { accessEnded?: boolean } | null)?.accessEnded)
+  const { user } = useAuth()
+  const queryClient = useQueryClient()
+  const locationState = location.state as {
+    accessEnded?: boolean
+    accessEndedWeddingId?: string
+    accessEndedUserId?: string
+  } | null
+  const ended = Boolean(locationState?.accessEnded)
   const items = query.data?.pages.flat() ?? []
+
+  useEffect(() => {
+    if (!locationState?.accessEnded || !locationState.accessEndedWeddingId
+      || !user?.id || locationState.accessEndedUserId !== user.id) return
+    // The old detail observer can recreate its query during navigation. Evict
+    // it again after that observer has unmounted on the list route.
+    clearCollaborativeWeddingDetailAccess(queryClient, user.id, locationState.accessEndedWeddingId)
+  }, [locationState?.accessEnded, locationState?.accessEndedUserId, locationState?.accessEndedWeddingId, queryClient, user?.id])
 
   return (
     <main className={styles.page} data-testid="collaborative-wedding-list">
@@ -91,19 +107,41 @@ export function CollaborativeWeddingDetailPage() {
   const [formError, setFormError] = useState<string | null>(null)
   const [conflicted, setConflicted] = useState(false)
   const isSaving = updatePlace.isPending || updateTime.isPending
-  const ended = !validId || detail.isError || (!detail.isPending && detail.data === null)
+  const accessEnded = !validId
+    || (detail.isSuccess && detail.data === null)
+    || isCollaborationError(editState.error, 'UNAVAILABLE')
 
   useEffect(() => {
-    const editAccessEnded = isCollaborationError(editState.error, 'UNAVAILABLE')
-    if (!ended && !editAccessEnded) return
+    if (!accessEnded) return
     clearCollaborativeWeddingAccess(queryClient, user?.id, weddingId)
-    navigate('/wspolpraca/sluby', { replace: true, state: { accessEnded: true } })
-  }, [editState.error, ended, navigate, queryClient, user?.id, weddingId])
+    navigate('/wspolpraca/sluby', {
+      replace: true,
+      state: { accessEnded: true, accessEndedWeddingId: weddingId, accessEndedUserId: user?.id },
+    })
+  }, [accessEnded, navigate, queryClient, user?.id, weddingId])
 
   // Never paint a cached projection while the server is checking current membership.
-  if (!validId || ended || detail.isFetching || detail.isPending || !detail.data) {
+  if (!validId || accessEnded) {
     return <main className={styles.page} data-testid="collaborative-wedding-detail" aria-busy="true">
       <p className={styles.muted}>Sprawdzanie dostępu do zlecenia…</p>
+    </main>
+  }
+
+  if (detail.isPending || detail.isFetching || (detail.isError && !detail.data)) {
+    return <main className={styles.page} data-testid="collaborative-wedding-detail" aria-busy={!detail.isError}>
+      {detail.isError
+        ? <>
+          <p className={styles.error} role="alert">Nie udało się odświeżyć danych. Spróbuj ponownie.</p>
+          <Button type="button" onClick={() => void detail.refetch()}>Spróbuj ponownie</Button>
+        </>
+        : <p className={styles.muted}>Sprawdzanie dostępu do zlecenia…</p>}
+    </main>
+  }
+
+  if (!detail.data) {
+    return <main className={styles.page} data-testid="collaborative-wedding-detail" aria-busy="false">
+      <p className={styles.error} role="alert">Nie udało się odświeżyć danych. Spróbuj ponownie.</p>
+      <Button type="button" onClick={() => void detail.refetch()}>Spróbuj ponownie</Button>
     </main>
   }
 
@@ -211,8 +249,11 @@ export function CollaborativeWeddingDetailPage() {
       </section>
       <section className={styles.section} aria-labelledby="collaborative-wedding-places">
         <h2 id="collaborative-wedding-places">Miejsca i godziny</h2>
+        {detail.isError ? <p className={styles.error} role="alert">Nie udało się odświeżyć danych. Spróbuj ponownie.</p> : null}
+        {detail.isError ? <Button type="button" onClick={() => void detail.refetch()}>Spróbuj ponownie</Button> : null}
         {editState.isPending ? <p className={styles.muted}>Ładowanie pól do edycji…</p> : null}
-        {editState.isError ? <p className={styles.error} role="alert">Nie udało się wczytać danych edycji. Spróbuj ponownie.</p> : null}
+        {editState.isError ? <p className={styles.error} role="alert">Nie udało się odświeżyć danych edycji. Spróbuj ponownie.</p> : null}
+        {editState.isError ? <Button type="button" onClick={() => void editState.refetch()}>Ponów odświeżanie</Button> : null}
         <ul className={styles.places}>
           {editPlaces.map((place) => (
             <li key={place.role} data-testid={`collaborative-place-${place.role}`}>
