@@ -1,13 +1,6 @@
 import { supabase } from '@/lib/supabase'
-import { nowIso, throwOnError, toNumber } from '@/lib/supabase/helpers'
+import { throwOnError, toNumber } from '@/lib/supabase/helpers'
 import { listOwnedWeddingIds } from '@/lib/api/ownership'
-import {
-  ROUTE_ROLE_SORT,
-  OPERATIONAL_SORT_BASE,
-  OPERATIONAL_SORT_STEP,
-  operationalSortOrderAt,
-  placesHaveCustomSequentialOrder,
-} from '@/features/travel/weddingDayRouteStops'
 import { logOperationalOrder } from '@/features/wedding-day/operationalOrderDebug'
 import { travelProvider } from '@/services/travelProvider'
 import type { GeoPlace, WeddingPlace, WeddingPlaceRole } from '@/types/travel'
@@ -33,8 +26,6 @@ const CORE_ROLES: WeddingPlaceRole[] = [
   'ceremony',
   'reception',
 ]
-
-const ROLE_SORT = ROUTE_ROLE_SORT
 
 /** Normalize legacy preparation role → bride_preparation (bride-primary historical semantics). */
 export function normalizeWeddingPlaceRole(role: string): WeddingPlaceRole {
@@ -195,68 +186,27 @@ export const weddingPlaceService = {
           ? existing?.label || null
           : place.label?.trim() || null
 
-    // Existing rows: never reset sort_order (preserves operational reorder).
-    // New rows after a custom order exists: append after max operational slot.
-    // New rows on catalog-only weddings: role default.
-    let sortOrder = existing?.sortOrder
-    if (sortOrder == null) {
-      const siblings = await this.listByWeddingId(input.weddingId)
-      if (
-        siblings.some((p) => Number(p.sortOrder) >= OPERATIONAL_SORT_BASE) ||
-        placesHaveCustomSequentialOrder(siblings)
-      ) {
-        const max = siblings.reduce(
-          (m, p) => Math.max(m, Number(p.sortOrder) || 0),
-          OPERATIONAL_SORT_BASE - OPERATIONAL_SORT_STEP,
-        )
-        sortOrder = max + OPERATIONAL_SORT_STEP
-      } else {
-        sortOrder = ROLE_SORT[input.role] ?? 100
-      }
-    }
-
-    const patch = {
-      wedding_id: input.weddingId,
-      role: input.role,
-      label: nextLabel,
-      place_id: place != null ? place.placeId : (existing?.placeId ?? null),
-      formatted_address: formatted || existing?.formattedAddress || '',
-      latitude: place != null ? place.latitude : (existing?.latitude ?? null),
-      longitude: place != null ? place.longitude : (existing?.longitude ?? null),
-      sort_order: sortOrder,
-      updated_at: nowIso(),
-    }
-
-    if (existing) {
-      const { data, error } = await supabase
-        .from('wedding_places')
-        .update(patch)
-        .eq('id', existing.id)
-        .select('*')
-        .single()
-      throwOnError(error)
-      const mapped = mapRow(data as WeddingPlaceRow)
-      logOperationalOrder({
-        source: 'weddingPlaceService.upsert',
-        weddingId: input.weddingId,
-        places: [mapped],
-        note: 'update-preserve-sort',
-      })
-      return mapped
-    }
-
-    const { data, error } = await supabase
-      .from('wedding_places')
-      .insert(patch)
-      .select('*')
-      .single()
+    const { data, error } = await supabase.rpc('mutate_owner_wedding_places', {
+      p_wedding_id: input.weddingId,
+      p_action: 'upsert',
+      p_payload: {
+        role: input.role,
+        formatted_address: formatted || existing?.formattedAddress || '',
+        has_location: place != null,
+        place_id: place?.placeId ?? null,
+        latitude: place?.latitude ?? null,
+        longitude: place?.longitude ?? null,
+        label: nextLabel,
+        label_supplied: place != null && place.label !== undefined,
+      },
+    })
     throwOnError(error)
     const mapped = mapRow(data as WeddingPlaceRow)
     logOperationalOrder({
       source: 'weddingPlaceService.upsert',
       weddingId: input.weddingId,
       places: [mapped],
-      note: 'insert',
+      note: existing ? 'owner-command-update' : 'owner-command-insert',
     })
     return mapped
   },
@@ -276,27 +226,24 @@ export const weddingPlaceService = {
   ): Promise<WeddingPlace[]> {
     if (places.length === 0) return []
 
-    const now = nowIso()
     const rows = places.map(({ role, place }) => {
       const formatted =
         place.formattedAddress?.trim() || place.label?.trim() || ''
       return {
-        wedding_id: weddingId,
         role,
         label: place.label?.trim() || null,
         place_id: place.placeId ?? null,
         formatted_address: formatted,
         latitude: place.latitude,
         longitude: place.longitude,
-        sort_order: ROLE_SORT[role] ?? 100,
-        updated_at: now,
       }
     })
 
-    const { data, error } = await supabase
-      .from('wedding_places')
-      .insert(rows)
-      .select('*')
+    const { data, error } = await supabase.rpc('mutate_owner_wedding_places', {
+      p_wedding_id: weddingId,
+      p_action: 'insert_initial',
+      p_payload: { places: rows },
+    })
 
     throwOnError(error)
 
@@ -331,28 +278,12 @@ export const weddingPlaceService = {
       .sort((a, b) => Number(a.sortOrder) - Number(b.sortOrder))
     const fullOrder = [...uniqueIds, ...remaining.map((p) => p.id)]
 
-    const now = nowIso()
-    for (let i = 0; i < fullOrder.length; i++) {
-      const id = fullOrder[i]!
-      const nextOrder = operationalSortOrderAt(i)
-      const { data, error } = await supabase
-        .from('wedding_places')
-        .update({ sort_order: nextOrder, updated_at: now })
-        .eq('id', id)
-        .eq('wedding_id', weddingId)
-        .select('id, sort_order')
-        .maybeSingle()
-      throwOnError(error)
-      if (!data) {
-        throw new Error(
-          `Nie udało się zapisać kolejności planu dnia (miejsce ${id}).`,
-        )
-      }
-      if (Number((data as { sort_order: number }).sort_order) !== nextOrder) {
-        throw new Error('Zapisana kolejność planu dnia nie zgadza się z żądaniem.')
-      }
-    }
-
+    const { error } = await supabase.rpc('mutate_owner_wedding_places', {
+      p_wedding_id: weddingId,
+      p_action: 'reorder',
+      p_payload: { ordered_place_ids: fullOrder },
+    })
+    throwOnError(error)
     const listed = await this.listByWeddingId(weddingId)
     const listedIds = listed.map((p) => p.id)
     const expectedIds = fullOrder.filter((id) => listedIds.includes(id))
@@ -369,7 +300,7 @@ export const weddingPlaceService = {
         fullOrder,
         writes: fullOrder.map((id, i) => ({
           id,
-          sort_order: operationalSortOrderAt(i),
+          sort_order: 1000 + i * 1000,
         })),
       },
     })
@@ -390,15 +321,11 @@ export const weddingPlaceService = {
     weddingId: string,
     role: WeddingPlaceRole,
   ): Promise<void> {
-    const roles =
-      role === 'bride_preparation'
-        ? ['bride_preparation', 'preparation']
-        : [role]
-    const { error } = await supabase
-      .from('wedding_places')
-      .delete()
-      .eq('wedding_id', weddingId)
-      .in('role', roles)
+    const { error } = await supabase.rpc('mutate_owner_wedding_places', {
+      p_wedding_id: weddingId,
+      p_action: 'delete_role',
+      p_payload: { role },
+    })
     throwOnError(error)
   },
 

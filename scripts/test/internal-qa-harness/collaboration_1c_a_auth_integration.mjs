@@ -143,6 +143,8 @@ try {
 
   const childResources = []
   let weddingPlaceId
+  let sourceContractId
+  let recoveryId
   const weddingChildTables = [
     'contacts', 'notes', 'tasks', 'timeline_events', 'calendar_events',
     'wedding_places', 'travel_segments', 'wedding_operational_times', 'wedding_briefs',
@@ -158,6 +160,19 @@ try {
       })
       weddingPlaceId = id
       childResources.push({ label: table, table, filter: `id=eq.${id}` })
+    } else if (table === 'travel_segments') {
+      assert.ok(weddingPlaceId, 'wedding-place fixture exists before route-segment fixture')
+      const rows = await request('/rest/v1/travel_segments?select=id', {
+        key: serviceKey, method: 'POST', prefer: 'return=representation',
+        body: {
+          wedding_id: weddingId, sequence: 0, origin_kind: 'wedding_place',
+          origin_wedding_place_id: weddingPlaceId, destination_kind: 'wedding_place',
+          destination_wedding_place_id: weddingPlaceId, endpoints_hash: 'auth-matrix',
+          travel_mode: 'DRIVE', provider: 'google', status: 'error',
+        },
+      })
+      assert.equal(rows?.length, 1, 'service role seeds the production-shaped route-segment fixture')
+      childResources.push({ label: table, table, filter: `id=eq.${rows[0].id}` })
     } else if (table === 'wedding_operational_times') {
       const stopKey = weddingPlaceId
       const rows = await request('/rest/v1/wedding_operational_times?select=wedding_id,stop_key', {
@@ -170,6 +185,33 @@ try {
         filter: `wedding_id=eq.${weddingId}&stop_key=eq.${encodeURIComponent(stopKey)}`,
         select: 'wedding_id,stop_key,operational_time',
       })
+    } else if (table === 'wedding_source_contracts') {
+      sourceContractId = await insertFixture(table, {
+        user_id: owner.id, wedding_id: weddingId, file_path: 'synthetic/source.pdf',
+        original_file_name: 'source.pdf', stored_file_name: 'source.pdf',
+        mime_type: 'application/pdf', file_size: 1,
+      })
+      childResources.push({ label: table, table, filter: `id=eq.${sourceContractId}` })
+    } else if (table === 'wedding_contract_recoveries') {
+      assert.ok(sourceContractId, 'source-contract fixture exists before recovery fixture')
+      recoveryId = await insertFixture(table, {
+        user_id: owner.id, wedding_id: weddingId, source_contract_id: sourceContractId,
+        extraction_version: 'auth-matrix', prompt_version: 'auth-matrix',
+      })
+      childResources.push({ label: table, table, filter: `id=eq.${recoveryId}` })
+    } else if (table === 'wedding_contract_package_snapshots') {
+      assert.ok(sourceContractId && recoveryId, 'source and recovery fixtures exist before package snapshot')
+      const id = await insertFixture(table, {
+        user_id: owner.id, wedding_id: weddingId, source_contract_id: sourceContractId,
+        recovery_id: recoveryId, name: 'Synthetic snapshot',
+      })
+      childResources.push({ label: table, table, filter: `id=eq.${id}` })
+    } else if (table === 'wedding_contract_recovery_decisions') {
+      assert.ok(recoveryId, 'recovery fixture exists before decision fixture')
+      const id = await insertFixture(table, {
+        user_id: owner.id, recovery_id: recoveryId, field_key: 'synthetic', action: 'skip',
+      })
+      childResources.push({ label: table, table, filter: `id=eq.${id}` })
     } else {
       const id = await insertFixture(table, { wedding_id: weddingId, fixture_value: 'synthetic' })
       childResources.push({ label: table, table, filter: `id=eq.${id}` })

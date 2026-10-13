@@ -8,11 +8,14 @@ Use a separate project directory and CLI home under `/private/tmp`. Initialize a
 
 Start that project with Supabase CLI 2.109.1 or a compatible local stack. Confirm its URLs are `http://127.0.0.1:56321` and `postgresql://postgres:postgres@127.0.0.1:56322/postgres`, and its project ID is the dedicated harness ID before writing anything. Save `supabase status --output env` to a mode-600 `local.env` under the harness directory.
 
-From the repository root, generate and load the fixture, then apply the released Internal QA migration followed by the local entitlement fix under test:
+From the repository root, generate and load the fixture, then apply the source-contract table security migrations, the released Internal QA migration, and the collaboration stack. The source-contract layer gives the 1C-D lock-order tests the active recovery tables and owner-scoped grants:
 
 ```sh
 python3 scripts/test/internal-qa-harness/build_baseline.py > /private/tmp/ourwed-internal-qa-harness-20261012/current_baseline.sql
 docker exec -i supabase_db_ourwed-internal-qa-harness-20261012 psql -U postgres -d postgres -v ON_ERROR_STOP=1 < /private/tmp/ourwed-internal-qa-harness/current_baseline.sql
+docker exec -i supabase_db_ourwed-internal-qa-harness-20261012 psql -U postgres -d postgres -v ON_ERROR_STOP=1 < supabase/migrations/20260728160000_wedding_contract_recovery.sql
+docker exec -i supabase_db_ourwed-internal-qa-harness-20261012 psql -U postgres -d postgres -v ON_ERROR_STOP=1 < supabase/migrations/20261006214925_source_contract_atomic_apply.sql
+docker exec -i supabase_db_ourwed-internal-qa-harness-20261012 psql -U postgres -d postgres -v ON_ERROR_STOP=1 < supabase/migrations/20261007171734_source_contract_apply_partner_answers.sql
 docker exec -i supabase_db_ourwed-internal-qa-harness-20261012 psql -U postgres -d postgres -v ON_ERROR_STOP=1 < supabase/migrations/20261012154736_internal_qa_accounts.sql
 docker exec -i supabase_db_ourwed-internal-qa-harness-20261012 psql -U postgres -d postgres -v ON_ERROR_STOP=1 < supabase/migrations/20261012175953_internal_qa_pro_entitlement_gate.sql
 docker exec -i supabase_db_ourwed-internal-qa-harness-20261012 psql -U postgres -d postgres -v ON_ERROR_STOP=1 < supabase/migrations/20261012193244_collaboration_1c_a_wedding_lifecycle_foundation.sql
@@ -98,3 +101,26 @@ mocked to hold and then return unavailable during access revalidation. It
 verifies cache clearing across owner/member identities and runs the viewport
 matrix against the actual React detail page. A separate CSS fixture matrix is
 kept for the 1C-C styles as a focused layout diagnostic.
+
+For 1C-D, apply the additive migration to this disposable database after 1C-C,
+then run the version-ledger, owner-DML, conflict/ABA, and direct-write tests:
+
+```sh
+docker exec -i supabase_db_ourwed-internal-qa-harness-20261012 psql -U postgres -d postgres -v ON_ERROR_STOP=1 < supabase/migrations/20261013130000_collaboration_1c_d_operational_writes.sql
+scripts/test/internal-qa-harness/run_pgtap.sh supabase/tests/collaboration_v1_1c_d_test.sql
+sh scripts/test/internal-qa-harness/collaboration_1c_d_concurrency.sh
+sh scripts/test/internal-qa-harness/collaboration_1c_d_lock_order_concurrency.sh
+npm run test:collaboration-1c-d
+npm run test:collaboration-1c-d-behavioral
+```
+
+The optimistic race runner creates one disposable local owner/member/wedding,
+contends two authenticated RPC updates with the same expected generation, and
+cleans the fixture afterward. The lock-order runner uses two PostgreSQL sessions,
+test-only pause triggers, and `pg_stat_activity`/blocking lock observations to
+exercise recovery/address contention in both start orders; it never coordinates
+the race by arbitrary sleeps. The browser test extends the existing local
+AuthProvider/QueryClient harness with edit-state and mutation responses; it
+checks draft preservation after conflict, refreshed retry, address/time edits,
+access-loss cleanup, and the 390×844, 375×812, 393×852, and desktop editor
+layouts.

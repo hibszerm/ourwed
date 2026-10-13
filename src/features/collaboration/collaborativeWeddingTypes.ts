@@ -25,6 +25,57 @@ export interface CollaborativeWeddingDetail {
   places: CollaborativeWeddingPlace[]
 }
 
+export type CollaborationVersion = string | null
+
+export type CollaborativeOperationalTimeSource = 'override' | 'ceremony_fallback' | 'none'
+
+export interface CollaborativeWeddingOperationalEditPlace {
+  role: CollaborativeWeddingPlaceRole
+  formatted_address: string
+  address_version: CollaborationVersion
+  operational_time_override: string | null
+  effective_operational_time: string | null
+  time_source: CollaborativeOperationalTimeSource
+  time_version: CollaborationVersion
+}
+
+export interface CollaborativeWeddingOperationalEditState {
+  wedding_id: string
+  places: CollaborativeWeddingOperationalEditPlace[]
+}
+
+export interface UpdateCollaborativeWeddingPlaceInput {
+  weddingId: string
+  role: CollaborativeWeddingPlaceRole
+  formattedAddress: string
+  expectedVersion: CollaborationVersion
+}
+
+export interface UpdateCollaborativeOperationalTimeInput {
+  weddingId: string
+  role: CollaborativeWeddingPlaceRole
+  operationalTime: string | null
+  expectedVersion: CollaborationVersion
+}
+
+export interface CollaborativeWeddingPlaceCommandResult {
+  wedding_id: string
+  role: CollaborativeWeddingPlaceRole
+  formatted_address: string
+  address_version: string
+  changed: boolean
+}
+
+export interface CollaborativeOperationalTimeCommandResult {
+  wedding_id: string
+  role: CollaborativeWeddingPlaceRole
+  operational_time_override: string | null
+  effective_operational_time: string | null
+  time_source: CollaborativeOperationalTimeSource
+  time_version: CollaborationVersion
+  changed: boolean
+}
+
 export interface CollaborativeWeddingCursor {
   afterWeddingDate: string | null
   afterWeddingId: string | null

@@ -72,6 +72,11 @@ const collaborativeDto = {
   wedding_date: '2027-06-01',
   places: [{ role: 'ceremony', formatted_address: 'Local synthetic ceremony address', operational_time: '09:05' }],
 }
+let ceremonyAddress = 'Local synthetic ceremony address'
+let ceremonyAddressVersion = '1'
+let ceremonyTimeOverride = '09:05'
+let ceremonyTimeVersion = '1'
+let forceAddressConflict = true
 let paginationPages = null
 let freshPaginationPages = null
 let paginationTargetId = null
@@ -150,6 +155,70 @@ try {
     const bearer = request.headers().authorization?.replace(/^Bearer\s+/i, '') ?? ''
     let actorId = ''
     try { actorId = JSON.parse(Buffer.from(bearer.split('.')[1], 'base64url').toString('utf8')).sub ?? '' } catch {}
+    if (name === 'get_collaborative_wedding_operational_edit_state') {
+      if (actorId !== users[1].id || !accessAvailable) {
+        await route.fulfill({ status: 400, headers: { ...cors, 'content-type': 'application/json' }, body: JSON.stringify({ code: 'P0001', message: 'UNAVAILABLE' }) })
+        return
+      }
+      const roles = ['bride_preparation', 'groom_preparation', 'ceremony', 'reception']
+      const places = roles.map((role) => ({
+        role,
+        formatted_address: role === 'ceremony' ? ceremonyAddress : '',
+        address_version: role === 'ceremony' ? ceremonyAddressVersion : null,
+        operational_time_override: role === 'ceremony' ? ceremonyTimeOverride : null,
+        effective_operational_time: role === 'ceremony' ? (ceremonyTimeOverride ?? '15:30') : null,
+        time_source: role === 'ceremony' ? (ceremonyTimeOverride === null ? 'ceremony_fallback' : 'override') : 'none',
+        time_version: role === 'ceremony' ? ceremonyTimeVersion : null,
+      }))
+      const requestedWeddingId = request.postDataJSON().p_wedding_id
+      await route.fulfill({ status: 200, headers: { ...cors, 'content-type': 'application/json' }, body: JSON.stringify({ wedding_id: requestedWeddingId, places }) })
+      return
+    }
+    if (name === 'update_collaborative_wedding_place') {
+      const body = request.postDataJSON()
+      if (actorId !== users[1].id || !accessAvailable) {
+        await route.fulfill({ status: 400, headers: { ...cors, 'content-type': 'application/json' }, body: JSON.stringify({ code: 'P0001', message: 'UNAVAILABLE' }) })
+        return
+      }
+      if (forceAddressConflict) {
+        forceAddressConflict = false
+        ceremonyAddress = 'Server latest'
+        ceremonyAddressVersion = '2'
+        await route.fulfill({ status: 400, headers: { ...cors, 'content-type': 'application/json' }, body: JSON.stringify({ code: 'P0001', message: 'CONFLICT' }) })
+        return
+      }
+      if (body.p_expected_version !== ceremonyAddressVersion) {
+        await route.fulfill({ status: 400, headers: { ...cors, 'content-type': 'application/json' }, body: JSON.stringify({ code: 'P0001', message: 'CONFLICT' }) })
+        return
+      }
+      ceremonyAddress = body.p_formatted_address
+      ceremonyAddressVersion = String(BigInt(ceremonyAddressVersion) + 1n)
+      await route.fulfill({ status: 200, headers: { ...cors, 'content-type': 'application/json' }, body: JSON.stringify({ wedding_id: weddingId, role: 'ceremony', formatted_address: ceremonyAddress, address_version: ceremonyAddressVersion, changed: true }) })
+      return
+    }
+    if (name === 'update_collaborative_operational_time') {
+      const body = request.postDataJSON()
+      if (actorId !== users[1].id || !accessAvailable) {
+        await route.fulfill({ status: 400, headers: { ...cors, 'content-type': 'application/json' }, body: JSON.stringify({ code: 'P0001', message: 'UNAVAILABLE' }) })
+        return
+      }
+      if (body.p_expected_version !== ceremonyTimeVersion) {
+        await route.fulfill({ status: 400, headers: { ...cors, 'content-type': 'application/json' }, body: JSON.stringify({ code: 'P0001', message: 'CONFLICT' }) })
+        return
+      }
+      ceremonyTimeOverride = body.p_operational_time
+      ceremonyTimeVersion = String(BigInt(ceremonyTimeVersion) + 1n)
+      await route.fulfill({ status: 200, headers: { ...cors, 'content-type': 'application/json' }, body: JSON.stringify({
+        wedding_id: weddingId,
+        role: 'ceremony',
+        operational_time_override: ceremonyTimeOverride,
+        effective_operational_time: ceremonyTimeOverride ?? '15:30',
+        time_source: ceremonyTimeOverride === null ? 'ceremony_fallback' : 'override',
+        time_version: ceremonyTimeVersion,
+        changed: true,
+      }) })
+      return
+    }
     if (name === 'list_my_collaborative_weddings') {
       let rows = []
       if (actorId === users[1].id && (accessAvailable || freshPaginationPages)) {
@@ -179,7 +248,7 @@ try {
       const value = actorId === users[1].id && accessAvailable
         ? requestedWeddingId === paginationTargetId
           ? { ...collaborativeDto, wedding_id: paginationTargetId, couple_first_name: paginationTargetName, couple_second_name: 'Target' }
-          : collaborativeDto
+          : { ...collaborativeDto, places: [{ ...collaborativeDto.places[0], formatted_address: ceremonyAddress, operational_time: ceremonyTimeOverride ?? '15:30' }] }
         : null
       await route.fulfill({ status: 200, headers: { ...cors, 'content-type': 'application/json' }, body: JSON.stringify(value) })
       return
@@ -213,6 +282,58 @@ try {
   assert.equal(initialCache.collaborativeListHasWedding, true, 'initial list cache contains the wedding')
   assert.equal(await page.getByText('Local synthetic ceremony address').count(), 1, 'detail renders the collaborative projection')
   passed += 3
+
+  const ceremonyCard = page.getByTestId('collaborative-place-ceremony')
+  await ceremonyCard.getByRole('button', { name: 'Edytuj adres' }).click()
+  const addressInput = page.getByTestId('collaborative-address-input')
+  await addressInput.fill('My preserved draft')
+  await page.getByRole('button', { name: 'Zapisz' }).click()
+  await page.getByText(/Aktualna wartość na serwerze: Server latest/).waitFor()
+  assert.equal(await addressInput.inputValue(), 'My preserved draft', 'version conflict preserves the local address draft')
+  await page.getByRole('button', { name: 'Zapisz' }).click()
+  await page.getByTestId('collaborative-address-input').waitFor({ state: 'detached' })
+  await page.getByText('My preserved draft').waitFor()
+  passed += 2
+
+  await ceremonyCard.getByRole('button', { name: 'Edytuj godzinę' }).click()
+  const timeInput = page.getByTestId('collaborative-time-input')
+  await timeInput.fill('10:30')
+  await page.getByRole('button', { name: 'Zapisz' }).click()
+  await page.getByText('Godzina: 10:30').waitFor()
+  passed += 1
+  await ceremonyCard.getByRole('button', { name: 'Edytuj godzinę' }).click()
+  await page.getByRole('button', { name: 'Usuń godzinę' }).click()
+  await page.getByText('Godzina: 15:30 (ustawienie ślubu)').waitFor()
+  passed += 1
+
+  await ceremonyCard.getByRole('button', { name: 'Edytuj adres' }).click()
+  await page.getByTestId('collaborative-address-input').waitFor()
+  for (const [width, height, label] of [
+    [390, 844, '390×844'], [375, 812, '375×812'], [393, 852, '393×852'], [1440, 960, 'desktop'],
+  ]) {
+    await page.setViewportSize({ width, height })
+    const editorLayout = await page.evaluate(() => {
+      const dialog = document.querySelector('[role="dialog"]')
+      const input = document.querySelector('[data-testid="collaborative-address-input"]')
+      const save = [...document.querySelectorAll('button')].find((button) => button.textContent?.trim() === 'Zapisz')
+      if (!dialog || !input || !save) return null
+      const rect = dialog.getBoundingClientRect()
+      const saveRect = save.getBoundingClientRect()
+      return {
+        documentWidth: document.documentElement.scrollWidth,
+        dialogLeft: rect.left,
+        dialogRight: rect.right,
+        dialogBottom: rect.bottom,
+        saveBottom: saveRect.bottom,
+      }
+    })
+    assert.ok(editorLayout, `${label} address editor is mounted`)
+    assert.equal(editorLayout.documentWidth, width, `${label} editor has no horizontal page overflow`)
+    assert.ok(editorLayout.dialogLeft >= 0 && editorLayout.dialogRight <= width, `${label} editor fits horizontally`)
+    assert.ok(editorLayout.dialogBottom <= height && editorLayout.saveBottom <= height, `${label} editor and save action fit vertically`)
+    passed += 4
+  }
+  await page.getByRole('button', { name: 'Anuluj' }).click()
 
   for (const [width, height, label] of [
     [390, 844, '390×844'], [375, 812, '375×812'], [393, 852, '393×852'], [1440, 960, 'desktop'],
@@ -365,8 +486,8 @@ try {
   passed += 5
 
   assert.deepEqual(pageErrors, [], 'browser reported no app or collaboration RPC errors')
-  console.log(`PASS 1C-C behavioral frontend tests (${passed} assertions; real AuthProvider, hooks, QueryClient, routes, and React pages)`)
-  console.log('PASS actual React collaboration detail viewport matrix: 390×844, 375×812, 393×852, desktop (12 assertions)')
+  console.log(`PASS 1C-C/1C-D behavioral frontend tests (${passed} assertions; real AuthProvider, hooks, QueryClient, routes, React pages, command conflicts, and operational editors)`)
+  console.log('PASS actual React collaboration detail and operational-editor viewport matrix: 390×844, 375×812, 393×852, desktop')
 } finally {
   releaseHeldDetail?.()
   await browser?.close().catch(() => {})

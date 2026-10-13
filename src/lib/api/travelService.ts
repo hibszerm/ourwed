@@ -1,5 +1,3 @@
-import { studioTravelSettingsService } from '@/lib/api/studioTravelSettingsService'
-import { weddingPlaceService } from '@/lib/api/weddingPlaceService'
 import { withDevPerf } from '@/lib/performance/devPerf'
 import { weddingPlaceRouteLabel } from '@/features/travel/weddingLocationModel'
 import {
@@ -11,7 +9,6 @@ import {
 import { logOperationalOrder } from '@/features/wedding-day/operationalOrderDebug'
 import { supabase } from '@/lib/supabase'
 import { nowIso, throwOnError, toNumber } from '@/lib/supabase/helpers'
-import { TRAVEL_SEGMENTS_ON_CONFLICT } from '@/lib/travel/travelSegmentsIdentity'
 import {
   TravelProviderError,
   travelProvider,
@@ -57,6 +54,102 @@ interface TravelSegmentRow {
 }
 
 type SegmentWrite = Omit<TravelSegmentRow, 'id' | 'created_at' | 'updated_at'>
+
+interface RouteSnapshot {
+  route_contract_version: number
+  wedding_route_input_version: string
+  studio_origin_version: string
+  provider: string
+  travel_mode: string
+  topology_token: string
+  studio: StudioTravelSettingsRow | Record<string, never>
+  places: RoutePlaceRow[]
+}
+
+interface StudioTravelSettingsRow {
+  id: string
+  user_id: string
+  studio_name: string | null
+  street: string | null
+  building_number: string | null
+  postal_code: string | null
+  city: string | null
+  country: string
+  formatted_address: string | null
+  latitude: number | string | null
+  longitude: number | string | null
+  place_id: string | null
+  free_distance_km: number | string | null
+  created_at: string
+  updated_at: string
+}
+
+interface RoutePlaceRow {
+  id: string
+  wedding_id: string
+  role: string
+  label: string | null
+  place_id: string | null
+  formatted_address: string
+  latitude: number | string | null
+  longitude: number | string | null
+  sort_order: number
+  created_at: string
+  updated_at: string
+}
+
+function mapRouteSnapshot(snapshot: RouteSnapshot, weddingId: string) {
+  const s = snapshot.studio
+  const studio = 'id' in s
+    ? {
+        id: String(s.id),
+        userId: String(s.user_id),
+        studioName: (s.studio_name as string | null) ?? null,
+        street: (s.street as string | null) ?? null,
+        buildingNumber: (s.building_number as string | null) ?? null,
+        postalCode: (s.postal_code as string | null) ?? null,
+        city: (s.city as string | null) ?? null,
+        country: (s.country as string | null) ?? 'Polska',
+        formattedAddress: (s.formatted_address as string | null) ?? null,
+        latitude: s.latitude == null ? null : toNumber(s.latitude, Number.NaN),
+        longitude: s.longitude == null ? null : toNumber(s.longitude, Number.NaN),
+        placeId: (s.place_id as string | null) ?? null,
+        freeDistanceKm: s.free_distance_km == null ? null : toNumber(s.free_distance_km, 0),
+        createdAt: String(s.created_at ?? ''),
+        updatedAt: String(s.updated_at ?? ''),
+      }
+    : null
+  const places = snapshot.places.map((row) => ({ ...mapPlaceRow(row), weddingId }))
+  return { studio, places }
+}
+
+function mapPlaceRow(row: RoutePlaceRow): WeddingPlace {
+  return {
+    id: row.id,
+    weddingId: row.wedding_id,
+    role: (row.role === 'preparation' ? 'bride_preparation' : row.role) as WeddingPlace['role'],
+    label: row.label,
+    placeId: row.place_id,
+    formattedAddress: row.formatted_address,
+    latitude: row.latitude == null ? null : toNumber(row.latitude, Number.NaN),
+    longitude: row.longitude == null ? null : toNumber(row.longitude, Number.NaN),
+    sortOrder: row.sort_order,
+    createdAt: row.created_at,
+    updatedAt: row.updated_at,
+  }
+}
+
+async function getRouteSnapshot(weddingId: string): Promise<RouteSnapshot> {
+  const { data, error } = await supabase.rpc('get_wedding_travel_route_snapshot', {
+    p_wedding_id: weddingId,
+  })
+  throwOnError(error)
+  const snapshot = data as RouteSnapshot | null
+  if (!snapshot || snapshot.provider !== 'google' || snapshot.travel_mode !== 'DRIVE' || snapshot.route_contract_version !== 1) {
+    throw new Error('ROUTE_SNAPSHOT_INVALID')
+  }
+  return snapshot
+}
 
 interface PlannedLeg {
   sequence: number
@@ -178,6 +271,8 @@ function cachedLegReusable(
   return (
     cached != null &&
     cached.endpointsHash === leg.endpointsHash &&
+    cached.provider === ROUTE_PROVIDER &&
+    cached.travelMode === 'DRIVE' &&
     cached.status === 'ok' &&
     cached.distanceMeters != null &&
     cached.durationSeconds != null
@@ -287,35 +382,18 @@ async function listCachedSegments(weddingId: string): Promise<TravelSegment[]> {
 async function syncSegments(
   weddingId: string,
   rows: SegmentWrite[],
+  snapshot: RouteSnapshot,
 ): Promise<TravelSegment[]> {
-  // Exact sync: remove all prior legs for this wedding, then upsert the plan.
-  // Safer than `.not('sequence', 'in', ...)` which can 400 on PostgREST filter syntax.
-  // Scoped to this wedding_id only — never deletes another wedding's segments.
-  const { error: delError } = await supabase
-    .from('travel_segments')
-    .delete()
-    .eq('wedding_id', weddingId)
-  if (delError) {
-    devErrorArgs('[travel_segments] delete failed', {
-      weddingId,
-      message: delError.message,
-      details: delError.details,
-      hint: delError.hint,
-      code: delError.code,
-    })
-    throwOnError(delError)
-  }
-
-  if (rows.length === 0) return []
-
-  const { data, error } = await supabase
-    .from('travel_segments')
-    .upsert(rows, {
-      onConflict: TRAVEL_SEGMENTS_ON_CONFLICT,
-      ignoreDuplicates: false,
-    })
-    .select('*')
-    .order('sequence', { ascending: true })
+  const { data, error } = await supabase.rpc('replace_wedding_travel_segments_if_current', {
+    p_wedding_id: weddingId,
+    p_route_contract_version: snapshot.route_contract_version,
+    p_expected_wedding_route_input_version: snapshot.wedding_route_input_version,
+    p_expected_studio_origin_version: snapshot.studio_origin_version,
+    p_provider: snapshot.provider,
+    p_travel_mode: snapshot.travel_mode,
+    p_topology_token: snapshot.topology_token,
+    p_segments: rows,
+  })
   if (error) {
     devErrorArgs('[travel_segments] upsert failed', {
       weddingId,
@@ -328,7 +406,9 @@ async function syncSegments(
     })
     throwOnError(error)
   }
-  return ((data ?? []) as TravelSegmentRow[]).map(mapSegment)
+  const response = data as { status?: string; segments?: TravelSegmentRow[] } | null
+  if (response?.status !== 'ok') throw new Error('ROUTE_SEGMENT_INVALID')
+  return (response.segments ?? []).map(mapSegment)
 }
 
 function segmentsFromWrites(
@@ -346,7 +426,9 @@ function segmentsFromWrites(
 }
 
 function persistenceFailureMessage(err: unknown): string {
-  if (err instanceof Error && err.message.trim()) return err.message
+  if (err instanceof Error && err.message.includes('STALE_ROUTE_INPUT')) {
+    return 'STALE_ROUTE_INPUT'
+  }
   return 'Nie udało się zapisać wyliczonej trasy.'
 }
 
@@ -357,9 +439,10 @@ async function syncSegmentsOrLocal(
   weddingId: string,
   rows: SegmentWrite[],
   cachedBySequence: Map<number, TravelSegment>,
+  snapshot: RouteSnapshot,
 ): Promise<{ segments: TravelSegment[]; persistenceError: string | null }> {
   try {
-    const segments = await syncSegments(weddingId, rows)
+    const segments = await syncSegments(weddingId, rows, snapshot)
     return { segments, persistenceError: null }
   } catch (err) {
     const persistenceError = persistenceFailureMessage(err)
@@ -369,7 +452,9 @@ async function syncSegmentsOrLocal(
       message: persistenceError,
     })
     return {
-      segments: segmentsFromWrites(rows, cachedBySequence),
+      segments: persistenceError.includes('STALE_ROUTE_INPUT')
+        ? []
+        : segmentsFromWrites(rows, cachedBySequence),
       persistenceError,
     }
   }
@@ -406,23 +491,22 @@ export const travelService = {
       places?: WeddingPlace[]
       /** Exact place-id sequence; wins over sort_order when provided. */
       orderedPlaceIds?: string[]
+      /** Internal cap for one retry after an authoritative stale snapshot. */
+      _staleRetryConsumed?: boolean
     },
   ): Promise<TravelPlan> {
     const travelMode = options?.travelMode ?? 'DRIVE'
     const forceRefresh = Boolean(options?.forceRefresh)
     const revision = nextRouteRevision(weddingId)
-
-    const [studio, listedPlaces, cached] = await Promise.all([
-      studioTravelSettingsService.get(),
-      options?.places
-        ? Promise.resolve(options.places)
-        : weddingPlaceService.listByWeddingId(weddingId),
+    if (travelMode !== 'DRIVE') throw new Error('TRAVEL_MODE_UNSUPPORTED')
+    const [snapshot, cached] = await Promise.all([
+      getRouteSnapshot(weddingId),
       listCachedSegments(weddingId),
     ])
-    const places = options?.places ?? listedPlaces
-    const orderedPlaceIds =
-      options?.orderedPlaceIds ??
-      (options?.places ? options.places.map((p) => p.id) : undefined)
+    const { studio, places } = mapRouteSnapshot(snapshot, weddingId)
+    // Route order is derived from the same authoritative rows that carry the
+    // version vector. An optimistic drag array is never used for persistence.
+    const orderedPlaceIds = undefined
     logOperationalOrder({
       source: 'travelService.getPlan',
       weddingId,
@@ -464,7 +548,11 @@ export const travelService = {
           weddingId,
           [],
           cachedBySequence,
+          snapshot,
         ))
+      }
+      if (persistenceError?.includes('STALE_ROUTE_INPUT') && !options?._staleRetryConsumed) {
+        return this.getPlan(weddingId, { ...options, forceRefresh: true, _staleRetryConsumed: true })
       }
       if (!isCurrentRevision(weddingId, revision)) {
         return {
@@ -488,7 +576,7 @@ export const travelService = {
         errorMessage: null,
         persistenceError,
         routeFingerprint: fingerprint,
-        routeStale: false,
+        routeStale: persistenceError?.includes('STALE_ROUTE_INPUT') ?? false,
       }
     }
 
@@ -508,7 +596,11 @@ export const travelService = {
             segmentToWrite({ ...s, sequence: planned[i]!.sequence }),
           ),
           cachedBySequence,
+          snapshot,
         ))
+      }
+      if (persistenceError?.includes('STALE_ROUTE_INPUT') && !options?._staleRetryConsumed) {
+        return this.getPlan(weddingId, { ...options, forceRefresh: true, _staleRetryConsumed: true })
       }
       if (!isCurrentRevision(weddingId, revision)) {
         return {
@@ -527,12 +619,12 @@ export const travelService = {
         weddingId,
         studio,
         places,
-        segments,
+        segments: persistenceError?.includes('STALE_ROUTE_INPUT') ? [] : segments,
         hasError: false,
         errorMessage: null,
         persistenceError,
         routeFingerprint: fingerprint,
-        routeStale: false,
+        routeStale: persistenceError?.includes('STALE_ROUTE_INPUT') ?? false,
       }
     }
 
@@ -626,18 +718,24 @@ export const travelService = {
       weddingId,
       rows,
       cachedBySequence,
+      snapshot,
     )
+
+    const routeStale = persistenceError?.includes('STALE_ROUTE_INPUT') ?? false
+    if (routeStale && !options?._staleRetryConsumed) {
+      return this.getPlan(weddingId, { ...options, forceRefresh: true, _staleRetryConsumed: true })
+    }
 
     return {
       weddingId,
       studio,
       places,
-      segments,
-      hasError: segments.some((s) => s.status === 'error'),
+      segments: routeStale ? [] : segments,
+      hasError: !routeStale && segments.some((s) => s.status === 'error'),
       errorMessage: firstError,
       persistenceError,
       routeFingerprint: fingerprint,
-      routeStale: false,
+      routeStale,
     }
   },
 
@@ -673,10 +771,9 @@ export const travelService = {
 
   async invalidate(weddingId: string): Promise<void> {
     nextRouteRevision(weddingId)
-    const { error } = await supabase
-      .from('travel_segments')
-      .delete()
-      .eq('wedding_id', weddingId)
+    const { error } = await supabase.rpc('invalidate_wedding_travel_segments', {
+      p_wedding_id: weddingId,
+    })
     throwOnError(error)
   },
 

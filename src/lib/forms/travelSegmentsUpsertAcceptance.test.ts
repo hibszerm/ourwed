@@ -38,15 +38,15 @@ const MIGRATION =
   'supabase/migrations/20260725250000_travel_segments_wedding_sequence_unique.sql'
 const SERVICE = 'src/lib/api/travelService.ts'
 const DETAIL = 'src/features/weddings/components/detail/WeddingDetailTravel.tsx'
-const DAY = 'src/features/weddings/detail/v2/WeddingDayWorkspace.tsx'
+const DAY = 'src/features/weddings/modern-detail/ModernWeddingLogisticsWorkspace.tsx'
 const BOOTSTRAP =
   'supabase/migrations_archive/bootstrap/travel_planning.sql'
 
-run('onConflict target is wedding_id,sequence', () => {
+run('guarded route persistence retains wedding+sequence identity', () => {
   assertEq(TRAVEL_SEGMENTS_ON_CONFLICT, 'wedding_id,sequence', 'const')
   const src = readFileSync(resolve(process.cwd(), SERVICE), 'utf8')
-  assert(src.includes("onConflict: TRAVEL_SEGMENTS_ON_CONFLICT"), 'uses const')
-  assert(src.includes('ignoreDuplicates: false'), 'updates on conflict')
+  assert(src.includes("rpc('replace_wedding_travel_segments_if_current'"), 'uses guarded persistence RPC')
+  assert(!src.includes(".from('travel_segments').upsert"), 'does not bypass guarded persistence')
 })
 
 run('migration unique index matches onConflict columns', () => {
@@ -167,12 +167,13 @@ run('recalculation updates distance/duration identity stable', () => {
   assertEq(dropIds[0], 'seg-old', 'older duplicate dropped')
 })
 
-run('syncSegments exact-sync deletes only this wedding then upserts', () => {
+run('syncSegments persists through the guarded route contract', () => {
   const src = readFileSync(resolve(process.cwd(), SERVICE), 'utf8')
-  assert(src.includes(".eq('wedding_id', weddingId)"), 'scoped wedding delete')
   assert(src.includes('syncSegmentsOrLocal'), 'soft-fail helper')
   assert(src.includes('persistenceError'), 'surfaces persistence')
-  assert(src.includes('TRAVEL_SEGMENTS_ON_CONFLICT'), 'conflict target')
+  assert(src.includes('p_topology_token: snapshot.topology_token'), 'persists server-issued topology token')
+  assert(src.includes('p_expected_wedding_route_input_version: snapshot.wedding_route_input_version'), 'persists expected route version')
+  assert(!/\.from\('travel_segments'\)[\s\S]{0,200}\.(insert|upsert|update|delete)/.test(src), 'no direct cache mutation')
   assert(!/\.insert\(\s*rows\s*\)/.test(src), 'no blind insert')
 })
 
@@ -221,7 +222,7 @@ run('persistence failure does not suppress map with coordinates', () => {
   assert(detail.includes('<TravelMap stops={flow.stops} />'), 'map still rendered')
   const day = readFileSync(resolve(process.cwd(), DAY), 'utf8')
   assert(day.includes('persistenceError'), 'v2 warn')
-  assert(day.includes('<TravelMap stops={flow.stops} />'), 'v2 map')
+  assert(day.includes('<TravelMap stops={mapStops}'), 'v2 map')
   // Hard catch must not wipe places in V2 (props available)
   assert(day.includes('places,'), 'v2 catch keeps places')
 })

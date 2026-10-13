@@ -25,7 +25,7 @@ def function(source: str, name: str) -> str:
 
 def table(source: str, name: str) -> str:
     text = (MIGRATIONS / source).read_text()
-    match = re.search(rf"(?im)^create table public\.{re.escape(name)}\s*\(", text)
+    match = re.search(rf"(?im)^create table(?: if not exists)? public\.{re.escape(name)}\s*\(", text)
     if not match:
         raise RuntimeError(f"Could not find public.{name} in {source}")
     end = text.find("\n);", match.start())
@@ -69,6 +69,32 @@ create table public.forms (
   check (category in ('contract', 'pre_wedding', 'wedding_day', 'feedback', 'planning', 'other')),
   check (version >= 1),
   check ((is_system_template and user_id is null) or (not is_system_template and user_id is not null))
+);
+-- Minimal production-shaped form rows are required for compiling and exercising
+-- the lock-order replacement of public_submit_form_by_token in 1C-D tests.
+create table public.form_instances (
+  id uuid primary key default extensions.gen_random_uuid(),
+  form_id uuid not null references public.forms(id) on delete restrict,
+  wedding_id uuid,
+  user_id uuid references public.users(id) on delete cascade,
+  token text not null unique,
+  token_hash text,
+  status text not null default 'pending'
+    check (status in ('pending','opened','submitted','expired','revoked','approved','rejected','archived')),
+  expires_at timestamptz,
+  opened_at timestamptz,
+  submitted_at timestamptz,
+  approved_at timestamptz,
+  rejected_at timestamptz,
+  created_at timestamptz not null default timezone('utc', now()),
+  options_snapshot jsonb
+);
+create unique index form_instances_token_hash_unique on public.form_instances(token_hash) where token_hash is not null;
+create table public.form_answers (
+  id uuid primary key default extensions.gen_random_uuid(),
+  instance_id uuid not null unique references public.form_instances(id) on delete cascade,
+  answer_json jsonb not null default '{}'::jsonb,
+  created_at timestamptz not null default timezone('utc', now())
 );
 create table public.packages (
   id uuid primary key default extensions.gen_random_uuid(),
@@ -180,6 +206,12 @@ create table public.weddings (
   ceremony_time time,
   email text,
   phone text,
+  groom_phone text,
+  contract_address text,
+  contract_postal_code text,
+  contract_city text,
+  bride_preparation_location text,
+  groom_preparation_location text,
   wedding_date date,
   status text not null default 'active' check (status in ('active','archived','cancelled')),
   package_id uuid,
@@ -201,6 +233,7 @@ create table public.weddings (
   delivery_completed_at timestamptz,
   travel_fee_status text not null default 'unresolved',
   travel_fee_amount numeric(12,2) not null default 0,
+  travel_fee_resolved_at timestamptz,
   travel_fee_free_km_snapshot numeric(10,2),
   travel_fee_route_distance_m_snapshot integer,
   venue text,
@@ -214,7 +247,8 @@ create table public.wedding_extra_services (
   price_snapshot numeric(12,2) not null check (price_snapshot >= 0),
   name_snapshot text not null default 'Service',
   quantity integer not null default 1 check (quantity >= 1),
-  created_at timestamptz not null default timezone('utc', now())
+  created_at timestamptz not null default timezone('utc', now()),
+  updated_at timestamptz not null default timezone('utc', now())
 );
 create table public.payments (
   id uuid primary key default extensions.gen_random_uuid(),
@@ -280,10 +314,7 @@ grant execute on function public.is_wedding_owner(uuid) to authenticated, servic
 
 wedding_child_fixture_tables = (
     "contacts", "notes", "tasks", "timeline_events", "calendar_events",
-    "travel_segments",
     "wedding_briefs", "wedding_documents", "wedding_document_drafts",
-    "wedding_source_contracts", "wedding_contract_recoveries",
-    "wedding_contract_package_snapshots", "wedding_contract_recovery_decisions",
     "wedding_contract_generation_runs", "wedding_document_generation_sequences",
     "contracts",
 )
@@ -291,7 +322,9 @@ child_fixture_ddl = "\n".join(
     f"""create table public.{name} (
   id uuid primary key default extensions.gen_random_uuid(),
   wedding_id uuid not null references public.weddings(id) on delete cascade,
-  fixture_value text not null default 'synthetic'
+  fixture_value text not null default 'synthetic',
+  template_id uuid, user_id uuid, owner_id uuid, questionnaire_id uuid, session_id uuid,
+  content text, author text, type text, title text, description text, system_generated boolean not null default false
 );
 alter table public.{name} enable row level security;
 alter table public.{name} force row level security;
@@ -353,7 +386,7 @@ ddl += r"""
 create table public.wedding_places (
   id uuid primary key default extensions.gen_random_uuid(),
   wedding_id uuid not null references public.weddings(id) on delete cascade,
-  role text not null check (role in ('bride_preparation','groom_preparation','ceremony','reception','hotel','airport','other')),
+  role text not null check (role in ('bride_preparation','preparation','groom_preparation','ceremony','reception','hotel','airport','other')),
   label text, place_id text, formatted_address text not null,
   latitude numeric(10,7), longitude numeric(10,7), sort_order integer not null default 0,
   created_at timestamptz not null default timezone('utc',now()),
@@ -364,6 +397,30 @@ alter table public.wedding_places enable row level security;
 alter table public.wedding_places force row level security;
 grant select on public.wedding_places to authenticated;
 create policy wedding_places_select_owner_fixture on public.wedding_places
+  for select to authenticated using (public.is_wedding_owner(wedding_id));
+create table public.travel_segments (
+  id uuid primary key default extensions.gen_random_uuid(),
+  wedding_id uuid not null references public.weddings(id) on delete cascade,
+  sequence integer not null default 0,
+  origin_kind text not null check (origin_kind in ('studio','wedding_place')),
+  origin_wedding_place_id uuid references public.wedding_places(id) on delete cascade,
+  destination_kind text not null check (destination_kind in ('studio','wedding_place')),
+  destination_wedding_place_id uuid references public.wedding_places(id) on delete cascade,
+  endpoints_hash text not null,
+  distance_meters integer, distance_text text, duration_seconds integer, duration_text text,
+  travel_mode text not null default 'DRIVE', provider text not null default 'geoapify',
+  status text not null default 'ok' check (status in ('ok','error','stale')),
+  error_message text, calculated_at timestamptz,
+  created_at timestamptz not null default timezone('utc',now()),
+  updated_at timestamptz not null default timezone('utc',now()),
+  constraint travel_segments_origin_check check ((origin_kind='studio' and origin_wedding_place_id is null) or (origin_kind='wedding_place' and origin_wedding_place_id is not null)),
+  constraint travel_segments_destination_check check ((destination_kind='studio' and destination_wedding_place_id is null) or (destination_kind='wedding_place' and destination_wedding_place_id is not null)),
+  unique(wedding_id,sequence)
+);
+alter table public.travel_segments enable row level security;
+alter table public.travel_segments force row level security;
+grant select on public.travel_segments to authenticated;
+create policy travel_segments_select_owner_fixture on public.travel_segments
   for select to authenticated using (public.is_wedding_owner(wedding_id));
 create table public.wedding_operational_times (
   wedding_id uuid not null references public.weddings(id) on delete cascade,
@@ -381,13 +438,48 @@ create policy wedding_operational_times_select_owner_fixture on public.wedding_o
 """
 
 ddl += r"""
+create table public.account_deletion_rate_limits (user_id uuid);
+create table public.studio_travel_settings (
+  id uuid primary key default extensions.gen_random_uuid(),
+  user_id uuid not null unique references public.users(id) on delete cascade,
+  studio_name text, street text, building_number text, postal_code text, city text,
+  country text not null default 'Polska', formatted_address text,
+  latitude numeric(10,7), longitude numeric(10,7), place_id text,
+  free_distance_km numeric(10,2) check (free_distance_km is null or free_distance_km >= 0),
+  created_at timestamptz not null default timezone('utc',now()),
+  updated_at timestamptz not null default timezone('utc',now())
+);
+alter table public.studio_travel_settings enable row level security;
+alter table public.studio_travel_settings force row level security;
+grant select on public.studio_travel_settings to authenticated;
+create policy studio_travel_settings_select_owner_fixture on public.studio_travel_settings
+  for select to authenticated using (user_id=auth.uid());
+create table public.document_clause_defs (id uuid primary key default extensions.gen_random_uuid(), user_id uuid);
+create table public.document_templates (id uuid primary key default extensions.gen_random_uuid(), user_id uuid, current_version_id uuid, questionnaire_form_id uuid);
+create table public.document_template_versions (id uuid primary key default extensions.gen_random_uuid(), template_id uuid);
+create table public.document_components (id uuid primary key default extensions.gen_random_uuid(), user_id uuid, current_version_id uuid);
+create table public.document_component_versions (id uuid primary key default extensions.gen_random_uuid(), component_id uuid);
+create table public.document_template_component_links (id uuid primary key default extensions.gen_random_uuid(), template_version_id uuid, component_version_id uuid);
+create table public.document_blocks (id uuid primary key default extensions.gen_random_uuid(), component_version_id uuid);
+create table public.document_block_conditions (id uuid primary key default extensions.gen_random_uuid(), block_id uuid);
 alter table public.questionnaire_templates enable row level security;
 alter table public.questionnaire_templates force row level security;
 grant select, insert, update, delete on public.questionnaire_templates to authenticated;
 
 """
 
+ddl += r"""
+create function public.set_updated_at()
+returns trigger language plpgsql set search_path = '' as $$
+begin
+  new.updated_at := timezone('utc', now());
+  return new;
+end;
+$$;
+"""
+
 functions = [
+    ("20261006214925_source_contract_atomic_apply.sql", "wedding_contract_related_state_snapshot"),
     ("20260811230000_pro_mutation_gate.sql", "account_has_pro_access"),
     ("20261012133531_collaboration_v1_global_connections.sql", "create_collaboration_invite"),
     ("20261012133531_collaboration_v1_global_connections.sql", "accept_collaboration_invite"),
@@ -428,7 +520,21 @@ create unique index collaboration_events_actor_idempotency_unique
   on public.collaboration_events(actor_user_id,idempotency_key) where idempotency_key is not null;
 """
 
-out = [ddl, collaboration_tables, "\n"]
+source_contract_tables = "\n\n".join(
+    table("20260728160000_wedding_contract_recovery.sql", name)
+    for name in (
+        "wedding_source_contracts",
+        "wedding_contract_recoveries",
+        "wedding_contract_package_snapshots",
+        "wedding_contract_recovery_decisions",
+    )
+)
+source_contract_tables += "\n\n" + """
+grant select, insert, update, delete on public.wedding_source_contracts,
+  public.wedding_contract_recoveries, public.wedding_contract_package_snapshots,
+  public.wedding_contract_recovery_decisions to authenticated;
+"""
+out = [ddl, source_contract_tables, collaboration_tables, "\n"]
 out.extend(function(source, name) + "\n" for source, name in functions)
 out.append(r"""
 -- Test-only notification sink. Collaboration RPCs retain their released code;
@@ -442,6 +548,13 @@ begin
   values($1,$7,$8,$3,$4,$9,$5) on conflict(event_key) do nothing returning id into v_id;
   if v_id is null then select id into v_id from public.notifications where event_key=$5; end if;
   return v_id;
+end; $$;
+
+-- Test-only no-op sink used by the public form submission function.
+create function public.notify_contract_questionnaire_completed(uuid, uuid)
+returns void language plpgsql volatile security definer set search_path = '' as $$
+begin
+  return;
 end; $$;
 
 revoke all on function public.account_has_pro_access() from public, anon;

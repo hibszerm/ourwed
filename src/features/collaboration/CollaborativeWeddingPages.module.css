@@ -89,6 +89,77 @@
   font-size: 0.94rem;
 }
 
+.placeHeading {
+  display: flex;
+  align-items: flex-start;
+  justify-content: space-between;
+  gap: 12px;
+  flex-wrap: wrap;
+}
+
+.placeActions {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  flex-wrap: wrap;
+}
+
+.mapNote,
+.fieldHint,
+.conflictNote {
+  color: var(--color-text-secondary);
+  font-size: 0.88rem;
+  line-height: 1.5;
+}
+
+.editForm {
+  display: grid;
+  gap: 16px;
+  min-width: 0;
+}
+
+.fieldLabel {
+  display: grid;
+  gap: 8px;
+  min-width: 0;
+  font-weight: 600;
+}
+
+.fieldLabel textarea,
+.fieldLabel input {
+  box-sizing: border-box;
+  width: 100%;
+  min-width: 0;
+  padding: 12px;
+  border: 1px solid var(--color-border);
+  border-radius: 10px;
+  background: var(--color-surface);
+  color: var(--color-text-primary);
+  font: inherit;
+  font-weight: 400;
+}
+
+.fieldLabel textarea {
+  resize: vertical;
+  min-height: 96px;
+}
+
+.fieldHint {
+  font-weight: 400;
+}
+
+.formError {
+  margin: 0;
+  color: var(--color-danger, #a13e3e);
+}
+
+.conflictNote {
+  margin: 0;
+  padding: 12px;
+  border-radius: 10px;
+  background: var(--surface-secondary, var(--color-bg));
+}
+
 .error {
   color: var(--color-danger, #a13e3e);
 }
@@ -121,5 +192,14 @@
   .page {
     margin: 12px auto;
     padding: 20px 16px;
+  }
+
+  .placeHeading,
+  .placeActions {
+    width: 100%;
+  }
+
+  .placeActions > * {
+    flex: 1 1 auto;
   }
 }

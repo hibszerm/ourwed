@@ -148,7 +148,7 @@ select throws_ok($$select public.create_collaboration_invite('alice@example.test
 select is(public.create_collaboration_invite('bob@example.test', '20000000-0000-4000-8000-000000000004'::uuid)->>'status',
   'pending_exists', 'reciprocal invite reuses the pending unordered pair');
 select throws_ok($$select public.accept_collaboration_invite(
-  (select id from public.collaboration_invitations where status='pending' limit 1),
+  (select id from public.collaboration_invitations where inviter_user_id='10000000-0000-4000-8000-000000000001' and invitee_user_id='10000000-0000-4000-8000-000000000002' and status='pending' limit 1),
   '30000000-0000-4000-8000-000000000009'::uuid)$$,
   'P0001', 'invitation_unavailable', 'inviter cannot accept their own outgoing invitation');
 select is((select count(*)::int from public.collaboration_invitations
@@ -160,13 +160,13 @@ select is((select count(*)::int from public.collaboration_invitations
 
 select set_config('request.jwt.claim.sub', '10000000-0000-4000-8000-000000000003', true);
 select throws_ok($$select public.accept_collaboration_invite(
-  (select id from public.collaboration_invitations where status='pending' limit 1),
+  (select id from public.collaboration_invitations where inviter_user_id='10000000-0000-4000-8000-000000000001' and invitee_user_id='10000000-0000-4000-8000-000000000002' and status='pending' limit 1),
   '30000000-0000-4000-8000-000000000001'::uuid)$$,
   'P0001', 'invitation_unavailable', 'unrelated authenticated user cannot accept');
 
 select set_config('request.jwt.claim.sub', '10000000-0000-4000-8000-000000000002', true);
 select is(public.accept_collaboration_invite(
-  (select id from public.collaboration_invitations where status='pending' limit 1),
+  (select id from public.collaboration_invitations where inviter_user_id='10000000-0000-4000-8000-000000000001' and invitee_user_id='10000000-0000-4000-8000-000000000002' and status='pending' limit 1),
   '30000000-0000-4000-8000-000000000002'::uuid)->>'status', 'accepted', 'intended invitee accepts');
 select is((select count(*)::int from public.collaboration_connections where status = 'active'
   and participant_low_id = '10000000-0000-4000-8000-000000000001'
@@ -174,14 +174,14 @@ select is((select count(*)::int from public.collaboration_connections where stat
 select is(public.create_collaboration_invite('alice@example.test', '20000000-0000-4000-8000-000000000011'::uuid)->>'status',
   'already_connected', 'active pair cannot receive a new pending invite');
 select is(public.accept_collaboration_invite(
-  (select id from public.collaboration_invitations where status='accepted' limit 1),
+  (select id from public.collaboration_invitations where inviter_user_id='10000000-0000-4000-8000-000000000001' and invitee_user_id='10000000-0000-4000-8000-000000000002' and status='accepted' limit 1),
   '30000000-0000-4000-8000-000000000002'::uuid)->>'status', 'accepted', 'accept replay is idempotent');
 select throws_ok($$select public.decline_collaboration_invite(
-  (select id from public.collaboration_invitations where status='accepted' limit 1),
+  (select id from public.collaboration_invitations where inviter_user_id='10000000-0000-4000-8000-000000000001' and invitee_user_id='10000000-0000-4000-8000-000000000002' and status='accepted' limit 1),
   '30000000-0000-4000-8000-000000000002'::uuid)$$,
   'P0001', 'idempotency_key_reused', 'idempotency key cannot be replayed across command types');
 select throws_ok($$select public.accept_collaboration_invite(
-  (select id from public.collaboration_invitations where status='accepted' limit 1),
+  (select id from public.collaboration_invitations where inviter_user_id='10000000-0000-4000-8000-000000000001' and invitee_user_id='10000000-0000-4000-8000-000000000002' and status='accepted' limit 1),
   '30000000-0000-4000-8000-000000000003'::uuid)$$,
   'P0001', 'invitation_unavailable', 'accepted invitation cannot be accepted with a new key');
 select throws_ok($$insert into public.collaboration_connections (
@@ -192,16 +192,18 @@ select throws_ok($$insert into public.collaboration_connections (
   'Alice Owner', 'Bob Invitee', 'active'
 )$$, '23505', null, 'database unique index prevents a second active canonical connection');
 select is((select count(*)::int from public.collaboration_events
-  where event_type = 'collaboration_invite_accepted'), 1, 'accept replay does not duplicate audit event');
+  where event_type = 'collaboration_invite_accepted'
+    and actor_user_id='10000000-0000-4000-8000-000000000002'
+    and idempotency_key='30000000-0000-4000-8000-000000000002'), 1, 'accept replay does not duplicate audit event');
 select throws_ok($$select public.decline_collaboration_invite(
-  (select id from public.collaboration_invitations where status='accepted' limit 1),
+  (select id from public.collaboration_invitations where inviter_user_id='10000000-0000-4000-8000-000000000001' and invitee_user_id='10000000-0000-4000-8000-000000000002' and status='accepted' limit 1),
   '30000000-0000-4000-8000-000000000004'::uuid)$$,
   'P0001', 'invitation_unavailable', 'accepted invitation cannot later be declined');
 
 select set_config('request.jwt.claim.sub', '10000000-0000-4000-8000-000000000003', true);
 set local role authenticated;
 select is((select count(*)::int from public.collaboration_invitations
-  where id = (select id from public.collaboration_invitations where status='accepted' limit 1)),
+  where id = (select id from public.collaboration_invitations where inviter_user_id='10000000-0000-4000-8000-000000000001' and invitee_user_id='10000000-0000-4000-8000-000000000002' and status='accepted' limit 1)),
   0, 'unrelated authenticated user cannot read another invitation');
 select is((select count(*)::int from public.collaboration_connections where status='active'),
   0, 'unrelated authenticated user cannot read an active connection');
@@ -263,7 +265,7 @@ select throws_ok($$select public.accept_collaboration_invite(
   'P0001', 'invitation_unavailable', 'declined invitation cannot later be accepted');
 select set_config('request.jwt.claim.sub', '10000000-0000-4000-8000-000000000003', true);
 select throws_ok($$select public.decline_collaboration_invite(
-  (select id from public.collaboration_invitations where status='accepted' limit 1),
+  (select id from public.collaboration_invitations where inviter_user_id='10000000-0000-4000-8000-000000000001' and invitee_user_id='10000000-0000-4000-8000-000000000002' and status='accepted' limit 1),
   '40000000-0000-4000-8000-000000000004'::uuid)$$,
   'P0001', 'invitation_unavailable', 'accepted invitation cannot later be declined');
 

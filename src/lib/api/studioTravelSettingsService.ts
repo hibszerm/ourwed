@@ -1,6 +1,6 @@
-import { resolveStudioUserId } from '@/lib/api/studioUser'
 import { supabase } from '@/lib/supabase'
-import { nowIso, throwOnError, toNumber } from '@/lib/supabase/helpers'
+import { resolveStudioUserId } from '@/lib/api/studioUser'
+import { throwOnError, toNumber } from '@/lib/supabase/helpers'
 import { travelProvider } from '@/services/travelProvider'
 import type { GeoPlace, StudioTravelSettings } from '@/types/travel'
 
@@ -91,7 +91,6 @@ export const studioTravelSettingsService = {
   async upsert(
     input: UpsertStudioTravelSettingsInput,
   ): Promise<StudioTravelSettings> {
-    const userId = await resolveStudioUserId()
     const existing = await this.get()
 
     let place = input.place ?? null
@@ -118,7 +117,6 @@ export const studioTravelSettingsService = {
     }
 
     const patch = {
-      user_id: userId,
       studio_name: input.studioName?.trim() || null,
       street: input.street?.trim() || null,
       building_number: input.buildingNumber?.trim() || null,
@@ -140,26 +138,13 @@ export const studioTravelSettingsService = {
               !Number.isFinite(input.freeDistanceKm)
             ? null
             : Math.max(0, input.freeDistanceKm),
-      updated_at: nowIso(),
     }
-
-    if (existing) {
-      const { data, error } = await supabase
-        .from('studio_travel_settings')
-        .update(patch)
-        .eq('id', existing.id)
-        .select('*')
-        .single()
-      throwOnError(error)
-      return mapRow(data as StudioTravelSettingsRow)
-    }
-
-    const { data, error } = await supabase
-      .from('studio_travel_settings')
-      .insert(patch)
-      .select('*')
-      .single()
+    const { data, error } = await supabase.rpc(
+      'upsert_studio_travel_settings_guarded',
+      { p_settings: patch, p_delete: false },
+    )
     throwOnError(error)
+    if (!data) throw new Error('UNAVAILABLE')
     return mapRow(data as StudioTravelSettingsRow)
   },
 
