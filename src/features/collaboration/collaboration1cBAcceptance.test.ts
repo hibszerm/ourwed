@@ -5,7 +5,7 @@ import { fileURLToPath } from 'node:url'
 const root = join(dirname(fileURLToPath(import.meta.url)), '../../..')
 const read = (path: string) => readFileSync(join(root, path), 'utf8')
 const migration = read('supabase/migrations/20261012212404_collaboration_1c_b_secure_invitation_reads.sql')
-const connectionInviteMigration = read('supabase/migrations/20261013100704_collaboration_1c_b_invite_from_connection.sql')
+const connectionInviteMigration = read('supabase/migrations/20261013103640_collaboration_1c_b_invite_from_connection.sql')
 const service = read('src/features/collaboration/weddingCollaborationService.ts')
 const hooks = read('src/features/collaboration/useWeddingCollaboration.ts')
 const owner = read('src/features/collaboration/WeddingCollaborationOwnerPanel.tsx')
