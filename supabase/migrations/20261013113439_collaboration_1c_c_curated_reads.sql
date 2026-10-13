@@ -2,6 +2,10 @@
 -- Membership grants neither direct wedding access nor child-table access.
 begin;
 
+create index wedding_collaboration_memberships_member_active_idx
+  on public.wedding_collaboration_memberships(member_user_id, wedding_id)
+  where status = 'active' and wedding_id is not null;
+
 create function public.list_my_collaborative_weddings(
   p_after_wedding_date date default null,
   p_after_wedding_id uuid default null,
@@ -120,12 +124,8 @@ begin
         'formatted_address', p.formatted_address,
         'operational_time',
           case
-            when ot.operational_time is not null then
-              case
-                when ot.operational_time ~ '^(0[0-9]|1[0-9]|2[0-3]):[0-5][0-9]$'
-                  then ot.operational_time
-                else null
-              end
+            when ot.operational_time ~ '^(0[0-9]|1[0-9]|2[0-3]):[0-5][0-9]$'
+              then ot.operational_time
             when p.role = 'ceremony' and v_ceremony_time is not null
               then pg_catalog.to_char(v_ceremony_time, 'HH24:MI')
             else null

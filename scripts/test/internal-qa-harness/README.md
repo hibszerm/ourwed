@@ -17,6 +17,7 @@ docker exec -i supabase_db_ourwed-internal-qa-harness-20261012 psql -U postgres 
 docker exec -i supabase_db_ourwed-internal-qa-harness-20261012 psql -U postgres -d postgres -v ON_ERROR_STOP=1 < supabase/migrations/20261012175953_internal_qa_pro_entitlement_gate.sql
 docker exec -i supabase_db_ourwed-internal-qa-harness-20261012 psql -U postgres -d postgres -v ON_ERROR_STOP=1 < supabase/migrations/20261012193244_collaboration_1c_a_wedding_lifecycle_foundation.sql
 docker exec -i supabase_db_ourwed-internal-qa-harness-20261012 psql -U postgres -d postgres -v ON_ERROR_STOP=1 < supabase/migrations/20261012212404_collaboration_1c_b_secure_invitation_reads.sql
+docker exec -i supabase_db_ourwed-internal-qa-harness-20261012 psql -U postgres -d postgres -v ON_ERROR_STOP=1 < supabase/migrations/20261013100704_collaboration_1c_b_invite_from_connection.sql
 docker exec -i supabase_db_ourwed-internal-qa-harness-20261012 psql -U postgres -d postgres -v ON_ERROR_STOP=1 < supabase/migrations/20261013113439_collaboration_1c_c_curated_reads.sql
 ```
 
@@ -33,6 +34,7 @@ scripts/test/internal-qa-harness/run_pgtap.sh supabase/tests/internal_qa_account
 TSX_TSCONFIG_PATH=tsconfig.app.json node --import tsx src/features/collaboration/collaboration1cBAcceptance.test.ts
 TSX_TSCONFIG_PATH=tsconfig.app.json node --import tsx src/features/collaboration/collaboration1cCAcceptance.test.ts
 node scripts/test/internal-qa-harness/collaboration_1c_c_mobile_viewport.mjs
+node scripts/test/internal-qa-harness/collaboration_1c_c_behavioral.mjs /private/tmp/ourwed-internal-qa-harness-20261012/local.env
 node scripts/test/internal-qa-harness/collaboration_1c_b_mobile_viewport.mjs
 ```
 
@@ -88,3 +90,11 @@ The 1C-C pgTAP matrix exercises active membership projections, stable date/id
 pagination including undated weddings, same-wedding multi-member reads, active
 account validation, owner/third-party/archived-wedding denial, curated location
 and time fields, and unchanged direct wedding/child-table RLS boundaries.
+It also exercises pending-only denial, lifecycle-RPC revocation, and active
+wedding membership after the global connection has ended. The browser behavior
+runner uses normal local Auth sessions, the real AuthProvider, collaboration
+hooks/query keys/QueryClient and React list/detail pages; its RPC responses are
+mocked to hold and then return unavailable during access revalidation. It
+verifies cache clearing across owner/member identities and runs the viewport
+matrix against the actual React detail page. A separate CSS fixture matrix is
+kept for the 1C-C styles as a focused layout diagnostic.

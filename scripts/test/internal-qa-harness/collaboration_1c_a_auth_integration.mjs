@@ -328,6 +328,11 @@ try {
 
   checkedStages.push('pending wedding invitation')
   await assertChildIsolation('pending wedding invitation')
+  assert.deepEqual(await rpc('list_my_collaborative_weddings', member.token, {
+    p_after_wedding_date: null, p_after_wedding_id: null, p_limit: 50,
+  }), [], 'pending-only invitee receives no collaborative list rows')
+  assert.equal(await rpc('get_collaborative_wedding_detail', member.token, { p_wedding_id: weddingId }), null,
+    'pending-only invitee receives unavailable for collaborative detail')
   const otherWeddingRows = await request(`/rest/v1/weddings?id=eq.${weddingId}&select=id`, { token: otherCollaborator.token })
   assert.deepEqual(otherWeddingRows, [], 'another active global collaborator still has zero wedding SELECT access')
   const accepted = await rpc('accept_wedding_collaboration_invite', member.token, {
@@ -420,8 +425,32 @@ try {
     p_idempotency_key: randomUUID(),
   })
   assert.equal(ended.status, 'ended')
-  const membership = await request(`/rest/v1/wedding_collaboration_memberships?wedding_id=eq.${weddingId}&member_user_id=eq.${member.id}&select=status`, { key: serviceKey })
-  assert.deepEqual(membership, [{ status: 'active' }], 'global connection end preserves accepted membership')
+  const membership = await request(`/rest/v1/wedding_collaboration_memberships?wedding_id=eq.${weddingId}&member_user_id=eq.${member.id}&select=id,status`, { key: serviceKey })
+  assert.equal(membership.length, 1, 'global connection end preserves accepted membership')
+  assert.equal(membership[0].status, 'active', 'global connection end does not revoke wedding membership')
+  assert.deepEqual((await rpc('list_my_collaborative_weddings', member.token, {
+    p_after_wedding_date: null, p_after_wedding_id: null, p_limit: 50,
+  })).map((item) => item.wedding_id), [weddingId],
+  'active wedding membership remains visible after the global connection ends')
+  const afterConnectionEnd = await rpc('get_collaborative_wedding_detail', member.token, { p_wedding_id: weddingId })
+  assert.equal(afterConnectionEnd.wedding_id, weddingId,
+    'active wedding membership remains readable after the global connection ends')
+  assert.deepEqual(await request(`/rest/v1/weddings?id=eq.${weddingId}&select=id`, { token: member.token }), [],
+    'ended global connection and active membership still grant zero direct wedding rows')
+  const revoked = await rpc('revoke_wedding_collaboration_membership', owner.token, {
+    p_membership_id: membership[0].id,
+    p_idempotency_key: randomUUID(),
+  })
+  assert.equal(revoked.status, 'revoked', 'owner revokes membership through the supported lifecycle RPC')
+  assert.equal(await rpc('get_collaborative_wedding_detail', member.token, { p_wedding_id: weddingId }), null,
+    'revoked member receives unavailable detail through Auth/PostgREST')
+  assert.deepEqual(await rpc('list_my_collaborative_weddings', member.token, {
+    p_after_wedding_date: null, p_after_wedding_id: null, p_limit: 50,
+  }), [], 'revoked wedding disappears from the Auth/PostgREST collaborative list')
+  assert.deepEqual(await request(`/rest/v1/weddings?id=eq.${weddingId}&select=id`, { token: member.token }), [],
+    'revoked member continues to have zero direct wedding rows')
+  assert.deepEqual(await request(`/rest/v1/wedding_places?id=eq.${weddingPlaceId}&select=id`, { token: member.token }), [],
+    'revoked member continues to have zero direct place rows')
   console.log(`Auth/PostgREST integration: PASS (${childResources.length} child resources x ${checkedStages.length} stages; ${mutationCases.length} denied child writes plus wedding UPDATE/DELETE; preview/list/owner-state IDOR matrix; 4 normal local users; zero Internal QA accounts)`)
 } finally {
   if (weddingId) {

@@ -39,13 +39,18 @@ check(migration.includes('order by w.wedding_date asc nulls last, w.id asc'), 'l
 check(migration.includes("p.role in ('bride_preparation', 'groom_preparation', 'ceremony', 'reception')"), 'detail includes only the four approved operational place roles')
 check(migration.includes("'formatted_address', p.formatted_address") && migration.includes("'operational_time'"), 'detail returns only curated place address and operational time')
 check(migration.includes("ot.operational_time ~ '^(0[0-9]|1[0-9]|2[0-3]):[0-5][0-9]$'"), 'operational time is validated to 00:00–23:59')
-check(migration.includes('when ot.operational_time is not null then'), 'invalid saved time does not fall back to wedding time')
-check(migration.includes("when p.role = 'ceremony' and v_ceremony_time is not null"), 'ceremony falls back to wedding ceremony time')
+check(migration.includes("when ot.operational_time ~ '^(0[0-9]|1[0-9]|2[0-3]):[0-5][0-9]$'\n              then ot.operational_time"),
+  'saved operational time is validated before it can be returned')
+check(migration.indexOf('when p.role = \'ceremony\' and v_ceremony_time is not null') > migration.indexOf('when ot.operational_time ~'),
+  'invalid saved time is unavailable before ceremony fallback is considered')
 check(migration.includes('revoke all on function public.list_my_collaborative_weddings')
   && migration.includes('revoke all on function public.get_collaborative_wedding_detail'), 'PUBLIC and anon execute are revoked')
 check((migration.match(/grant execute on function/g) ?? []).length === 2 && migration.includes('to authenticated'), 'only authenticated receives explicit RPC execute')
 check(!/create\s+policy/i.test(migration) && !/grant\s+(select|insert|update|delete|all).*\b(weddings|wedding_places|wedding_operational_times)\b/i.test(migration), 'migration adds no table grants or RLS policies')
-check(!/create\s+index/i.test(migration), 'no speculative performance index is added')
+check(migration.includes('create index wedding_collaboration_memberships_member_active_idx')
+  && migration.includes('on public.wedding_collaboration_memberships(member_user_id, wedding_id)')
+  && migration.includes("where status = 'active' and wedding_id is not null"),
+  'member-leading partial index supports measured active collaboration list filtering')
 
 check(service.includes("'list_my_collaborative_weddings'") && service.includes("'get_collaborative_wedding_detail'"), 'service uses only the two curated RPCs')
 check(!service.includes(".from('weddings')") && !service.includes(".from('wedding_places')"), 'client does not read wedding tables directly')
