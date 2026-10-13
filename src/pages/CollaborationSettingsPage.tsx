@@ -1,4 +1,5 @@
 import { useRef, useState, type FormEvent } from 'react'
+import { Link } from 'react-router-dom'
 import { useQuery, useQueryClient } from '@tanstack/react-query'
 import { Button } from '@/components/ui/Button'
 import { Input } from '@/components/ui/Input'
@@ -163,6 +164,9 @@ export function CollaborationSettingsPage() {
           <SettingsHelper>
             Połączenie kont nie udostępnia automatycznie żadnych zleceń, klientów ani danych.
           </SettingsHelper>
+          <Link className={styles.collaborativeWeddingsLink} to="/wspolpraca/sluby">
+            Zobacz wspólne zlecenia
+          </Link>
           {error ? <SettingsAlert>{error}</SettingsAlert> : null}
           {notice ? <p className={styles.notice} role="status">{notice}</p> : null}
           {state.isPending ? <SettingsMuted>Ładowanie współpracy…</SettingsMuted> : null}

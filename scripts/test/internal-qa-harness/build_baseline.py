@@ -177,9 +177,11 @@ create table public.weddings (
   user_id uuid not null references public.users(id) on delete cascade,
   bride_name text not null,
   groom_name text not null,
+  ceremony_time time,
   email text,
   phone text,
   wedding_date date,
+  status text not null default 'active' check (status in ('active','archived','cancelled')),
   package_id uuid,
   package_name text,
   contract_value numeric(12,2),
@@ -278,7 +280,7 @@ grant execute on function public.is_wedding_owner(uuid) to authenticated, servic
 
 wedding_child_fixture_tables = (
     "contacts", "notes", "tasks", "timeline_events", "calendar_events",
-    "wedding_places", "travel_segments", "wedding_operational_times",
+    "travel_segments",
     "wedding_briefs", "wedding_documents", "wedding_document_drafts",
     "wedding_source_contracts", "wedding_contract_recoveries",
     "wedding_contract_package_snapshots", "wedding_contract_recovery_decisions",
@@ -346,6 +348,37 @@ create policy wedding_extra_services_select_owner_fixture on public.wedding_extr
 """
 
 ddl += child_fixture_ddl
+
+ddl += r"""
+create table public.wedding_places (
+  id uuid primary key default extensions.gen_random_uuid(),
+  wedding_id uuid not null references public.weddings(id) on delete cascade,
+  role text not null check (role in ('bride_preparation','groom_preparation','ceremony','reception','hotel','airport','other')),
+  label text, place_id text, formatted_address text not null,
+  latitude numeric(10,7), longitude numeric(10,7), sort_order integer not null default 0,
+  created_at timestamptz not null default timezone('utc',now()),
+  updated_at timestamptz not null default timezone('utc',now())
+);
+create index wedding_places_fixture_wedding_id_idx on public.wedding_places(wedding_id);
+alter table public.wedding_places enable row level security;
+alter table public.wedding_places force row level security;
+grant select on public.wedding_places to authenticated;
+create policy wedding_places_select_owner_fixture on public.wedding_places
+  for select to authenticated using (public.is_wedding_owner(wedding_id));
+create table public.wedding_operational_times (
+  wedding_id uuid not null references public.weddings(id) on delete cascade,
+  stop_key text not null,
+  operational_time text not null,
+  created_at timestamptz not null default timezone('utc',now()),
+  updated_at timestamptz not null default timezone('utc',now()),
+  primary key (wedding_id,stop_key)
+);
+alter table public.wedding_operational_times enable row level security;
+alter table public.wedding_operational_times force row level security;
+grant select on public.wedding_operational_times to authenticated;
+create policy wedding_operational_times_select_owner_fixture on public.wedding_operational_times
+  for select to authenticated using (public.is_wedding_owner(wedding_id));
+"""
 
 ddl += r"""
 alter table public.questionnaire_templates enable row level security;

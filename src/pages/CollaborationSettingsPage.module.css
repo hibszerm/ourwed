@@ -4,6 +4,15 @@
   font-size: var(--text-sm);
 }
 
+.collaborativeWeddingsLink {
+  display: inline-flex;
+  min-height: 44px;
+  align-items: center;
+  margin: 0 0 var(--space-3);
+  color: var(--text-primary, var(--color-text-primary));
+  font-size: var(--text-sm);
+}
+
 .list {
   margin: 0;
   padding: 0;

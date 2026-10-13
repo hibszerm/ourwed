@@ -17,6 +17,7 @@ docker exec -i supabase_db_ourwed-internal-qa-harness-20261012 psql -U postgres 
 docker exec -i supabase_db_ourwed-internal-qa-harness-20261012 psql -U postgres -d postgres -v ON_ERROR_STOP=1 < supabase/migrations/20261012175953_internal_qa_pro_entitlement_gate.sql
 docker exec -i supabase_db_ourwed-internal-qa-harness-20261012 psql -U postgres -d postgres -v ON_ERROR_STOP=1 < supabase/migrations/20261012193244_collaboration_1c_a_wedding_lifecycle_foundation.sql
 docker exec -i supabase_db_ourwed-internal-qa-harness-20261012 psql -U postgres -d postgres -v ON_ERROR_STOP=1 < supabase/migrations/20261012212404_collaboration_1c_b_secure_invitation_reads.sql
+docker exec -i supabase_db_ourwed-internal-qa-harness-20261012 psql -U postgres -d postgres -v ON_ERROR_STOP=1 < supabase/migrations/20261013113439_collaboration_1c_c_curated_reads.sql
 ```
 
 The baseline fixture includes the invitation-visible wedding commercial
@@ -27,8 +28,11 @@ regression after loading the 1C-A migration:
 ```sh
 scripts/test/internal-qa-harness/run_pgtap.sh supabase/tests/collaboration_v1_1b_test.sql
 scripts/test/internal-qa-harness/run_pgtap.sh supabase/tests/collaboration_v1_1c_a_test.sql
+scripts/test/internal-qa-harness/run_pgtap.sh supabase/tests/collaboration_v1_1c_c_test.sql
 scripts/test/internal-qa-harness/run_pgtap.sh supabase/tests/internal_qa_accounts_test.sql
 TSX_TSCONFIG_PATH=tsconfig.app.json node --import tsx src/features/collaboration/collaboration1cBAcceptance.test.ts
+TSX_TSCONFIG_PATH=tsconfig.app.json node --import tsx src/features/collaboration/collaboration1cCAcceptance.test.ts
+node scripts/test/internal-qa-harness/collaboration_1c_c_mobile_viewport.mjs
 node scripts/test/internal-qa-harness/collaboration_1c_b_mobile_viewport.mjs
 ```
 
@@ -79,3 +83,8 @@ both start orders for global 1B invite decline/cancel against actor erasure.
 Invitation expiry is covered by the permanent pgTAP regression. 1C-A has no
 invitation preview/read RPC, and private invitation tables are not readable by
 clients.
+
+The 1C-C pgTAP matrix exercises active membership projections, stable date/id
+pagination including undated weddings, same-wedding multi-member reads, active
+account validation, owner/third-party/archived-wedding denial, curated location
+and time fields, and unchanged direct wedding/child-table RLS boundaries.

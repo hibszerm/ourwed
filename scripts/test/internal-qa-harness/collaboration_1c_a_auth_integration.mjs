@@ -142,6 +142,7 @@ try {
   assert.ok(otherWeddingId, 'another connected account creates its own owner-scoped wedding through RLS')
 
   const childResources = []
+  let weddingPlaceId
   const weddingChildTables = [
     'contacts', 'notes', 'tasks', 'timeline_events', 'calendar_events',
     'wedding_places', 'travel_segments', 'wedding_operational_times', 'wedding_briefs',
@@ -151,8 +152,28 @@ try {
     'wedding_document_generation_sequences', 'contracts',
   ]
   for (const table of weddingChildTables) {
-    const id = await insertFixture(table, { wedding_id: weddingId, fixture_value: 'synthetic' })
-    childResources.push({ label: table, table, filter: `id=eq.${id}` })
+    if (table === 'wedding_places') {
+      const id = await insertFixture(table, {
+        wedding_id: weddingId, role: 'ceremony', formatted_address: 'Synthetic ceremony address',
+      })
+      weddingPlaceId = id
+      childResources.push({ label: table, table, filter: `id=eq.${id}` })
+    } else if (table === 'wedding_operational_times') {
+      const stopKey = weddingPlaceId
+      const rows = await request('/rest/v1/wedding_operational_times?select=wedding_id,stop_key', {
+        key: serviceKey, method: 'POST', prefer: 'return=representation',
+        body: { wedding_id: weddingId, stop_key: stopKey, operational_time: '15:30' },
+      })
+      assert.equal(rows?.length, 1, 'service role seeds operational-time fixture')
+      childResources.push({
+        label: table, table,
+        filter: `wedding_id=eq.${weddingId}&stop_key=eq.${encodeURIComponent(stopKey)}`,
+        select: 'wedding_id,stop_key,operational_time',
+      })
+    } else {
+      const id = await insertFixture(table, { wedding_id: weddingId, fixture_value: 'synthetic' })
+      childResources.push({ label: table, table, filter: `id=eq.${id}` })
+    }
   }
   const completions = await request('/rest/v1/wedding_operational_completions?select=wedding_id,stop_key', {
     key: serviceKey, method: 'POST', prefer: 'return=representation',
@@ -322,6 +343,35 @@ try {
   checkedStages.push('accepted 1C-A membership')
   await assertChildIsolation('accepted 1C-A membership')
 
+  const collaborativeList = await rpc('list_my_collaborative_weddings', member.token, {
+    p_after_wedding_date: null, p_after_wedding_id: null, p_limit: 50,
+  })
+  assert.deepEqual(collaborativeList.map((item) => item.wedding_id), [weddingId],
+    'accepted member sees only the wedding explicitly linked by active membership')
+  assert.deepEqual(Object.keys(collaborativeList[0]).sort(),
+    ['wedding_id', 'couple_first_name', 'couple_second_name', 'wedding_date'].sort(),
+    'list RPC returns exactly the documented fields')
+  assert.deepEqual(await rpc('list_my_collaborative_weddings', owner.token, {
+    p_after_wedding_date: null, p_after_wedding_id: null, p_limit: 50,
+  }), [], 'owner account receives no collaborator-list row for its own wedding')
+  assert.deepEqual(await rpc('list_my_collaborative_weddings', otherCollaborator.token, {
+    p_after_wedding_date: null, p_after_wedding_id: null, p_limit: 50,
+  }), [], 'an active global connection alone does not populate collaborator wedding reads')
+  const collaborativeDetail = await rpc('get_collaborative_wedding_detail', member.token, { p_wedding_id: weddingId })
+  assert.deepEqual(Object.keys(collaborativeDetail).sort(),
+    ['wedding_id', 'couple_first_name', 'couple_second_name', 'wedding_date', 'places'].sort(),
+    'detail RPC returns exactly the documented top-level projection')
+  assert.deepEqual(Object.keys(collaborativeDetail.places[0]).sort(),
+    ['role', 'formatted_address', 'operational_time'].sort(), 'detail place returns exactly its three allowed fields')
+  assert.equal(collaborativeDetail.places[0].operational_time, '15:30',
+    'authenticated member reads only the curated saved operational time')
+  assert.equal(await rpc('get_collaborative_wedding_detail', owner.token, { p_wedding_id: weddingId }), null,
+    'owner cannot use the member-only detail projection')
+  assert.equal(await rpc('get_collaborative_wedding_detail', otherCollaborator.token, { p_wedding_id: weddingId }), null,
+    'another connected collaborator cannot read detail without an active membership')
+  assert.equal(await rpc('get_collaborative_wedding_detail', thirdParty.token, { p_wedding_id: weddingId }), null,
+    'third party cannot read detail by guessing the wedding UUID')
+
   const memberWedding = await request(`/rest/v1/weddings?id=eq.${weddingId}&select=id`, { token: member.token })
   assert.deepEqual(memberWedding, [], 'accepted member has zero wedding SELECT rows')
   await request(`/rest/v1/weddings?id=eq.${weddingId}`, {
@@ -339,8 +389,8 @@ try {
     { table: 'contacts', method: 'POST', filter: `wedding_id=eq.${weddingId}`, body: { wedding_id: weddingId, fixture_value: 'member-inserted' } },
     { table: 'tasks', method: 'PATCH', filter: childResources.find((row) => row.table === 'tasks').filter, body: { fixture_value: 'member-mutated' } },
     { table: 'payments', method: 'PATCH', filter: childResources.find((row) => row.table === 'payments').filter, body: { amount: 999 } },
-    { table: 'wedding_places', method: 'PATCH', filter: childResources.find((row) => row.table === 'wedding_places').filter, body: { fixture_value: 'member-mutated' } },
-    { table: 'wedding_operational_times', method: 'PATCH', filter: childResources.find((row) => row.table === 'wedding_operational_times').filter, body: { fixture_value: 'member-mutated' } },
+    { table: 'wedding_places', method: 'PATCH', filter: childResources.find((row) => row.table === 'wedding_places').filter, body: { formatted_address: 'member-mutated' } },
+    { table: 'wedding_operational_times', method: 'PATCH', filter: childResources.find((row) => row.table === 'wedding_operational_times').filter, body: { operational_time: '09:00' } },
     { table: 'wedding_extra_services', method: 'PATCH', filter: childResources.find((row) => row.table === 'wedding_extra_services').filter, body: { price_snapshot: 999 } },
   ]
   for (const testCase of mutationCases) {
@@ -356,6 +406,10 @@ try {
       assert.equal(ownerRows[0].amount, 1, 'member payment UPDATE has no effect')
     } else if (testCase.table === 'wedding_extra_services') {
       assert.equal(ownerRows[0].price_snapshot, 1, 'member extra-service UPDATE has no effect')
+    } else if (testCase.table === 'wedding_places') {
+      assert.equal(ownerRows[0].formatted_address, 'Synthetic ceremony address', 'member place UPDATE has no effect')
+    } else if (testCase.table === 'wedding_operational_times') {
+      assert.equal(ownerRows[0].operational_time, '15:30', 'member operational-time UPDATE has no effect')
     } else {
       assert.equal(ownerRows[0].fixture_value, 'synthetic', `member ${testCase.table} UPDATE has no effect`)
     }

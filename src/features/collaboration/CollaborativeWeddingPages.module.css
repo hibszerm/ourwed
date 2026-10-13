@@ -1,0 +1,125 @@
+.page {
+  width: min(100% - 32px, 760px);
+  min-width: 0;
+  margin: clamp(20px, 5vh, 56px) auto;
+  padding: clamp(20px, 4vw, 32px);
+  border: 1px solid var(--border-subtle, var(--color-border));
+  border-radius: 16px;
+  background: var(--surface-primary, var(--color-surface));
+  color: var(--text-primary, var(--color-text-primary));
+}
+
+.page h1 {
+  margin: 5px 0 8px;
+  font-size: clamp(1.55rem, 5vw, 2.1rem);
+  letter-spacing: -0.035em;
+  line-height: 1.15;
+  overflow-wrap: anywhere;
+}
+
+.eyebrow {
+  margin: 0;
+  color: var(--color-text-secondary);
+  font-size: 0.72rem;
+  letter-spacing: 0.08em;
+  text-transform: uppercase;
+}
+
+.muted,
+.listItem span,
+.time {
+  color: var(--color-text-secondary);
+}
+
+.list,
+.places {
+  display: grid;
+  gap: 10px;
+  margin: 22px 0;
+  padding: 0;
+  list-style: none;
+}
+
+.listItem {
+  display: grid;
+  gap: 6px;
+  min-height: 60px;
+  padding: 14px 16px;
+  border: 1px solid var(--border-subtle, var(--color-border));
+  border-radius: 12px;
+  color: inherit;
+  text-decoration: none;
+}
+
+.listItem:hover,
+.listItem:focus-visible {
+  border-color: var(--text-primary, var(--color-text-primary));
+}
+
+.empty,
+.notice,
+.section,
+.places li {
+  padding: 16px;
+  border-radius: 12px;
+  background: var(--surface-secondary, var(--color-bg));
+}
+
+.section {
+  margin-top: 18px;
+}
+
+.section h2 {
+  margin: 0 0 10px;
+  font-size: 1rem;
+}
+
+.section > p,
+.places p {
+  margin: 5px 0;
+  overflow-wrap: anywhere;
+}
+
+.places {
+  margin-bottom: 0;
+}
+
+.places h3 {
+  margin: 0 0 8px;
+  font-size: 0.94rem;
+}
+
+.error {
+  color: var(--color-danger, #a13e3e);
+}
+
+.button {
+  min-height: 44px;
+  padding: 9px 14px;
+  border: 1px solid var(--border-subtle, var(--color-border));
+  border-radius: 10px;
+  background: transparent;
+  color: inherit;
+  font: inherit;
+  cursor: pointer;
+}
+
+.button:disabled {
+  opacity: 0.55;
+  cursor: wait;
+}
+
+.backLink {
+  display: inline-flex;
+  min-height: 44px;
+  align-items: center;
+  margin-top: 12px;
+  color: inherit;
+}
+
+@media (max-width: 480px) {
+  .page {
+    margin: 12px auto;
+    padding: 20px 16px;
+  }
+}
