@@ -140,8 +140,26 @@ PY
 }
 assert_acceptance() {
   db=$1
-  result=$(sql "$db" "select coalesce((select status from public.wedding_collaboration_invitations where id='1ce00000-0000-4000-8000-000000000001'),'missing')||'|'||(select count(*) from public.wedding_collaboration_memberships where accepted_invitation_id='1ce00000-0000-4000-8000-000000000001' and status='active')||'|'||(select count(*) from collaboration_private.membership_permission_grants g join public.wedding_collaboration_memberships m on m.id=g.membership_id where m.accepted_invitation_id='1ce00000-0000-4000-8000-000000000001')||'|'||(select count(*) from public.wedding_collaboration_events where invitation_id='1ce00000-0000-4000-8000-000000000001' and event_type='invitation_accepted')")
-  [ "$result" = 'accepted|1|3|1' ] || { echo "FAIL $db accepted snapshot counts: $result" >&2; return 1; }
+  result=$(sql "$db" "with expected(capability_key,level) as (
+      values ('wedding.identity'::text,1::smallint),('places.address'::text,2::smallint),
+             ('schedule.operational_time'::text,2::smallint)
+    ), actual as (
+      select g.capability_key,g.level from collaboration_private.membership_permission_grants g
+      join public.wedding_collaboration_memberships m on m.id=g.membership_id
+      where m.accepted_invitation_id='1ce00000-0000-4000-8000-000000000001'
+    )
+    select coalesce((select status from public.wedding_collaboration_invitations where id='1ce00000-0000-4000-8000-000000000001'),'missing')
+      ||'|'||(select count(*) from public.wedding_collaboration_memberships where accepted_invitation_id='1ce00000-0000-4000-8000-000000000001')
+      ||'|'||(select count(*) from public.wedding_collaboration_memberships where accepted_invitation_id='1ce00000-0000-4000-8000-000000000001' and status='active')
+      ||'|'||(select count(*) from public.wedding_collaboration_events where invitation_id='1ce00000-0000-4000-8000-000000000001' and event_type='invitation_accepted')
+      ||'|'||((not exists(select capability_key,level from expected except select capability_key,level from actual)
+          and not exists(select capability_key,level from actual except select capability_key,level from expected))::text)
+      ||'|'||(select count(*) from actual)
+      ||'|'||coalesce((select string_agg(capability_key||':'||level::text,',' order by capability_key) from actual),'none')
+      ||'|'||(select count(*) from information_schema.columns where table_schema='public' and table_name='wedding_collaboration_invitations' and column_name='access_configuration_version')")
+  [ "$result" = 'accepted|1|1|1|true|3|places.address:2,schedule.operational_time:2,wedding.identity:1|1' ] || {
+    echo "FAIL $db final lifecycle/permission snapshot differs from the exact expected set: $result" >&2; return 1;
+  }
 }
 start_acceptance() {
   db=$1
@@ -180,7 +198,7 @@ wait "$accept_pid"
 accept_pid=
 assert_acceptance "$db_migration_first"
 if rg -q '40P01|deadlock detected' "$work_dir/migration-first.log" "$work_dir/1ce-accept-after-migration.log"; then echo 'FAIL migration-first race deadlocked' >&2; exit 1; fi
-echo 'PASS migration-first race: blocked old-body acceptance received the exact v0 snapshot'
+echo 'PASS migration-first race: one acceptance, one active membership/event, and exact three-grant set'
 
 # Acceptance-first: pause acceptance after it has changed the invitation and
 # inserted its membership/grants. The real migration must fail immediately on
@@ -209,4 +227,4 @@ if rg -q '40P01|deadlock detected' "$work_dir/migration-after-accept.log" "$work
 docker exec -i "$container" psql -X -U postgres -d "$db_accept_first" -v ON_ERROR_STOP=1 < "$migration" > "$work_dir/migration-retry.log" 2>&1
 assert_acceptance "$db_accept_first"
 [ "$(sql "$db_accept_first" "select count(*) from public.wedding_collaboration_memberships where accepted_invitation_id='1ce00000-0000-4000-8000-000000000001'")" = 1 ] || { echo 'FAIL migration retry duplicated acceptance membership' >&2; exit 1; }
-echo 'PASS acceptance-first race: NOWAIT rolled back the migration; committed acceptance backfilled once on retry'
+echo 'PASS acceptance-first race: NOWAIT rolled back, retry succeeded, and final snapshot is exact with no duplicates'

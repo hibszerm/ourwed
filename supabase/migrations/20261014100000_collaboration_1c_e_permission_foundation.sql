@@ -174,6 +174,7 @@ alter table public.wedding_collaboration_memberships
   add constraint wedding_collaboration_memberships_custom_role_label_check
     check ((role_key='custom' and custom_role_label is not null
               and custom_role_label=pg_catalog.btrim(custom_role_label)
+              and custom_role_label ~ '[^[:space:]]'
               and pg_catalog.char_length(custom_role_label) between 1 and 64)
         or (role_key<>'custom' and custom_role_label is null)),
   add constraint wedding_collaboration_memberships_access_mode_check
@@ -196,6 +197,7 @@ alter table public.wedding_collaboration_invitations
       and permission_group_mapping_version='1'
       and ((role_key='custom' and custom_role_label is not null
               and custom_role_label=pg_catalog.btrim(custom_role_label)
+              and custom_role_label ~ '[^[:space:]]'
               and pg_catalog.char_length(custom_role_label) between 1 and 64)
         or (role_key<>'custom' and custom_role_label is null)))
   );

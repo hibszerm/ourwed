@@ -2,6 +2,7 @@
 set -eu
 
 db_container=supabase_db_ourwed-internal-qa-harness-20261012
+db_name=${OURWED_TEST_DATABASE:-postgres}
 owner_id=1cd10000-0000-4000-8000-000000000001
 member_id=1cd10000-0000-4000-8000-000000000002
 erase_owner_id=1cd10000-0000-4000-8000-000000000003
@@ -14,7 +15,7 @@ cleanup() {
     printf 'COMMIT;\n' >&3 2>/dev/null || true
     exec 3>&- 2>/dev/null || true
   fi
-  docker exec "$db_container" psql -X -U postgres -d postgres -v ON_ERROR_STOP=1 -c \
+  docker exec "$db_container" psql -X -U postgres -d "$db_name" -v ON_ERROR_STOP=1 -c \
     "drop trigger if exists z_1cd_test_pause_recovery on public.wedding_contract_recoveries; drop trigger if exists z_1cd_test_pause_place on public.wedding_places; drop trigger if exists z_1cd_test_pause_delete on public.weddings; drop trigger if exists z_1cd_test_pause_owner_time on public.weddings; drop trigger if exists z_1cd_test_pause_collab_time on public.wedding_operational_times; drop trigger if exists z_1cd_test_pause_revoke on public.wedding_collaboration_memberships; drop trigger if exists z_1cd_test_pause_travel on public.travel_segments; drop trigger if exists z_1cd_test_pause_reorder on public.wedding_places; drop trigger if exists z_1cd_test_pause_studio on public.studio_travel_settings; drop trigger if exists z_1cd_test_pause_extra on public.wedding_extra_services; drop trigger if exists z_1cd_test_pause_form on public.form_instances; drop function if exists public._1cd_test_pause_recovery(); drop function if exists public._1cd_test_pause_place(); drop function if exists public._1cd_test_pause_delete(); drop function if exists public._1cd_test_pause_owner_time(); drop function if exists public._1cd_test_pause_collab_time(); drop function if exists public._1cd_test_pause_revoke(); drop function if exists public._1cd_test_pause_travel(); drop function if exists public._1cd_test_pause_reorder(); drop function if exists public._1cd_test_pause_studio(); drop function if exists public._1cd_test_pause_extra(); drop function if exists public._1cd_test_pause_form(); drop function if exists public._1cd_test_refresh_route_snapshot(uuid); drop function if exists public._1cd_test_persist_route(uuid); drop table if exists public._1cd_test_route_snapshots; delete from public.weddings where id in ('1cd10000-0000-4000-8000-000000000101','1cd10000-0000-4000-8000-000000000102','1cd10000-0000-4000-8000-000000000103','1cd10000-0000-4000-8000-000000000104','1cd10000-0000-4000-8000-000000000105','1cd10000-0000-4000-8000-000000000106','1cd10000-0000-4000-8000-000000000107','1cd10000-0000-4000-8000-000000000108','1cd10000-0000-4000-8000-000000000109','1cd10000-0000-4000-8000-000000000110'); delete from auth.users where id in ('$owner_id','$member_id');" \
     >/dev/null 2>&1 || true
   if [ "$result" -eq 0 ]; then
@@ -26,12 +27,12 @@ cleanup() {
 }
 trap cleanup EXIT HUP INT TERM
 
-docker exec "$db_container" psql -X -U postgres -d postgres -v ON_ERROR_STOP=1 -c \
+docker exec "$db_container" psql -X -U postgres -d "$db_name" -v ON_ERROR_STOP=1 -c \
   "delete from public.wedding_collaboration_memberships where wedding_id_snapshot in ('1cd10000-0000-4000-8000-000000000101','1cd10000-0000-4000-8000-000000000102','1cd10000-0000-4000-8000-000000000103','1cd10000-0000-4000-8000-000000000104','1cd10000-0000-4000-8000-000000000107','1cd10000-0000-4000-8000-000000000108','1cd10000-0000-4000-8000-000000000109','1cd10000-0000-4000-8000-000000000110'); delete from public.wedding_collaboration_invitations where wedding_id_snapshot in ('1cd10000-0000-4000-8000-000000000101','1cd10000-0000-4000-8000-000000000102','1cd10000-0000-4000-8000-000000000103','1cd10000-0000-4000-8000-000000000104','1cd10000-0000-4000-8000-000000000105','1cd10000-0000-4000-8000-000000000106','1cd10000-0000-4000-8000-000000000107','1cd10000-0000-4000-8000-000000000108','1cd10000-0000-4000-8000-000000000109','1cd10000-0000-4000-8000-000000000110'); delete from public.weddings where id in ('1cd10000-0000-4000-8000-000000000101','1cd10000-0000-4000-8000-000000000102','1cd10000-0000-4000-8000-000000000103','1cd10000-0000-4000-8000-000000000104','1cd10000-0000-4000-8000-000000000105','1cd10000-0000-4000-8000-000000000106','1cd10000-0000-4000-8000-000000000107','1cd10000-0000-4000-8000-000000000108','1cd10000-0000-4000-8000-000000000109','1cd10000-0000-4000-8000-000000000110'); delete from auth.users where id in ('$owner_id','$member_id');" \
   > "$work_dir/preclean.log" 2>&1
 
 sql() {
-  docker exec "$db_container" psql -X -U postgres -d postgres -v ON_ERROR_STOP=1 -Atc "$1"
+  docker exec "$db_container" psql -X -U postgres -d "$db_name" -v ON_ERROR_STOP=1 -Atc "$1"
 }
 wait_for_gate_idle() {
   i=0
@@ -55,7 +56,7 @@ wait_for_lock_wait() {
 }
 start_gate() {
   mkfifo "$work_dir/gate.in"
-  docker exec -i -e PGAPPNAME=1cd-test-gate "$db_container" psql -X -U postgres -d postgres -v ON_ERROR_STOP=1 < "$work_dir/gate.in" > "$work_dir/gate.log" 2>&1 &
+  docker exec -i -e PGAPPNAME=1cd-test-gate "$db_container" psql -X -U postgres -d "$db_name" -v ON_ERROR_STOP=1 < "$work_dir/gate.in" > "$work_dir/gate.log" 2>&1 &
   gate_pid=$!
   exec 3>"$work_dir/gate.in"
   gate_fd_open=1
@@ -74,7 +75,7 @@ start_recovery() {
   expected_error=$2
   actor_id=${3:-$owner_id}
   if [ "$expected_error" = 'none' ]; then
-    docker exec -i -e PGAPPNAME="1cd-recovery-$suffix" "$db_container" psql -X -U postgres -d postgres -v ON_ERROR_STOP=1 > "$work_dir/recovery-$suffix.log" 2>&1 <<SQL &
+    docker exec -i -e PGAPPNAME="1cd-recovery-$suffix" "$db_container" psql -X -U postgres -d "$db_name" -v ON_ERROR_STOP=1 > "$work_dir/recovery-$suffix.log" 2>&1 <<SQL &
 begin;
 set local deadlock_timeout='250ms'; set local lock_timeout='10s'; set local statement_timeout='15s';
 select wedding_updated_at_snapshot as expected from public.wedding_contract_recoveries where id='1cd10000-0000-4000-8000-00000000060${suffix}'::uuid \gset
@@ -85,7 +86,7 @@ commit;
 SQL
     recovery_pid=$!
   else
-    docker exec -i -e PGAPPNAME="1cd-recovery-$suffix" "$db_container" psql -X -U postgres -d postgres -v ON_ERROR_STOP=1 > "$work_dir/recovery-$suffix.log" 2>&1 <<SQL &
+    docker exec -i -e PGAPPNAME="1cd-recovery-$suffix" "$db_container" psql -X -U postgres -d "$db_name" -v ON_ERROR_STOP=1 > "$work_dir/recovery-$suffix.log" 2>&1 <<SQL &
 begin;
 set local deadlock_timeout='250ms'; set local lock_timeout='10s'; set local statement_timeout='15s';
 set local role authenticated;
@@ -108,7 +109,7 @@ start_extra_mutation() {
     statement="delete from public.wedding_extra_services where id='1cd10000-0000-4000-8000-000000000${extra_suffix}';"
   fi
   printf "begin; set local deadlock_timeout='250ms'; set local lock_timeout='10s'; set local statement_timeout='15s'; select set_config('request.jwt.claim.sub','$owner_id',true); $statement commit;\n" |
-    docker exec -i -e PGAPPNAME="$app" "$db_container" psql -X -U postgres -d postgres -v ON_ERROR_STOP=1 > "$work_dir/$app.log" 2>&1 &
+    docker exec -i -e PGAPPNAME="$app" "$db_container" psql -X -U postgres -d "$db_name" -v ON_ERROR_STOP=1 > "$work_dir/$app.log" 2>&1 &
   extra_pid=$!
 }
 start_form_submission() {
@@ -116,14 +117,14 @@ start_form_submission() {
   app=$2
   token="1cd-form-lock-order-token-$suffix"
   printf "begin; set local deadlock_timeout='250ms'; set local lock_timeout='10s'; set local statement_timeout='15s'; select public.public_submit_form_by_token('$token','{\"fields\":{\"additionalNotes\":\"1C-D lock-order test\"}}'::jsonb); commit;\n" |
-    docker exec -i -e PGAPPNAME="$app" "$db_container" psql -X -U postgres -d postgres -v ON_ERROR_STOP=1 > "$work_dir/$app.log" 2>&1 &
+    docker exec -i -e PGAPPNAME="$app" "$db_container" psql -X -U postgres -d "$db_name" -v ON_ERROR_STOP=1 > "$work_dir/$app.log" 2>&1 &
   form_pid=$!
 }
 start_erasure() {
   target_id=$1
   app=$2
   printf "begin; set local deadlock_timeout='250ms'; set local lock_timeout='10s'; set local statement_timeout='20s'; select set_config('request.jwt.claim.role','service_role',true); select public.erase_account_data('$target_id'::uuid); commit;\n" |
-    docker exec -i -e PGAPPNAME="$app" "$db_container" psql -X -U postgres -d postgres -v ON_ERROR_STOP=1 > "$work_dir/$app.log" 2>&1 &
+    docker exec -i -e PGAPPNAME="$app" "$db_container" psql -X -U postgres -d "$db_name" -v ON_ERROR_STOP=1 > "$work_dir/$app.log" 2>&1 &
   erase_pid=$!
 }
 
@@ -132,14 +133,14 @@ start_address() {
   value=$2
   expected=$(sql "select coalesce((select version::text from collaboration_private.wedding_operational_versions where wedding_id='1cd10000-0000-4000-8000-00000000010${suffix}' and resource_type='place_address' and role='ceremony'),'1')")
   printf "begin; set local deadlock_timeout='250ms'; set local lock_timeout='10s'; set local statement_timeout='15s'; set local role authenticated; select set_config('request.jwt.claim.sub','$member_id',true); select public.update_collaborative_wedding_place('1cd10000-0000-4000-8000-00000000010${suffix}'::uuid,'ceremony','$value','$expected'); commit;\n" |
-    docker exec -i -e PGAPPNAME="1cd-address-$suffix" "$db_container" psql -X -U postgres -d postgres -v ON_ERROR_STOP=1 > "$work_dir/address-$suffix.log" 2>&1 &
+    docker exec -i -e PGAPPNAME="1cd-address-$suffix" "$db_container" psql -X -U postgres -d "$db_name" -v ON_ERROR_STOP=1 > "$work_dir/address-$suffix.log" 2>&1 &
   address_pid=$!
 }
 start_route_persist() {
   wedding_suffix=$1
   app=$2
   printf "begin; set local deadlock_timeout='250ms'; set local lock_timeout='10s'; set local statement_timeout='15s'; set local role authenticated; select set_config('request.jwt.claim.sub','$owner_id',true); select public._1cd_test_persist_route('1cd10000-0000-4000-8000-00000000010${wedding_suffix}'::uuid); commit;\n" |
-    docker exec -i -e PGAPPNAME="$app" "$db_container" psql -X -U postgres -d postgres -v ON_ERROR_STOP=1 > "$work_dir/$app.log" 2>&1 &
+    docker exec -i -e PGAPPNAME="$app" "$db_container" psql -X -U postgres -d "$db_name" -v ON_ERROR_STOP=1 > "$work_dir/$app.log" 2>&1 &
   route_pid=$!
 }
 start_owner_place() {
@@ -147,7 +148,7 @@ start_owner_place() {
   app=$2
   value=$3
   printf "begin; set local deadlock_timeout='250ms'; set local lock_timeout='10s'; set local statement_timeout='15s'; set local role authenticated; select set_config('request.jwt.claim.sub','$owner_id',true); select public.mutate_owner_wedding_places('1cd10000-0000-4000-8000-00000000010${wedding_suffix}'::uuid,'upsert','{\"role\":\"ceremony\",\"formatted_address\":\"$value\"}'::jsonb); commit;\n" |
-    docker exec -i -e PGAPPNAME="$app" "$db_container" psql -X -U postgres -d postgres -v ON_ERROR_STOP=1 > "$work_dir/$app.log" 2>&1 &
+    docker exec -i -e PGAPPNAME="$app" "$db_container" psql -X -U postgres -d "$db_name" -v ON_ERROR_STOP=1 > "$work_dir/$app.log" 2>&1 &
   place_pid=$!
 }
 start_owner_reorder() {
@@ -158,14 +159,14 @@ start_owner_reorder() {
   second_place="1cd10000-0000-4000-8000-00000000030$((wedding_suffix + 2))"
   if [ "$direction" = reverse ]; then swap=$first_place; first_place=$second_place; second_place=$swap; fi
   printf "begin; set local deadlock_timeout='250ms'; set local lock_timeout='10s'; set local statement_timeout='15s'; set local role authenticated; select set_config('request.jwt.claim.sub','$owner_id',true); select public.mutate_owner_wedding_places('1cd10000-0000-4000-8000-00000000010${wedding_suffix}'::uuid,'reorder','{\"ordered_place_ids\":[\"$first_place\",\"$second_place\"]}'::jsonb); commit;\n" |
-    docker exec -i -e PGAPPNAME="$app" "$db_container" psql -X -U postgres -d postgres -v ON_ERROR_STOP=1 > "$work_dir/$app.log" 2>&1 &
+    docker exec -i -e PGAPPNAME="$app" "$db_container" psql -X -U postgres -d "$db_name" -v ON_ERROR_STOP=1 > "$work_dir/$app.log" 2>&1 &
   place_pid=$!
 }
 start_studio_origin() {
   app=$1
   city=$2
   printf "begin; set local deadlock_timeout='250ms'; set local lock_timeout='10s'; set local statement_timeout='15s'; set local role authenticated; select set_config('request.jwt.claim.sub','$owner_id',true); select public.upsert_studio_travel_settings_guarded(jsonb_build_object('studio_name','Local route studio','street','Route Street','building_number','1','postal_code','00-001','city','$city','country','Polska','formatted_address','Route origin $city','latitude',5.1,'longitude',6.1,'place_id','route-studio-$city','free_distance_km',50),false); commit;\n" |
-    docker exec -i -e PGAPPNAME="$app" "$db_container" psql -X -U postgres -d postgres -v ON_ERROR_STOP=1 > "$work_dir/$app.log" 2>&1 &
+    docker exec -i -e PGAPPNAME="$app" "$db_container" psql -X -U postgres -d "$db_name" -v ON_ERROR_STOP=1 > "$work_dir/$app.log" 2>&1 &
   origin_pid=$!
 }
 start_owner_time() {
@@ -173,7 +174,7 @@ start_owner_time() {
   app=$2
   time_value=$3
   printf "begin; set local deadlock_timeout='250ms'; set local lock_timeout='10s'; set local statement_timeout='15s'; set local role authenticated; select set_config('request.jwt.claim.sub','$owner_id',true); update public.weddings set ceremony_time='$time_value' where id='1cd10000-0000-4000-8000-00000000010${wedding_suffix}'; commit;\n" |
-    docker exec -i -e PGAPPNAME="$app" "$db_container" psql -X -U postgres -d postgres -v ON_ERROR_STOP=1 > "$work_dir/$app.log" 2>&1 &
+    docker exec -i -e PGAPPNAME="$app" "$db_container" psql -X -U postgres -d "$db_name" -v ON_ERROR_STOP=1 > "$work_dir/$app.log" 2>&1 &
   time_pid=$!
 }
 start_collab_time() {
@@ -186,7 +187,7 @@ start_collab_time() {
   expected_arg=null
   if [ -n "$expected" ]; then expected_arg="'$expected'"; fi
   printf "begin; set local deadlock_timeout='250ms'; set local lock_timeout='10s'; set local statement_timeout='15s'; set local role authenticated; select set_config('request.jwt.claim.sub','$member_id',true); select public.update_collaborative_operational_time('$wedding_id'::uuid,'ceremony','$time_value',$expected_arg); commit;\n" |
-    docker exec -i -e PGAPPNAME="$app" "$db_container" psql -X -U postgres -d postgres -v ON_ERROR_STOP=1 > "$work_dir/$app.log" 2>&1 &
+    docker exec -i -e PGAPPNAME="$app" "$db_container" psql -X -U postgres -d "$db_name" -v ON_ERROR_STOP=1 > "$work_dir/$app.log" 2>&1 &
   time_pid=$!
 }
 start_revoke() {
@@ -194,7 +195,7 @@ start_revoke() {
   app=$2
   membership_id=$(sql "select id from public.wedding_collaboration_memberships where wedding_id='1cd10000-0000-4000-8000-00000000010${wedding_suffix}' and status='active'")
   printf "begin; set local deadlock_timeout='250ms'; set local lock_timeout='10s'; set local statement_timeout='15s'; set local role authenticated; select set_config('request.jwt.claim.sub','$owner_id',true); select public.revoke_wedding_collaboration_membership('$membership_id'::uuid,extensions.gen_random_uuid()); commit;\n" |
-    docker exec -i -e PGAPPNAME="$app" "$db_container" psql -X -U postgres -d postgres -v ON_ERROR_STOP=1 > "$work_dir/$app.log" 2>&1 &
+    docker exec -i -e PGAPPNAME="$app" "$db_container" psql -X -U postgres -d "$db_name" -v ON_ERROR_STOP=1 > "$work_dir/$app.log" 2>&1 &
   revoke_pid=$!
 }
 reset_recovery() {
@@ -205,7 +206,7 @@ reset_recovery() {
 # Synthetic test-only pause triggers let the harness observe both transactions
 # after their domain locks have been acquired. The shell releases the gate only
 # after pg_stat_activity proves the competing path is waiting on PostgreSQL.
-docker exec -i "$db_container" psql -X -U postgres -d postgres -v ON_ERROR_STOP=1 > "$work_dir/setup.log" 2>&1 <<SQL
+docker exec -i "$db_container" psql -X -U postgres -d "$db_name" -v ON_ERROR_STOP=1 > "$work_dir/setup.log" 2>&1 <<SQL
 insert into auth.users(instance_id,id,aud,role,email,encrypted_password,email_confirmed_at,raw_app_meta_data,raw_user_meta_data,created_at,updated_at) values
  ('00000000-0000-0000-0000-000000000000','$owner_id','authenticated','authenticated','1cd-lock-owner@example.test','x',now(),'{"provider":"email","providers":["email"]}','{"first_name":"Local","last_name":"Owner","profession":"photographer","legal_registration_accepted":"true","terms_version":"1.1","privacy_version":"1.1"}',now(),now()),
  ('00000000-0000-0000-0000-000000000000','$member_id','authenticated','authenticated','1cd-lock-member@example.test','x',now(),'{"provider":"email","providers":["email"]}','{"first_name":"Local","last_name":"Member","profession":"photographer","legal_registration_accepted":"true","terms_version":"1.1","privacy_version":"1.1"}',now(),now());
@@ -231,13 +232,6 @@ values ('1cd10000-0000-4000-8000-000000000201','1cd10000-0000-4000-8000-00000000
        ('1cd10000-0000-4000-8000-000000000210','1cd10000-0000-4000-8000-000000000110','1cd10000-0000-4000-8000-000000000110','$owner_id','$member_id','accepted',1,'PLN','{}'::jsonb,extensions.gen_random_uuid(),now());
 insert into public.wedding_collaboration_memberships(wedding_id,wedding_id_snapshot,owner_user_id,member_user_id,accepted_invitation_id,status,accepted_at)
 select i.wedding_id,i.wedding_id,i.owner_user_id,i.invitee_user_id,i.id,'active',now() from public.wedding_collaboration_invitations i where i.owner_user_id='$owner_id';
-insert into collaboration_private.membership_permission_grants(membership_id,capability_key,level)
-select m.id,g.capability_key,g.level
-from public.wedding_collaboration_memberships m
-cross join (values ('wedding.identity'::text,1::smallint),('places.address'::text,2::smallint),
-                   ('schedule.operational_time'::text,2::smallint)) g(capability_key,level)
-where m.owner_user_id='$owner_id' and m.status='active'
-on conflict (membership_id,capability_key) do update set level=excluded.level;
 insert into public.wedding_places(id,wedding_id,role,formatted_address,sort_order,place_id,latitude,longitude)
 values ('1cd10000-0000-4000-8000-000000000301','1cd10000-0000-4000-8000-000000000101','ceremony','Race baseline A',30,'place-a',1,2),
        ('1cd10000-0000-4000-8000-000000000302','1cd10000-0000-4000-8000-000000000102','ceremony','Race baseline B',30,'place-b',1,2),
@@ -786,11 +780,11 @@ echo 'PASS public form submission first vs recovery (no duplicate/partial answer
 # the wedding row. The owner command must still finish without a lock cycle.
 start_gate
 printf "begin; set local lock_timeout='10s'; set local statement_timeout='15s'; select set_config('request.jwt.claim.sub','$owner_id',true); delete from public.weddings where id='1cd10000-0000-4000-8000-000000000101'; commit;\n" |
-  docker exec -i -e PGAPPNAME=1cd-delete-first "$db_container" psql -X -U postgres -d postgres -v ON_ERROR_STOP=1 > "$work_dir/delete-first.log" 2>&1 &
+  docker exec -i -e PGAPPNAME=1cd-delete-first "$db_container" psql -X -U postgres -d "$db_name" -v ON_ERROR_STOP=1 > "$work_dir/delete-first.log" 2>&1 &
 delete_pid=$!
 wait_for_lock_wait 1cd-delete-first
 printf "begin; set local lock_timeout='10s'; set local statement_timeout='15s'; set local role authenticated; select set_config('request.jwt.claim.sub','$owner_id',true); select public.mutate_owner_wedding_places('1cd10000-0000-4000-8000-000000000101','upsert','{\"role\":\"ceremony\",\"formatted_address\":\"Delete race owner update\"}'::jsonb); commit;\n" |
-  docker exec -i -e PGAPPNAME=1cd-owner-place-delete-first "$db_container" psql -X -U postgres -d postgres -v ON_ERROR_STOP=1 > "$work_dir/owner-place-delete-first.log" 2>&1 &
+  docker exec -i -e PGAPPNAME=1cd-owner-place-delete-first "$db_container" psql -X -U postgres -d "$db_name" -v ON_ERROR_STOP=1 > "$work_dir/owner-place-delete-first.log" 2>&1 &
 place_pid=$!
 wait_for_lock_wait 1cd-owner-place-delete-first
 release_gate
@@ -808,11 +802,11 @@ echo 'PASS wedding-delete-first vs owner-place (delete won; owner command return
 # then cascade cleanly after the route/place mutation commits.
 start_gate
 printf "begin; set local role authenticated; select set_config('request.jwt.claim.sub','$owner_id',true); select public.mutate_owner_wedding_places('1cd10000-0000-4000-8000-000000000102','upsert','{\"role\":\"ceremony\",\"formatted_address\":\"D-PAUSE-OWNER-PLACE-FIRST\"}'::jsonb); commit;\n" |
-  docker exec -i -e PGAPPNAME=1cd-owner-place-first "$db_container" psql -X -U postgres -d postgres -v ON_ERROR_STOP=1 > "$work_dir/owner-place-first.log" 2>&1 &
+  docker exec -i -e PGAPPNAME=1cd-owner-place-first "$db_container" psql -X -U postgres -d "$db_name" -v ON_ERROR_STOP=1 > "$work_dir/owner-place-first.log" 2>&1 &
 address_pid=$!
 wait_for_lock_wait 1cd-owner-place-first
 printf "begin; set local lock_timeout='10s'; set local statement_timeout='15s'; select set_config('request.jwt.claim.sub','$owner_id',true); delete from public.weddings where id='1cd10000-0000-4000-8000-000000000102'; commit;\n" |
-  docker exec -i -e PGAPPNAME=1cd-delete-after-place "$db_container" psql -X -U postgres -d postgres -v ON_ERROR_STOP=1 > "$work_dir/delete-after-place.log" 2>&1 &
+  docker exec -i -e PGAPPNAME=1cd-delete-after-place "$db_container" psql -X -U postgres -d "$db_name" -v ON_ERROR_STOP=1 > "$work_dir/delete-after-place.log" 2>&1 &
 delete_pid=$!
 wait_for_lock_wait 1cd-delete-after-place
 release_gate
@@ -828,7 +822,7 @@ start_gate
 start_recovery 3 none
 wait_for_lock_wait 1cd-recovery-3
 printf "begin; set local lock_timeout='10s'; set local statement_timeout='15s'; select set_config('request.jwt.claim.sub','$owner_id',true); delete from public.weddings where id='1cd10000-0000-4000-8000-000000000103'; commit;\n" |
-  docker exec -i -e PGAPPNAME=1cd-delete-after-recovery "$db_container" psql -X -U postgres -d postgres -v ON_ERROR_STOP=1 > "$work_dir/delete-after-recovery.log" 2>&1 &
+  docker exec -i -e PGAPPNAME=1cd-delete-after-recovery "$db_container" psql -X -U postgres -d "$db_name" -v ON_ERROR_STOP=1 > "$work_dir/delete-after-recovery.log" 2>&1 &
 delete_pid=$!
 wait_for_lock_wait 1cd-delete-after-recovery
 release_gate
@@ -839,7 +833,7 @@ echo 'PASS recovery-first vs wedding-delete (both completed; deletion left no we
 
 start_gate
 printf "begin; set local lock_timeout='10s'; set local statement_timeout='15s'; select set_config('request.jwt.claim.sub','$owner_id',true); delete from public.weddings where id='1cd10000-0000-4000-8000-000000000104'; commit;\n" |
-  docker exec -i -e PGAPPNAME=1cd-delete-before-recovery "$db_container" psql -X -U postgres -d postgres -v ON_ERROR_STOP=1 > "$work_dir/delete-before-recovery.log" 2>&1 &
+  docker exec -i -e PGAPPNAME=1cd-delete-before-recovery "$db_container" psql -X -U postgres -d "$db_name" -v ON_ERROR_STOP=1 > "$work_dir/delete-before-recovery.log" 2>&1 &
 delete_pid=$!
 wait_for_lock_wait 1cd-delete-before-recovery
 start_recovery 4 none
@@ -862,7 +856,7 @@ start_gate
 start_address 7 'D-PAUSE-ADDRESS-DELETE-FIRST'
 wait_for_lock_wait 1cd-address-7
 printf "begin; set local deadlock_timeout='250ms'; set local lock_timeout='10s'; set local statement_timeout='15s'; select set_config('request.jwt.claim.sub','$owner_id',true); delete from public.weddings where id='1cd10000-0000-4000-8000-000000000107'; commit;\n" |
-  docker exec -i -e PGAPPNAME=1cd-delete-after-address "$db_container" psql -X -U postgres -d postgres -v ON_ERROR_STOP=1 > "$work_dir/delete-after-address.log" 2>&1 &
+  docker exec -i -e PGAPPNAME=1cd-delete-after-address "$db_container" psql -X -U postgres -d "$db_name" -v ON_ERROR_STOP=1 > "$work_dir/delete-after-address.log" 2>&1 &
 delete_pid=$!
 wait_for_lock_wait 1cd-delete-after-address
 release_gate
@@ -873,7 +867,7 @@ echo 'PASS collaborator-address-first vs wedding-delete (address committed; dele
 
 start_gate
 printf "begin; set local deadlock_timeout='250ms'; set local lock_timeout='10s'; set local statement_timeout='15s'; select set_config('request.jwt.claim.sub','$owner_id',true); delete from public.weddings where id='1cd10000-0000-4000-8000-000000000109'; commit;\n" |
-  docker exec -i -e PGAPPNAME=1cd-delete-before-address "$db_container" psql -X -U postgres -d postgres -v ON_ERROR_STOP=1 > "$work_dir/delete-before-address.log" 2>&1 &
+  docker exec -i -e PGAPPNAME=1cd-delete-before-address "$db_container" psql -X -U postgres -d "$db_name" -v ON_ERROR_STOP=1 > "$work_dir/delete-before-address.log" 2>&1 &
 delete_pid=$!
 wait_for_lock_wait 1cd-delete-before-address
 start_address 9 'D-DELETE-WON-ADDRESS'
@@ -893,7 +887,7 @@ start_gate
 start_collab_time 8 1cd-collab-time-delete-first '10:15'
 wait_for_lock_wait 1cd-collab-time-delete-first
 printf "begin; set local deadlock_timeout='250ms'; set local lock_timeout='10s'; set local statement_timeout='15s'; select set_config('request.jwt.claim.sub','$owner_id',true); delete from public.weddings where id='1cd10000-0000-4000-8000-000000000108'; commit;\n" |
-  docker exec -i -e PGAPPNAME=1cd-delete-after-time "$db_container" psql -X -U postgres -d postgres -v ON_ERROR_STOP=1 > "$work_dir/delete-after-time.log" 2>&1 &
+  docker exec -i -e PGAPPNAME=1cd-delete-after-time "$db_container" psql -X -U postgres -d "$db_name" -v ON_ERROR_STOP=1 > "$work_dir/delete-after-time.log" 2>&1 &
 delete_pid=$!
 wait_for_lock_wait 1cd-delete-after-time
 release_gate
@@ -904,7 +898,7 @@ echo 'PASS collaborator-time-first vs wedding-delete (time committed; deletion r
 
 start_gate
 printf "begin; set local deadlock_timeout='250ms'; set local lock_timeout='10s'; set local statement_timeout='15s'; select set_config('request.jwt.claim.sub','$owner_id',true); delete from public.weddings where id='1cd10000-0000-4000-8000-000000000110'; commit;\n" |
-  docker exec -i -e PGAPPNAME=1cd-delete-before-time "$db_container" psql -X -U postgres -d postgres -v ON_ERROR_STOP=1 > "$work_dir/delete-before-time.log" 2>&1 &
+  docker exec -i -e PGAPPNAME=1cd-delete-before-time "$db_container" psql -X -U postgres -d "$db_name" -v ON_ERROR_STOP=1 > "$work_dir/delete-before-time.log" 2>&1 &
 delete_pid=$!
 wait_for_lock_wait 1cd-delete-before-time
 start_collab_time 10 1cd-collab-time-delete-loses '10:30'
@@ -941,7 +935,7 @@ wait_for_lock_wait 1cd-erasure-first
 start_recovery 6 none "$member_id"
 wait_for_lock_wait 1cd-recovery-6
 printf "begin; set local deadlock_timeout='250ms'; set local lock_timeout='10s'; set local statement_timeout='15s'; select set_config('request.jwt.claim.sub','$member_id',true); delete from public.weddings where id='1cd10000-0000-4000-8000-000000000106'; commit;\n" |
-  docker exec -i -e PGAPPNAME=1cd-delete-after-erasure "$db_container" psql -X -U postgres -d postgres -v ON_ERROR_STOP=1 > "$work_dir/delete-after-erasure.log" 2>&1 &
+  docker exec -i -e PGAPPNAME=1cd-delete-after-erasure "$db_container" psql -X -U postgres -d "$db_name" -v ON_ERROR_STOP=1 > "$work_dir/delete-after-erasure.log" 2>&1 &
 delete_pid=$!
 wait_for_lock_wait 1cd-delete-after-erasure
 release_gate

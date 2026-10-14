@@ -116,7 +116,11 @@ npm run test:collaboration-1c-d-behavioral
 
 The optimistic race runner creates one disposable local owner/member/wedding,
 contends two authenticated RPC updates with the same expected generation, and
-cleans the fixture afterward. The lock-order runner uses two PostgreSQL sessions,
+cleans the fixture afterward. Both 1C-D concurrency runners rely on the 1C-E
+membership seed trigger for directly-created legacy fixture memberships. Run
+them after applying 1C-E; set `OURWED_TEST_DATABASE` to a disposable replay DB
+when the project `postgres` database is not yet at that migration. The variable
+defaults to `postgres`. The lock-order runner uses two PostgreSQL sessions,
 test-only pause triggers, and `pg_stat_activity`/blocking lock observations to
 exercise recovery/address contention in both start orders; it never coordinates
 the race by arbitrary sleeps. The browser test extends the existing local

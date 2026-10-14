@@ -150,30 +150,90 @@ select is(collaboration_private.has_wedding_capability('72000000-0000-4000-8000-
   'capability helper rejects threshold above edit');
 
 select throws_ok($$update public.wedding_collaboration_invitations set access_configuration_version=1,role_key=null,access_mode='viewer',permission_group_mapping_version='1' where id='74000000-0000-4000-8000-000000000002'$$::text,
-  null::character,null::text,'version-1 invitation rejects NULL role'::text);
+  '23514'::character(5),'new row for relation "wedding_collaboration_invitations" violates check constraint "wedding_collaboration_invitations_access_config_check"'::text,'version-1 invitation rejects NULL role'::text);
 select throws_ok($$update public.wedding_collaboration_invitations set access_configuration_version=1,role_key='unspecified',access_mode=null,permission_group_mapping_version='1' where id='74000000-0000-4000-8000-000000000002'$$::text,
-  null::character,null::text,'version-1 invitation rejects NULL access mode'::text);
+  '23514'::character(5),'new row for relation "wedding_collaboration_invitations" violates check constraint "wedding_collaboration_invitations_access_config_check"'::text,'version-1 invitation rejects NULL access mode'::text);
 select throws_ok($$update public.wedding_collaboration_invitations set access_configuration_version=1,role_key='unspecified',access_mode='viewer',permission_group_mapping_version=null where id='74000000-0000-4000-8000-000000000002'$$::text,
-  null::character,null::text,'version-1 invitation rejects NULL mapping version'::text);
+  '23514'::character(5),'new row for relation "wedding_collaboration_invitations" violates check constraint "wedding_collaboration_invitations_access_config_check"'::text,'version-1 invitation rejects NULL mapping version'::text);
 select throws_ok($$update public.wedding_collaboration_invitations set access_configuration_version=1,role_key='unspecified',access_mode='viewer',permission_group_mapping_version='2' where id='74000000-0000-4000-8000-000000000002'$$::text,
-  null::character,null::text,'version-1 invitation rejects unsupported mapping version'::text);
+  '23514'::character(5),'new row for relation "wedding_collaboration_invitations" violates check constraint "wedding_collaboration_invitations_access_config_check"'::text,'version-1 invitation rejects unsupported mapping version'::text);
 select throws_ok($$update public.wedding_collaboration_invitations set access_configuration_version=1,role_key='system:Bad Role',access_mode='viewer',permission_group_mapping_version='1' where id='74000000-0000-4000-8000-000000000002'$$::text,
-  null::character,null::text,'version-1 invitation rejects malformed role key'::text);
+  '23514'::character(5),'new row for relation "wedding_collaboration_invitations" violates check constraint "wedding_collaboration_invitations_access_config_check"'::text,'version-1 invitation rejects malformed role key'::text);
 select throws_ok($$update public.wedding_collaboration_invitations set access_configuration_version=1,role_key='custom',custom_role_label=null,access_mode='custom',permission_group_mapping_version='1' where id='74000000-0000-4000-8000-000000000002'$$::text,
-  null::character,null::text,'version-1 custom role rejects NULL label'::text);
+  '23514'::character(5),'new row for relation "wedding_collaboration_invitations" violates check constraint "wedding_collaboration_invitations_access_config_check"'::text,'version-1 custom role rejects NULL label'::text);
 select throws_ok($$update public.wedding_collaboration_invitations set access_configuration_version=1,role_key='custom',custom_role_label='   ',access_mode='custom',permission_group_mapping_version='1' where id='74000000-0000-4000-8000-000000000002'$$::text,
-  null::character,null::text,'version-1 custom role rejects blank label'::text);
+  '23514'::character(5),'new row for relation "wedding_collaboration_invitations" violates check constraint "wedding_collaboration_invitations_access_config_check"'::text,'version-1 custom role rejects blank label'::text);
 select throws_ok($$update public.wedding_collaboration_invitations set access_configuration_version=1,role_key='system:planner',custom_role_label='Planner',access_mode='viewer',permission_group_mapping_version='1' where id='74000000-0000-4000-8000-000000000002'$$::text,
-  null::character,null::text,'non-custom role rejects custom label'::text);
+  '23514'::character(5),'new row for relation "wedding_collaboration_invitations" violates check constraint "wedding_collaboration_invitations_access_config_check"'::text,'non-custom role rejects custom label'::text);
+select throws_ok($$update public.wedding_collaboration_invitations set access_configuration_version=1,role_key='system:planner',access_mode='owner',permission_group_mapping_version='1' where id='74000000-0000-4000-8000-000000000002'$$::text,
+  '23514'::character(5),'new row for relation "wedding_collaboration_invitations" violates check constraint "wedding_collaboration_invitations_access_config_check"'::text,'version-1 invitation rejects invalid access mode'::text);
+select throws_ok($$update public.wedding_collaboration_invitations set access_configuration_version=2,role_key='system:planner',access_mode='viewer',permission_group_mapping_version='1' where id='74000000-0000-4000-8000-000000000002'$$::text,
+  '23514'::character(5),'new row for relation "wedding_collaboration_invitations" violates check constraint "wedding_collaboration_invitations_access_config_check"'::text,'invitation rejects unsupported configuration version'::text);
+select throws_ok(
+  format($sql$update public.wedding_collaboration_invitations set access_configuration_version=1,role_key='custom',access_mode='custom',permission_group_mapping_version='1',custom_role_label=%L where id='74000000-0000-4000-8000-000000000002'$sql$, label_value),
+  '23514'::character(5),'new row for relation "wedding_collaboration_invitations" violates check constraint "wedding_collaboration_invitations_access_config_check"'::text,'invitation rejects whitespace-only custom label: '||case_name)
+from (values
+  ('empty',''),
+  ('single space',' '),
+  ('five spaces','     '),
+  ('tab',E'\t'),
+  ('newline',E'\n'),
+  ('carriage return',E'\r'),
+  ('tab + newline',E'\t\n'),
+  ('space + tab + newline',E' \t \n '),
+  ('mixed CR/LF/tab/spaces',E' \r\n\t  ')) as whitespace_cases(case_name,label_value);
+select throws_ok($$update public.wedding_collaboration_invitations set access_configuration_version=1,role_key='custom',custom_role_label='  Second shooter  ',access_mode='custom',permission_group_mapping_version='1' where id='74000000-0000-4000-8000-000000000002'$$::text,
+  '23514'::character(5),'new row for relation "wedding_collaboration_invitations" violates check constraint "wedding_collaboration_invitations_access_config_check"'::text,'invitation preserves canonical trimming requirement for custom labels'::text);
+select throws_ok(
+  format($sql$update public.wedding_collaboration_memberships set role_key='custom',custom_role_label=%L,access_mode='custom' where id=current_setting('test.onece_membership_id')::uuid$sql$, label_value),
+  '23514'::character(5),'new row for relation "wedding_collaboration_memberships" violates check constraint "wedding_collaboration_memberships_custom_role_label_check"'::text,'membership rejects whitespace-only custom label: '||case_name)
+from (values
+  ('empty',''),
+  ('single space',' '),
+  ('five spaces','     '),
+  ('tab',E'\t'),
+  ('newline',E'\n'),
+  ('carriage return',E'\r'),
+  ('tab + newline',E'\t\n'),
+  ('space + tab + newline',E' \t \n '),
+  ('mixed CR/LF/tab/spaces',E' \r\n\t  ')) as whitespace_cases(case_name,label_value);
+select throws_ok($$update public.wedding_collaboration_memberships set role_key='custom',custom_role_label='  Second shooter  ',access_mode='custom' where id=current_setting('test.onece_membership_id')::uuid$$::text,
+  '23514'::character(5),'new row for relation "wedding_collaboration_memberships" violates check constraint "wedding_collaboration_memberships_custom_role_label_check"'::text,'membership preserves canonical trimming requirement for custom labels'::text);
+select throws_ok($$update public.wedding_collaboration_memberships set role_key='custom',custom_role_label=null,access_mode='custom' where id=current_setting('test.onece_membership_id')::uuid$$::text,
+  '23514'::character(5),'new row for relation "wedding_collaboration_memberships" violates check constraint "wedding_collaboration_memberships_custom_role_label_check"'::text,'membership rejects NULL custom label'::text);
+select throws_ok($$update public.wedding_collaboration_memberships set role_key='system:planner',custom_role_label='Planner',access_mode='viewer' where id=current_setting('test.onece_membership_id')::uuid$$::text,
+  '23514'::character(5),'new row for relation "wedding_collaboration_memberships" violates check constraint "wedding_collaboration_memberships_custom_role_label_check"'::text,'membership rejects a label for non-custom role'::text);
 select lives_ok($$update public.wedding_collaboration_invitations set access_configuration_version=1,role_key='system:planner',custom_role_label=null,access_mode='viewer',permission_group_mapping_version='1' where id='74000000-0000-4000-8000-000000000002'$$,
   'version-1 Viewer invitation is valid');
 select lives_ok($$update public.wedding_collaboration_invitations set role_key='system:planner',access_mode='editor' where id='74000000-0000-4000-8000-000000000002'$$,
   'version-1 Editor invitation is valid');
 select lives_ok($$update public.wedding_collaboration_invitations set role_key='custom',custom_role_label='Planner',access_mode='custom' where id='74000000-0000-4000-8000-000000000002'$$,
   'version-1 Custom invitation is valid');
+select lives_ok($$update public.wedding_collaboration_invitations set role_key='custom',custom_role_label='Fotograf',access_mode='custom' where id='74000000-0000-4000-8000-000000000002'$$,
+  'custom invitation accepts Fotograf');
+select lives_ok($$update public.wedding_collaboration_invitations set custom_role_label='Second shooter' where id='74000000-0000-4000-8000-000000000002'$$,
+  'custom invitation accepts an internal space');
+select lives_ok($$update public.wedding_collaboration_invitations set custom_role_label='Fotograf ślubny' where id='74000000-0000-4000-8000-000000000002'$$,
+  'custom invitation accepts Polish characters');
+select lives_ok($$update public.wedding_collaboration_invitations set custom_role_label='Asystent' where id='74000000-0000-4000-8000-000000000002'$$,
+  'custom invitation accepts Asystent');
+select lives_ok($$update public.wedding_collaboration_invitations set custom_role_label='Planner (2)' where id='74000000-0000-4000-8000-000000000002'$$,
+  'custom invitation accepts existing punctuation');
+select lives_ok($$update public.wedding_collaboration_memberships set role_key='custom',custom_role_label='Fotograf',access_mode='custom' where id=current_setting('test.onece_membership_id')::uuid$$,
+  'custom membership accepts Fotograf');
+select lives_ok($$update public.wedding_collaboration_memberships set custom_role_label='Second shooter' where id=current_setting('test.onece_membership_id')::uuid$$,
+  'custom membership accepts an internal space');
+select lives_ok($$update public.wedding_collaboration_memberships set custom_role_label='Fotograf ślubny' where id=current_setting('test.onece_membership_id')::uuid$$,
+  'custom membership accepts Polish characters');
+select lives_ok($$update public.wedding_collaboration_memberships set custom_role_label='Asystent' where id=current_setting('test.onece_membership_id')::uuid$$,
+  'custom membership accepts Asystent');
+select lives_ok($$update public.wedding_collaboration_memberships set custom_role_label='Planner (2)' where id=current_setting('test.onece_membership_id')::uuid$$,
+  'custom membership accepts existing punctuation');
 update public.wedding_collaboration_invitations set access_configuration_version=0,role_key=null,
   custom_role_label=null,access_mode=null,permission_group_mapping_version=null
 where id='74000000-0000-4000-8000-000000000002';
+update public.wedding_collaboration_memberships set role_key='unspecified',custom_role_label=null,access_mode='custom'
+where id=current_setting('test.onece_membership_id')::uuid;
 
 set local role authenticated;
 select set_config('request.jwt.claim.sub','71000000-0000-4000-8000-000000000002',true);

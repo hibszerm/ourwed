@@ -2,6 +2,7 @@
 set -eu
 
 db_container=supabase_db_ourwed-internal-qa-harness-20261012
+db_name=${OURWED_TEST_DATABASE:-postgres}
 owner_id=1cd00000-0000-4000-8000-000000000001
 member_id=1cd00000-0000-4000-8000-000000000002
 wedding_id=1cd00000-0000-4000-8000-000000000101
@@ -10,7 +11,7 @@ place_id=1cd00000-0000-4000-8000-000000000301
 work_dir=$(mktemp -d /private/tmp/ourwed-1cd-concurrency.XXXXXX)
 
 cleanup() {
-  docker exec "$db_container" psql -X -U postgres -d postgres -v ON_ERROR_STOP=1 -c \
+  docker exec "$db_container" psql -X -U postgres -d "$db_name" -v ON_ERROR_STOP=1 -c \
     "delete from public.wedding_collaboration_memberships where wedding_id_snapshot='$wedding_id'; delete from public.wedding_collaboration_invitations where wedding_id_snapshot='$wedding_id'; delete from public.weddings where id='$wedding_id'; delete from auth.users where id in ('$owner_id','$member_id');" \
     >/dev/null 2>&1 || true
   rm -rf "$work_dir"
@@ -20,15 +21,15 @@ trap cleanup EXIT HUP INT TERM
 # Older interrupted runs may have left lifecycle rows behind because invitation
 # history is intentionally retained when a wedding is deleted. Remove only this
 # runner's fixed synthetic IDs before checking for collisions.
-docker exec "$db_container" psql -X -U postgres -d postgres -v ON_ERROR_STOP=1 -c \
+docker exec "$db_container" psql -X -U postgres -d "$db_name" -v ON_ERROR_STOP=1 -c \
   "delete from public.wedding_collaboration_memberships where wedding_id_snapshot='$wedding_id'; delete from public.wedding_collaboration_invitations where wedding_id_snapshot='$wedding_id'; delete from public.weddings where id='$wedding_id'; delete from auth.users where id in ('$owner_id','$member_id');" \
   >/dev/null
 
-docker exec "$db_container" psql -X -U postgres -d postgres -v ON_ERROR_STOP=1 -Atc \
+docker exec "$db_container" psql -X -U postgres -d "$db_name" -v ON_ERROR_STOP=1 -Atc \
   "select case when exists(select 1 from auth.users where id in ('$owner_id','$member_id')) or exists(select 1 from public.weddings where id='$wedding_id') or exists(select 1 from public.wedding_collaboration_invitations where id='$invite_id') then 'COLLISION' else 'CLEAR' end" |
   grep -qx CLEAR
 
-docker exec -i "$db_container" psql -X -U postgres -d postgres -v ON_ERROR_STOP=1 <<SQL
+docker exec -i "$db_container" psql -X -U postgres -d "$db_name" -v ON_ERROR_STOP=1 <<SQL
 begin;
 insert into auth.users(instance_id,id,aud,role,email,encrypted_password,email_confirmed_at,
   raw_app_meta_data,raw_user_meta_data,created_at,updated_at) values
@@ -48,13 +49,6 @@ values('$invite_id','$wedding_id','$wedding_id','$owner_id','$member_id','accept
 insert into public.wedding_collaboration_memberships(
   wedding_id,wedding_id_snapshot,owner_user_id,member_user_id,accepted_invitation_id,status,accepted_at)
 values('$wedding_id','$wedding_id','$owner_id','$member_id','$invite_id','active',now());
-insert into collaboration_private.membership_permission_grants(membership_id,capability_key,level)
-select m.id,g.capability_key,g.level
-from public.wedding_collaboration_memberships m
-cross join (values ('wedding.identity'::text,1::smallint),('places.address'::text,2::smallint),
-                   ('schedule.operational_time'::text,2::smallint)) g(capability_key,level)
-where m.accepted_invitation_id='$invite_id'
-on conflict (membership_id,capability_key) do update set level=excluded.level;
 insert into public.wedding_places(id,wedding_id,role,formatted_address,sort_order,place_id,latitude,longitude)
 values('$place_id','$wedding_id','ceremony','Original address',30,'fixture-place',1,2);
 commit;
@@ -64,7 +58,7 @@ run_write() {
   token=$1
   value=$2
   wait_after=$3
-  docker exec -i "$db_container" psql -X -U postgres -d postgres -v ON_ERROR_STOP=1 >"$work_dir/$token.log" 2>&1 <<SQL
+  docker exec -i "$db_container" psql -X -U postgres -d "$db_name" -v ON_ERROR_STOP=1 >"$work_dir/$token.log" 2>&1 <<SQL
 begin;
 set local role authenticated;
 select set_config('request.jwt.claim.sub','$member_id',true);
@@ -94,7 +88,7 @@ else
   exit 1
 fi
 
-state=$(docker exec "$db_container" psql -X -U postgres -d postgres -Atc \
+state=$(docker exec "$db_container" psql -X -U postgres -d "$db_name" -Atc \
   "select p.formatted_address||'|'||v.version::text from public.wedding_places p join collaboration_private.wedding_operational_versions v on v.wedding_id=p.wedding_id and v.resource_type='place_address' and v.role=p.role where p.wedding_id='$wedding_id' and p.role='ceremony'")
 case "$state" in
   'Race winner A|2'|'Race winner B|2') ;;
