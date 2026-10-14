@@ -48,6 +48,12 @@ values('$invite_id','$wedding_id','$wedding_id','$owner_id','$member_id','accept
 insert into public.wedding_collaboration_memberships(
   wedding_id,wedding_id_snapshot,owner_user_id,member_user_id,accepted_invitation_id,status,accepted_at)
 values('$wedding_id','$wedding_id','$owner_id','$member_id','$invite_id','active',now());
+insert into collaboration_private.membership_permission_grants(membership_id,capability_key,level)
+select m.id,g.capability_key,g.level
+from public.wedding_collaboration_memberships m
+cross join (values ('wedding.identity'::text,1::smallint),('places.address'::text,2::smallint),
+                   ('schedule.operational_time'::text,2::smallint)) g(capability_key,level)
+where m.accepted_invitation_id='$invite_id';
 insert into public.wedding_places(id,wedding_id,role,formatted_address,sort_order,place_id,latitude,longitude)
 values('$place_id','$wedding_id','ceremony','Original address',30,'fixture-place',1,2);
 commit;

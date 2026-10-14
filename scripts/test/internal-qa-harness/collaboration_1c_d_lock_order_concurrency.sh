@@ -231,6 +231,12 @@ values ('1cd10000-0000-4000-8000-000000000201','1cd10000-0000-4000-8000-00000000
        ('1cd10000-0000-4000-8000-000000000210','1cd10000-0000-4000-8000-000000000110','1cd10000-0000-4000-8000-000000000110','$owner_id','$member_id','accepted',1,'PLN','{}'::jsonb,extensions.gen_random_uuid(),now());
 insert into public.wedding_collaboration_memberships(wedding_id,wedding_id_snapshot,owner_user_id,member_user_id,accepted_invitation_id,status,accepted_at)
 select i.wedding_id,i.wedding_id,i.owner_user_id,i.invitee_user_id,i.id,'active',now() from public.wedding_collaboration_invitations i where i.owner_user_id='$owner_id';
+insert into collaboration_private.membership_permission_grants(membership_id,capability_key,level)
+select m.id,g.capability_key,g.level
+from public.wedding_collaboration_memberships m
+cross join (values ('wedding.identity'::text,1::smallint),('places.address'::text,2::smallint),
+                   ('schedule.operational_time'::text,2::smallint)) g(capability_key,level)
+where m.owner_user_id='$owner_id' and m.status='active';
 insert into public.wedding_places(id,wedding_id,role,formatted_address,sort_order,place_id,latitude,longitude)
 values ('1cd10000-0000-4000-8000-000000000301','1cd10000-0000-4000-8000-000000000101','ceremony','Race baseline A',30,'place-a',1,2),
        ('1cd10000-0000-4000-8000-000000000302','1cd10000-0000-4000-8000-000000000102','ceremony','Race baseline B',30,'place-b',1,2),
