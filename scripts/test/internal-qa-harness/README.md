@@ -124,3 +124,20 @@ AuthProvider/QueryClient harness with edit-state and mutation responses; it
 checks draft preservation after conflict, refreshed retry, address/time edits,
 access-loss cleanup, and the 390×844, 375×812, 393×852, and desktop editor
 layouts.
+
+For 1C-E, replay the additive permission-foundation migration after 1C-D and
+run the frozen authority/read projection and invitation-configuration matrix:
+
+```sh
+docker exec -i supabase_db_ourwed-internal-qa-harness-20261012 psql -U postgres -d postgres -v ON_ERROR_STOP=1 < supabase/migrations/20261014100000_collaboration_1c_e_permission_foundation.sql
+scripts/test/internal-qa-harness/run_pgtap.sh supabase/tests/collaboration_1c_e_permission_foundation_test.sql
+sh scripts/test/internal-qa-harness/collaboration_1c_e_migration_acceptance_race.sh
+```
+
+The migration race runner builds two fresh local database replays from the
+synthetic baseline through 1C-D. It pauses the actual migration and acceptance
+RPC at deterministic PostgreSQL lock points, then checks both start orders for
+deadlocks, partial DDL, duplicate lifecycle rows, and the exact three-grant
+legacy permission snapshot. It uses only the disposable local Supabase database
+container and keeps its replay databases for inspection; the next run rebuilds
+them from scratch.

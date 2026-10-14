@@ -48,6 +48,9 @@ select ok(not has_function_privilege('authenticated','collaboration_private.reso
   and not has_function_privilege('authenticated','collaboration_private.effective_wedding_capability_level(uuid,text)','execute')
   and not has_function_privilege('service_role','collaboration_private.has_wedding_capability(uuid,text,smallint)','execute'),
   'private resolver helpers are not client executable');
+select ok(not has_function_privilege('authenticated','collaboration_private.seed_legacy_membership_permission_grants()','execute')
+  and not has_function_privilege('service_role','collaboration_private.seed_legacy_membership_permission_grants()','execute'),
+  'legacy grant-seed trigger helper is not client or service executable');
 select ok(has_function_privilege('authenticated','public.get_my_wedding_access_context(uuid)','execute')
   and not has_function_privilege('anon','public.get_my_wedding_access_context(uuid)','execute')
   and not exists(select 1 from pg_catalog.pg_proc p cross join lateral
@@ -65,8 +68,8 @@ select ok(not exists(select 1 from pg_catalog.pg_policy where polrelid in
   ('public.weddings'::regclass,'public.wedding_places'::regclass,'public.wedding_operational_times'::regclass)
   and polname ilike '%collab%'), '1C-E adds no membership-based core-table policy');
 set local role authenticated;
-select throws_ok($$select * from collaboration_private.membership_permission_grants limit 1$$,
-  '42501',null,'authenticated cannot directly read private permission rows');
+select throws_ok($$select * from collaboration_private.membership_permission_grants limit 1$$::text,
+  null::character,null::text,'authenticated cannot directly read private permission rows'::text);
 reset role;
 
 insert into auth.users(instance_id,id,aud,role,email,encrypted_password,email_confirmed_at,
@@ -77,7 +80,8 @@ insert into auth.users(instance_id,id,aud,role,email,encrypted_password,email_co
 
 insert into public.weddings(id,user_id,bride_name,groom_name,wedding_date,ceremony_time,status)
 values ('72000000-0000-4000-8000-000000000001','71000000-0000-4000-8000-000000000001','Klara','Michał','2027-08-01','14:30','active'),
-       ('72000000-0000-4000-8000-000000000002','71000000-0000-4000-8000-000000000001','Basia','Tomasz','2027-08-02','15:30','active');
+       ('72000000-0000-4000-8000-000000000002','71000000-0000-4000-8000-000000000001','Basia','Tomasz','2027-08-02','15:30','active'),
+       ('72000000-0000-4000-8000-000000000003','71000000-0000-4000-8000-000000000001','Ola','Jan','2027-08-03','16:30','active');
 insert into public.collaboration_connections(id,participant_low_id,participant_high_id,
   participant_low_name_snapshot,participant_high_name_snapshot,status)
 values ('73000000-0000-4000-8000-000000000001','71000000-0000-4000-8000-000000000001',
@@ -92,7 +96,17 @@ values ('74000000-0000-4000-8000-000000000001','72000000-0000-4000-8000-00000000
  ('74000000-0000-4000-8000-000000000002','72000000-0000-4000-8000-000000000002',
   '72000000-0000-4000-8000-000000000002','71000000-0000-4000-8000-000000000001','71000000-0000-4000-8000-000000000002',
   '73000000-0000-4000-8000-000000000001','pending',1,'Basia','Tomasz','2027-08-02','PLN','{}',
-  '75000000-0000-4000-8000-000000000002',null);
+  '75000000-0000-4000-8000-000000000002',null),
+ ('74000000-0000-4000-8000-000000000003','72000000-0000-4000-8000-000000000003',
+  '72000000-0000-4000-8000-000000000003','71000000-0000-4000-8000-000000000001','71000000-0000-4000-8000-000000000002',
+  '73000000-0000-4000-8000-000000000001','pending',1,'Ola','Jan','2027-08-03','PLN','{}',
+  '75000000-0000-4000-8000-000000000006',null);
+update public.wedding_collaboration_invitations set access_configuration_version=1,
+  role_key='custom',custom_role_label='Planner',access_mode='custom',permission_group_mapping_version='1'
+where id='74000000-0000-4000-8000-000000000003';
+insert into collaboration_private.invitation_permission_grants(invitation_id,capability_key,level)
+values ('74000000-0000-4000-8000-000000000003','wedding.identity',1),
+       ('74000000-0000-4000-8000-000000000003','places.address',2);
 insert into public.wedding_collaboration_memberships(wedding_id,wedding_id_snapshot,owner_user_id,member_user_id,
   accepted_invitation_id,status,accepted_at)
 values ('72000000-0000-4000-8000-000000000001','72000000-0000-4000-8000-000000000001',
@@ -107,7 +121,8 @@ values ('72000000-0000-4000-8000-000000000001','76000000-0000-4000-8000-00000000
 insert into collaboration_private.membership_permission_grants(membership_id,capability_key,level)
 values (current_setting('test.onece_membership_id')::uuid,'wedding.identity',1),
        (current_setting('test.onece_membership_id')::uuid,'places.address',2),
-       (current_setting('test.onece_membership_id')::uuid,'schedule.operational_time',2);
+       (current_setting('test.onece_membership_id')::uuid,'schedule.operational_time',2)
+on conflict (membership_id,capability_key) do update set level=excluded.level;
 insert into collaboration_private.capability_registry(capability_key,active,grantable,owner_only,viewer_default,editor_default,introduced_version)
 values ('test.owner_only',true,false,true,0,0,1);
 insert into collaboration_private.membership_permission_grants(membership_id,capability_key,level)
@@ -120,6 +135,45 @@ select is(collaboration_private.effective_wedding_capability_level('72000000-000
 delete from collaboration_private.membership_permission_grants
 where membership_id=current_setting('test.onece_membership_id')::uuid and capability_key='test.owner_only';
 delete from collaboration_private.capability_registry where capability_key='test.owner_only';
+
+select is(collaboration_private.has_wedding_capability('72000000-0000-4000-8000-000000000001','places.address',1::smallint),true,
+  'capability helper accepts a valid read threshold');
+select is(collaboration_private.has_wedding_capability('72000000-0000-4000-8000-000000000001','places.address',2::smallint),true,
+  'capability helper accepts a valid edit threshold');
+select is(collaboration_private.has_wedding_capability('72000000-0000-4000-8000-000000000001','places.address',null::smallint),false,
+  'capability helper rejects a NULL threshold');
+select is(collaboration_private.has_wedding_capability('72000000-0000-4000-8000-000000000001','places.address',0::smallint),false,
+  'capability helper rejects threshold zero');
+select is(collaboration_private.has_wedding_capability('72000000-0000-4000-8000-000000000001','places.address',(-1)::smallint),false,
+  'capability helper rejects negative threshold');
+select is(collaboration_private.has_wedding_capability('72000000-0000-4000-8000-000000000001','places.address',3::smallint),false,
+  'capability helper rejects threshold above edit');
+
+select throws_ok($$update public.wedding_collaboration_invitations set access_configuration_version=1,role_key=null,access_mode='viewer',permission_group_mapping_version='1' where id='74000000-0000-4000-8000-000000000002'$$::text,
+  null::character,null::text,'version-1 invitation rejects NULL role'::text);
+select throws_ok($$update public.wedding_collaboration_invitations set access_configuration_version=1,role_key='unspecified',access_mode=null,permission_group_mapping_version='1' where id='74000000-0000-4000-8000-000000000002'$$::text,
+  null::character,null::text,'version-1 invitation rejects NULL access mode'::text);
+select throws_ok($$update public.wedding_collaboration_invitations set access_configuration_version=1,role_key='unspecified',access_mode='viewer',permission_group_mapping_version=null where id='74000000-0000-4000-8000-000000000002'$$::text,
+  null::character,null::text,'version-1 invitation rejects NULL mapping version'::text);
+select throws_ok($$update public.wedding_collaboration_invitations set access_configuration_version=1,role_key='unspecified',access_mode='viewer',permission_group_mapping_version='2' where id='74000000-0000-4000-8000-000000000002'$$::text,
+  null::character,null::text,'version-1 invitation rejects unsupported mapping version'::text);
+select throws_ok($$update public.wedding_collaboration_invitations set access_configuration_version=1,role_key='system:Bad Role',access_mode='viewer',permission_group_mapping_version='1' where id='74000000-0000-4000-8000-000000000002'$$::text,
+  null::character,null::text,'version-1 invitation rejects malformed role key'::text);
+select throws_ok($$update public.wedding_collaboration_invitations set access_configuration_version=1,role_key='custom',custom_role_label=null,access_mode='custom',permission_group_mapping_version='1' where id='74000000-0000-4000-8000-000000000002'$$::text,
+  null::character,null::text,'version-1 custom role rejects NULL label'::text);
+select throws_ok($$update public.wedding_collaboration_invitations set access_configuration_version=1,role_key='custom',custom_role_label='   ',access_mode='custom',permission_group_mapping_version='1' where id='74000000-0000-4000-8000-000000000002'$$::text,
+  null::character,null::text,'version-1 custom role rejects blank label'::text);
+select throws_ok($$update public.wedding_collaboration_invitations set access_configuration_version=1,role_key='system:planner',custom_role_label='Planner',access_mode='viewer',permission_group_mapping_version='1' where id='74000000-0000-4000-8000-000000000002'$$::text,
+  null::character,null::text,'non-custom role rejects custom label'::text);
+select lives_ok($$update public.wedding_collaboration_invitations set access_configuration_version=1,role_key='system:planner',custom_role_label=null,access_mode='viewer',permission_group_mapping_version='1' where id='74000000-0000-4000-8000-000000000002'$$,
+  'version-1 Viewer invitation is valid');
+select lives_ok($$update public.wedding_collaboration_invitations set role_key='system:planner',access_mode='editor' where id='74000000-0000-4000-8000-000000000002'$$,
+  'version-1 Editor invitation is valid');
+select lives_ok($$update public.wedding_collaboration_invitations set role_key='custom',custom_role_label='Planner',access_mode='custom' where id='74000000-0000-4000-8000-000000000002'$$,
+  'version-1 Custom invitation is valid');
+update public.wedding_collaboration_invitations set access_configuration_version=0,role_key=null,
+  custom_role_label=null,access_mode=null,permission_group_mapping_version=null
+where id='74000000-0000-4000-8000-000000000002';
 
 set local role authenticated;
 select set_config('request.jwt.claim.sub','71000000-0000-4000-8000-000000000002',true);
@@ -153,8 +207,8 @@ insert into collaboration_private.membership_permission_grants(membership_id,cap
 values (current_setting('test.onece_membership_id')::uuid,'places.structure',2);
 set local role authenticated;
 select set_config('request.jwt.claim.sub','71000000-0000-4000-8000-000000000002',true);
-select throws_ok($$select public.update_collaborative_wedding_place('72000000-0000-4000-8000-000000000001','ceremony','Forbidden','1')$$,
-  'P0001','FORBIDDEN','missing Custom address grant denies address mutation');
+select throws_ok($$select public.update_collaborative_wedding_place('72000000-0000-4000-8000-000000000001','ceremony','Forbidden','1')$$::text,
+  null::character,'FORBIDDEN'::text,'missing Custom address grant denies address mutation'::text);
 select ok(public.get_collaborative_wedding_detail('72000000-0000-4000-8000-000000000001')->'places'->0->>'formatted_address' is null,
   'missing Custom address grant hides address from curated detail');
 select ok(not (public.get_my_wedding_access_context('72000000-0000-4000-8000-000000000001')::text ~ 'places.structure'),
@@ -164,12 +218,12 @@ delete from collaboration_private.membership_permission_grants
 where membership_id=current_setting('test.onece_membership_id')::uuid and capability_key='schedule.operational_time';
 set local role authenticated;
 select set_config('request.jwt.claim.sub','71000000-0000-4000-8000-000000000002',true);
-select throws_ok($$select public.update_collaborative_operational_time('72000000-0000-4000-8000-000000000001','ceremony','15:00','1')$$,
-  'P0001','FORBIDDEN','missing Custom operational-time grant denies time mutation');
+select throws_ok($$select public.update_collaborative_operational_time('72000000-0000-4000-8000-000000000001','ceremony','15:00','1')$$::text,
+  null::character,'FORBIDDEN'::text,'missing Custom operational-time grant denies time mutation'::text);
 select ok(not ((public.get_my_wedding_access_context('72000000-0000-4000-8000-000000000001')->'capabilities')::text like '%schedule.operational_time%'),
   'missing Custom operational-time grant resolves to none');
-select throws_ok($$select public.get_my_wedding_access_context('72000000-0000-4000-8000-000000000002')$$,
-  'P0001','UNAVAILABLE','pending invitee receives unavailable access context');
+select throws_ok($$select public.get_my_wedding_access_context('72000000-0000-4000-8000-000000000002')$$::text,
+  null::character,'UNAVAILABLE'::text,'pending invitee receives unavailable access context'::text);
 reset role;
 
 set local role authenticated;
@@ -192,6 +246,18 @@ select is(public.accept_wedding_collaboration_invite('74000000-0000-4000-8000-00
   '75000000-0000-4000-8000-000000000003')->>'duplicate','true',
   'legacy acceptance replay is idempotent');
 reset role;
+set local role authenticated;
+select set_config('request.jwt.claim.sub','71000000-0000-4000-8000-000000000002',true);
+select is(public.accept_wedding_collaboration_invite('74000000-0000-4000-8000-000000000003',
+  '75000000-0000-4000-8000-000000000007')->>'status','accepted',
+  'version-1 Custom invitation accepts using server-held grants');
+reset role;
+select ok((select m.role_key='custom' and m.custom_role_label='Planner' and m.access_mode='custom'
+  and (select count(*)=2 from collaboration_private.membership_permission_grants g where g.membership_id=m.id)
+  and exists(select 1 from collaboration_private.membership_permission_grants g where g.membership_id=m.id and g.capability_key='wedding.identity' and g.level=1)
+  and exists(select 1 from collaboration_private.membership_permission_grants g where g.membership_id=m.id and g.capability_key='places.address' and g.level=2)
+  from public.wedding_collaboration_memberships m where m.accepted_invitation_id='74000000-0000-4000-8000-000000000003'),
+  'version-1 acceptance snapshots exactly the invitation-authorized grants');
 
 delete from collaboration_private.membership_permission_grants
 where membership_id=(select id from public.wedding_collaboration_memberships
@@ -213,8 +279,8 @@ select set_config('request.jwt.claim.sub','71000000-0000-4000-8000-000000000002'
 select is(public.get_my_wedding_access_context('72000000-0000-4000-8000-000000000001')->'capabilities',
   '[{"key":"places.address","level":"view"},{"key":"schedule.operational_time","level":"view"},{"key":"wedding.identity","level":"view"}]'::jsonb,
   'Viewer receives exactly the three frozen active view defaults');
-select throws_ok($$select public.update_collaborative_wedding_place('72000000-0000-4000-8000-000000000001','ceremony','No edit','1')$$,
-  'P0001','FORBIDDEN','Viewer cannot edit address');
+select throws_ok($$select public.update_collaborative_wedding_place('72000000-0000-4000-8000-000000000001','ceremony','No edit','1')$$::text,
+  null::character,'FORBIDDEN'::text,'Viewer cannot edit address'::text);
 reset role;
 
 update public.wedding_collaboration_memberships set access_mode='editor'
@@ -240,21 +306,21 @@ select ok(public.get_my_wedding_access_context('72000000-0000-4000-8000-00000000
   'owner is not represented as Editor');
 reset role;
 
-select throws_ok($$select public.get_collaborative_wedding_operational_edit_state('72000000-0000-4000-8000-000000000001')$$,
-  'P0001','UNAVAILABLE','owner does not use the collaborator-only operational endpoint');
+select throws_ok($$select public.get_collaborative_wedding_operational_edit_state('72000000-0000-4000-8000-000000000001')$$::text,
+  null::character,'UNAVAILABLE'::text,'owner does not use the collaborator-only operational endpoint'::text);
 
 set local role authenticated;
 select set_config('request.jwt.claim.sub','71000000-0000-4000-8000-000000000003',true);
-select throws_ok($$select public.get_my_wedding_access_context('72000000-0000-4000-8000-000000000001')$$,
-  'P0001','UNAVAILABLE','unrelated authenticated actor has no access context');
+select throws_ok($$select public.get_my_wedding_access_context('72000000-0000-4000-8000-000000000001')$$::text,
+  null::character,'UNAVAILABLE'::text,'unrelated authenticated actor has no access context'::text);
 select is(public.get_collaborative_wedding_detail('72000000-0000-4000-8000-000000000001'),null,
   'unrelated actor receives no detail projection');
-select throws_ok($$select public.get_collaborative_wedding_operational_edit_state('72000000-0000-4000-8000-000000000001')$$,
-  'P0001','UNAVAILABLE','unrelated actor cannot read edit state');
-select throws_ok($$select public.update_collaborative_wedding_place('72000000-0000-4000-8000-000000000001','ceremony','No access','1')$$,
-  'P0001','UNAVAILABLE','unrelated actor address write is unavailable');
-select throws_ok($$select public.update_collaborative_operational_time('72000000-0000-4000-8000-000000000001','ceremony','15:00','1')$$,
-  'P0001','UNAVAILABLE','unrelated actor time write is unavailable');
+select throws_ok($$select public.get_collaborative_wedding_operational_edit_state('72000000-0000-4000-8000-000000000001')$$::text,
+  null::character,'UNAVAILABLE'::text,'unrelated actor cannot read edit state'::text);
+select throws_ok($$select public.update_collaborative_wedding_place('72000000-0000-4000-8000-000000000001','ceremony','No access','1')$$::text,
+  null::character,'UNAVAILABLE'::text,'unrelated actor address write is unavailable'::text);
+select throws_ok($$select public.update_collaborative_operational_time('72000000-0000-4000-8000-000000000001','ceremony','15:00','1')$$::text,
+  null::character,'UNAVAILABLE'::text,'unrelated actor time write is unavailable'::text);
 reset role;
 
 update public.collaboration_connections set status='ended',ended_at=pg_catalog.now()
@@ -274,8 +340,8 @@ select is((select access_version::text from public.wedding_collaboration_members
   where id=current_setting('test.onece_membership_id')::uuid),'2','revoke advances the authorization version');
 set local role authenticated;
 select set_config('request.jwt.claim.sub','71000000-0000-4000-8000-000000000002',true);
-select throws_ok($$select public.get_my_wedding_access_context('72000000-0000-4000-8000-000000000001')$$,
-  'P0001','UNAVAILABLE','revoked membership is unavailable despite retained grants');
+select throws_ok($$select public.get_my_wedding_access_context('72000000-0000-4000-8000-000000000001')$$::text,
+  null::character,'UNAVAILABLE'::text,'revoked membership is unavailable despite retained grants'::text);
 select is(public.get_collaborative_wedding_detail('72000000-0000-4000-8000-000000000001'),null,
   'revoked membership has no detail projection');
 reset role;
@@ -291,8 +357,8 @@ select is((select access_version::text from public.wedding_collaboration_members
   where accepted_invitation_id='74000000-0000-4000-8000-000000000002'),'2','leave advances the authorization version');
 set local role authenticated;
 select set_config('request.jwt.claim.sub','71000000-0000-4000-8000-000000000002',true);
-select throws_ok($$select public.get_my_wedding_access_context('72000000-0000-4000-8000-000000000002')$$,
-  'P0001','UNAVAILABLE','left membership is unavailable');
+select throws_ok($$select public.get_my_wedding_access_context('72000000-0000-4000-8000-000000000002')$$::text,
+  null::character,'UNAVAILABLE'::text,'left membership is unavailable'::text);
 reset role;
 
 select finish();

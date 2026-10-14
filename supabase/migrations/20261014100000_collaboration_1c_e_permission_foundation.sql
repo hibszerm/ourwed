@@ -2,6 +2,15 @@
 -- Atomic authority backfill; browser access remains RPC-only.
 begin;
 
+-- Take every lifecycle table lock before preflight, backfill, or DDL. NOWAIT is
+-- deliberate: if a lifecycle transaction already holds a later lock (for
+-- example membership before its notification trigger reads an invitation),
+-- abort this migration immediately and let that transaction finish.
+lock table public.wedding_collaboration_invitations,
+  public.wedding_collaboration_memberships,
+  public.wedding_collaboration_events
+  in access exclusive mode nowait;
+
 do $preflight$
 begin
   if to_regclass('public.wedding_collaboration_memberships') is null
@@ -129,6 +138,36 @@ cross join (values ('wedding.identity'::text,1::smallint),
                    ('schedule.operational_time'::text,2::smallint)) g(capability_key,level)
 where m.status='active';
 
+-- A pre-migration acceptance call can resolve the old PL/pgSQL body before it
+-- blocks behind the lifecycle table locks, then resume after commit. Seed the
+-- legacy v0 authority snapshot at the membership boundary so that this old
+-- body cannot create an active membership without its frozen defaults.
+create function collaboration_private.seed_legacy_membership_permission_grants()
+returns trigger
+language plpgsql
+security definer
+set search_path = ''
+as $$
+declare v_access_configuration_version integer;
+begin
+  if new.status<>'active' or new.accepted_invitation_id is null then return new; end if;
+  select i.access_configuration_version into v_access_configuration_version
+  from public.wedding_collaboration_invitations i where i.id=new.accepted_invitation_id;
+  if v_access_configuration_version=0 then
+    insert into collaboration_private.membership_permission_grants(membership_id,capability_key,level)
+    values (new.id,'wedding.identity',1),
+      (new.id,'places.address',2),
+      (new.id,'schedule.operational_time',2)
+    on conflict (membership_id,capability_key) do nothing;
+  end if;
+  return new;
+end;
+$$;
+revoke all on function collaboration_private.seed_legacy_membership_permission_grants() from public,anon,authenticated,service_role;
+create trigger wedding_collaboration_membership_legacy_grant_seed
+  after insert on public.wedding_collaboration_memberships
+  for each row execute function collaboration_private.seed_legacy_membership_permission_grants();
+
 alter table public.wedding_collaboration_memberships
   add constraint wedding_collaboration_memberships_role_key_check
     check (role_key='unspecified' or role_key='custom' or role_key ~ '^system:[a-z][a-z0-9_]{0,62}$'),
@@ -149,8 +188,11 @@ alter table public.wedding_collaboration_invitations
       and access_mode is null and permission_group_mapping_version is null)
     or
     (access_configuration_version=1
+      and role_key is not null
       and (role_key='unspecified' or role_key='custom' or role_key ~ '^system:[a-z][a-z0-9_]{0,62}$')
+      and access_mode is not null
       and access_mode in ('viewer','editor','custom')
+      and permission_group_mapping_version is not null
       and permission_group_mapping_version='1'
       and ((role_key='custom' and custom_role_label is not null
               and custom_role_label=pg_catalog.btrim(custom_role_label)
@@ -245,13 +287,19 @@ create function collaboration_private.has_wedding_capability(
   p_required_level smallint
 )
 returns boolean
-language sql
+language plpgsql
 stable
 security definer
 set search_path = ''
 as $$
-  select p_required_level between 1 and 2
-    and collaboration_private.effective_wedding_capability_level(p_wedding_id,p_capability_key) >= p_required_level
+begin
+  if p_required_level is null or p_required_level not in (1,2) then
+    return false;
+  end if;
+  return coalesce(
+    collaboration_private.effective_wedding_capability_level(p_wedding_id,p_capability_key) >= p_required_level,
+    false);
+end;
 $$;
 
 create function public.get_my_wedding_access_context(p_wedding_id uuid)
@@ -817,7 +865,8 @@ begin
     insert into collaboration_private.membership_permission_grants(membership_id,capability_key,level)
     values (v_membership.id,'wedding.identity',1),
       (v_membership.id,'places.address',2),
-      (v_membership.id,'schedule.operational_time',2);
+      (v_membership.id,'schedule.operational_time',2)
+    on conflict (membership_id,capability_key) do nothing;
   elsif v_invite.access_configuration_version=1 then
     if v_invite.access_mode in ('viewer','editor') and exists (
       select 1 from collaboration_private.invitation_permission_grants g where g.invitation_id=v_invite.id

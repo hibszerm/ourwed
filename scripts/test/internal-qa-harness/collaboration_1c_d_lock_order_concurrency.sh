@@ -236,7 +236,8 @@ select m.id,g.capability_key,g.level
 from public.wedding_collaboration_memberships m
 cross join (values ('wedding.identity'::text,1::smallint),('places.address'::text,2::smallint),
                    ('schedule.operational_time'::text,2::smallint)) g(capability_key,level)
-where m.owner_user_id='$owner_id' and m.status='active';
+where m.owner_user_id='$owner_id' and m.status='active'
+on conflict (membership_id,capability_key) do update set level=excluded.level;
 insert into public.wedding_places(id,wedding_id,role,formatted_address,sort_order,place_id,latitude,longitude)
 values ('1cd10000-0000-4000-8000-000000000301','1cd10000-0000-4000-8000-000000000101','ceremony','Race baseline A',30,'place-a',1,2),
        ('1cd10000-0000-4000-8000-000000000302','1cd10000-0000-4000-8000-000000000102','ceremony','Race baseline B',30,'place-b',1,2),

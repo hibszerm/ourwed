@@ -110,7 +110,8 @@ cross join (values ('wedding.identity'::text,1::smallint),('places.address'::tex
                    ('schedule.operational_time'::text,2::smallint)) g(capability_key,level)
 where m.status='active' and m.wedding_id in ('21000000-0000-4000-8000-000000000001',
  '21000000-0000-4000-8000-000000000002','21000000-0000-4000-8000-000000000003',
- '21000000-0000-4000-8000-000000000004','21000000-0000-4000-8000-000000000006');
+ '21000000-0000-4000-8000-000000000004','21000000-0000-4000-8000-000000000006')
+on conflict (membership_id,capability_key) do update set level=excluded.level;
 select set_config('test.member_membership_id', (select id::text from public.wedding_collaboration_memberships
   where wedding_id='21000000-0000-4000-8000-000000000001'
     and member_user_id='11000000-0000-4000-8000-000000000002'), true);

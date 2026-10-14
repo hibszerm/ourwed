@@ -53,7 +53,8 @@ select m.id,g.capability_key,g.level
 from public.wedding_collaboration_memberships m
 cross join (values ('wedding.identity'::text,1::smallint),('places.address'::text,2::smallint),
                    ('schedule.operational_time'::text,2::smallint)) g(capability_key,level)
-where m.accepted_invitation_id='$invite_id';
+where m.accepted_invitation_id='$invite_id'
+on conflict (membership_id,capability_key) do update set level=excluded.level;
 insert into public.wedding_places(id,wedding_id,role,formatted_address,sort_order,place_id,latitude,longitude)
 values('$place_id','$wedding_id','ceremony','Original address',30,'fixture-place',1,2);
 commit;
