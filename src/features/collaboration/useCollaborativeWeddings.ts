@@ -19,6 +19,8 @@ export const collaborativeWeddingQueryKeys = {
     ['collaboration', 'wedding', userId, weddingId] as const,
   editState: (userId: string | undefined, weddingId: string) =>
     ['collaboration', 'wedding-edit-state', userId, weddingId] as const,
+  accessContext: (userId: string | undefined, weddingId: string) =>
+    ['my-wedding-access-context', userId, weddingId] as const,
 }
 
 export function clearCollaborativeWeddingAccess(
@@ -93,6 +95,17 @@ export function useCollaborativeWeddingOperationalEditState(weddingId: string, e
   })
 }
 
+export function useMyWeddingAccessContext(weddingId: string, enabled = true) {
+  const { user } = useAuth()
+  const userId = user?.id
+  return useQuery({
+    queryKey: collaborativeWeddingQueryKeys.accessContext(userId, weddingId),
+    queryFn: () => collaborativeWeddingService.getMyAccessContext(weddingId),
+    enabled: Boolean(userId && weddingId && enabled),
+    ...freshness,
+  })
+}
+
 function useOperationalMutationCallbacks() {
   const queryClient = useQueryClient()
   const navigate = useNavigate()
@@ -118,6 +131,13 @@ function useOperationalMutationCallbacks() {
       navigate('/wspolpraca/sluby', {
         replace: true,
         state: { accessEnded: true, accessEndedWeddingId: weddingId, accessEndedUserId: userId },
+      })
+    } else if (isCollaborationError(error, 'FORBIDDEN')) {
+      clearCollaborativeWeddingDetailAccess(queryClient, userId, weddingId)
+      await queryClient.fetchQuery({
+        queryKey: collaborativeWeddingQueryKeys.accessContext(userId, weddingId),
+        queryFn: () => collaborativeWeddingService.getMyAccessContext(weddingId),
+        staleTime: 0,
       })
     } else if (isCollaborationError(error, 'CONFLICT')) {
       await refreshWedding(weddingId)

@@ -64,6 +64,13 @@ function mapDetail(value: unknown): CollaborativeWeddingDetail | null {
 }
 
 export const collaborativeWeddingService = {
+  async getMyAccessContext(weddingId: string): Promise<Record<string, unknown>> {
+    const { data, error } = await supabase.rpc('get_my_wedding_access_context', { p_wedding_id: weddingId })
+    if (error) throw collaborativeReadError(error, true)
+    if (!data || typeof data !== 'object' || Array.isArray(data)) throw new CollaborativeReadError('UNKNOWN')
+    return data as Record<string, unknown>
+  },
+
   async listCollaborativeWeddings(cursor: CollaborativeWeddingCursor): Promise<CollaborativeWeddingListItem[]> {
     const { data, error } = await supabase.rpc('list_my_collaborative_weddings', {
       p_after_wedding_date: cursor.afterWeddingDate,

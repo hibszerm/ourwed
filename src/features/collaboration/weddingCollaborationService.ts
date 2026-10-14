@@ -1,5 +1,7 @@
 import { supabase } from '@/lib/supabase'
 import { collaborationService } from '@/features/collaboration/collaborationService'
+import type { CollaborationAccessModeV1, CollaborationRoleKeyV1 } from './roleCatalog.v1'
+import type { CollaborationAccessManagementDto, CustomCapabilityGrant } from './accessManagementTypes'
 
 export type WeddingInvitationStatus =
   | 'pending'
@@ -52,6 +54,19 @@ export interface WeddingCollaborationState {
   active_memberships: WeddingCollaborationMembership[]
 }
 
+export interface WeddingCollaborationAccessPreviews {
+  viewer_preview: CustomCapabilityGrant[]
+  editor_preview: CustomCapabilityGrant[]
+  permission_group_mapping_version: '1'
+}
+
+export interface AccessConfigurationInput {
+  roleKey: CollaborationRoleKeyV1
+  customRoleLabel: string | null
+  accessMode: CollaborationAccessModeV1
+  customGrants: CustomCapabilityGrant[] | null
+}
+
 function newIdempotencyKey(): string {
   return crypto.randomUUID()
 }
@@ -70,6 +85,7 @@ function rpcError(error: { message: string }): Error {
     'invitation_unavailable',
     'membership_unavailable',
     'invalid_proposed_share_amount',
+    'FORBIDDEN', 'UNAVAILABLE', 'CONFLICT', 'VALIDATION_ERROR',
   ]
   const code = known.find((candidate) => error.message.includes(candidate))
   return new Error(code ?? 'unknown')
@@ -128,20 +144,73 @@ export const weddingCollaborationService = {
     return (await collaborationService.getState()).connections
   },
 
-  async createInvitation(
+  async getAccessPreviews(weddingId: string): Promise<WeddingCollaborationAccessPreviews> {
+    const { data, error } = await supabase.rpc('get_wedding_collaboration_access_previews', {
+      p_wedding_id: weddingId,
+    })
+    if (error) throw rpcError(error)
+    return data as WeddingCollaborationAccessPreviews
+  },
+
+  async createConfiguredInvitation(
     weddingId: string,
     connectionId: string,
     proposedShareAmount: number | null,
+    configuration: AccessConfigurationInput,
     idempotencyKey = newIdempotencyKey(),
   ) {
-    const { data, error } = await supabase.rpc('create_wedding_collaboration_invite_from_connection', {
+    const { data, error } = await supabase.rpc('create_wedding_collaboration_invitation_configured', {
       p_wedding_id: weddingId,
       p_connection_id: connectionId,
       p_proposed_share_amount: proposedShareAmount,
       p_idempotency_key: idempotencyKey,
+      p_role_key: configuration.roleKey,
+      p_custom_role_label: configuration.customRoleLabel,
+      p_access_mode: configuration.accessMode,
+      p_custom_grants: configuration.customGrants,
     })
     if (error) throw rpcError(error)
     return data as { status: string; invitation_id?: string; duplicate?: boolean }
+  },
+
+  async getMembershipAccessManagement(weddingId: string, membershipId: string) {
+    const { data, error } = await supabase.rpc('get_wedding_collaboration_membership_access_management', {
+      p_wedding_id: weddingId, p_membership_id: membershipId,
+    })
+    if (error) throw rpcError(error)
+    return data as CollaborationAccessManagementDto
+  },
+
+  async getInvitationAccessManagement(weddingId: string, invitationId: string) {
+    const { data, error } = await supabase.rpc('get_wedding_collaboration_invitation_access_management', {
+      p_wedding_id: weddingId, p_invitation_id: invitationId,
+    })
+    if (error) throw rpcError(error)
+    return data as CollaborationAccessManagementDto
+  },
+
+  async updateMembershipAccess(weddingId: string, membershipId: string, expectedAccessVersion: string,
+    configuration: AccessConfigurationInput) {
+    const { data, error } = await supabase.rpc('update_wedding_collaboration_membership_access', {
+      p_wedding_id: weddingId, p_membership_id: membershipId,
+      p_expected_access_version: expectedAccessVersion, p_role_key: configuration.roleKey,
+      p_custom_role_label: configuration.customRoleLabel, p_access_mode: configuration.accessMode,
+      p_custom_grants: configuration.customGrants,
+    })
+    if (error) throw rpcError(error)
+    return data as { changed: boolean; access_version: string; configuration: CollaborationAccessManagementDto }
+  },
+
+  async updateInvitationAccess(weddingId: string, invitationId: string, expectedRevision: string,
+    configuration: AccessConfigurationInput) {
+    const { data, error } = await supabase.rpc('update_wedding_collaboration_invitation_access', {
+      p_wedding_id: weddingId, p_invitation_id: invitationId,
+      p_expected_configuration_revision: expectedRevision, p_role_key: configuration.roleKey,
+      p_custom_role_label: configuration.customRoleLabel, p_access_mode: configuration.accessMode,
+      p_custom_grants: configuration.customGrants,
+    })
+    if (error) throw rpcError(error)
+    return data as { changed: boolean; configuration_revision: string; configuration: CollaborationAccessManagementDto }
   },
 
   async acceptInvitation(id: string) {

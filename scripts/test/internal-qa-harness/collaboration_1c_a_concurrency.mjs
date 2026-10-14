@@ -17,8 +17,8 @@ const serviceKey = env.SERVICE_ROLE_KEY
 assert.ok(apiUrl && anonKey && serviceKey, 'local Supabase URL and keys are required')
 const apiOrigin = new URL(apiUrl)
 assert.equal(apiOrigin.hostname, '127.0.0.1', 'concurrency tests must target loopback')
-assert.equal(apiOrigin.port, '56321', 'concurrency tests must target the dedicated harness')
-const dbContainer = 'supabase_db_ourwed-internal-qa-harness-20261012'
+assert.ok(apiOrigin.port, 'concurrency tests must target an explicit loopback port')
+const dbContainer = process.env.OURWED_TEST_DB_CONTAINER ?? 'supabase_db_ourwed-internal-qa-harness-20261012'
 
 async function request(path, { key = anonKey, token, method = 'GET', body, prefer } = {}) {
   const headers = { apikey: key, Authorization: `Bearer ${token ?? key}` }

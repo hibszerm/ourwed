@@ -226,9 +226,10 @@ select ok(position('pg_advisory_xact_lock(1330918916,1)' in d) < position('sourc
 select ok(position('source-contract:' in pg_get_functiondef('public.update_collaborative_operational_time(uuid,text,text,text)'::regprocedure))=0,
   'time RPC deliberately skips S');
 with f as (select pg_get_functiondef('public.revoke_wedding_collaboration_membership(uuid,uuid)'::regprocedure) as d)
-select ok(position('public.wedding_collaboration_lock_users(array[v_actor,v_member_id])' in d)
-    < position('where w.id=v_wedding_id for update' in d)
-    and position('where id=p_membership_id for update' in substring(d from position('where w.id=v_wedding_id for update' in d))) > 0,
+select ok(position('public.wedding_collaboration_lock_users(array[v_actor,v_peek.member_user_id])' in d)
+    < position('from public.weddings w where w.id=v_peek.wedding_id and w.user_id=v_actor for update' in d)
+    and position('from public.wedding_collaboration_memberships m where m.id=p_membership_id for update'
+      in substring(d from position('from public.weddings w where w.id=v_peek.wedding_id and w.user_id=v_actor for update' in d))) > 0,
   'membership revoke locks both participants before wedding and membership to preserve canonical user → wedding → membership order') from f;
 select ok((select prosecdef and proconfig @> array['search_path=""'] from pg_catalog.pg_proc
   where oid='public.lock_contract_recovery_actor(uuid)'::regprocedure)

@@ -1,4 +1,4 @@
-export type CollaborativeReadErrorKind = 'UNAVAILABLE' | 'TRANSIENT' | 'UNKNOWN'
+export type CollaborativeReadErrorKind = 'UNAVAILABLE' | 'FORBIDDEN' | 'TRANSIENT' | 'UNKNOWN'
 
 export class CollaborativeReadError extends Error {
   readonly kind: CollaborativeReadErrorKind
@@ -28,6 +28,9 @@ export function collaborativeReadError(error: unknown, allowUnavailableSignal = 
   const fields = errorFields(error)
   if (allowUnavailableSignal && fields?.code === 'P0001' && fields.message === 'UNAVAILABLE') {
     return new CollaborativeReadError('UNAVAILABLE')
+  }
+  if (allowUnavailableSignal && fields?.code === 'P0001' && fields.message === 'FORBIDDEN') {
+    return new CollaborativeReadError('FORBIDDEN')
   }
   if (!fields || fields.status === undefined || fields.status >= 500) {
     return new CollaborativeReadError('TRANSIENT')

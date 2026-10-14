@@ -13,6 +13,7 @@
     "test:collaboration-1c-b": "TSX_TSCONFIG_PATH=tsconfig.app.json node --import tsx src/features/collaboration/collaboration1cBAcceptance.test.ts && node scripts/test/internal-qa-harness/collaboration_1c_b_mobile_viewport.mjs",
     "test:collaboration-1c-c": "TSX_TSCONFIG_PATH=tsconfig.app.json node --import tsx src/features/collaboration/collaboration1cCAcceptance.test.ts && node scripts/test/internal-qa-harness/collaboration_1c_c_mobile_viewport.mjs",
     "test:collaboration-1c-d": "TSX_TSCONFIG_PATH=tsconfig.app.json node --import tsx src/features/collaboration/collaboration1cDAcceptance.test.ts",
+    "test:collaboration-1c-f": "TSX_TSCONFIG_PATH=tsconfig.app.json node --import tsx src/features/collaboration/collaboration1cFAcceptance.test.ts",
     "test:collaboration-1c-d-behavioral": "node scripts/test/internal-qa-harness/collaboration_1c_c_behavioral.mjs /private/tmp/ourwed-internal-qa-harness-20261012/local.env",
     "test:collaboration-1c-d-concurrency": "sh scripts/test/internal-qa-harness/collaboration_1c_d_concurrency.sh",
     "test:collaboration-1c-d-lock-order": "sh scripts/test/internal-qa-harness/collaboration_1c_d_lock_order_concurrency.sh",
@@ -308,7 +309,8 @@
     "test:cg76-total-price": "npx tsx --tsconfig tsconfig.app.json src/features/ai-contract-transform/cg76TotalPriceCompletenessAcceptance.test.ts",
     "test:golden-contract-validation": "npx tsx --tsconfig tsconfig.app.json src/features/ai-contract-transform/cg7/runGoldenValidation.ts",
     "test:golden-fix1-party-ownership": "npx tsx --tsconfig tsconfig.app.json src/features/ai-contract-transform/goldenFix1PartyOwnershipAcceptance.test.ts",
-    "test:golden-fix2-fact-surface": "npx tsx --tsconfig tsconfig.app.json src/features/ai-contract-transform/goldenFix2FactSurfaceAcceptance.test.ts"
+    "test:golden-fix2-fact-surface": "npx tsx --tsconfig tsconfig.app.json src/features/ai-contract-transform/goldenFix2FactSurfaceAcceptance.test.ts",
+    "test:collaboration-1c-f-behavioral": "node scripts/test/internal-qa-harness/collaboration_1c_f_behavioral.mjs /private/tmp/ourwed-1cf-test/local.env"
   },
   "dependencies": {
     "@googlemaps/js-api-loader": "^2.1.1",

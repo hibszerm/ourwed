@@ -65,9 +65,9 @@ check(service.includes("'get_wedding_collaboration_invitation_preview'"), 'clien
 check(service.includes("'list_my_wedding_collaboration_invitations'"), 'client incoming list uses the actor-bound RPC')
 check(service.includes("'get_wedding_collaboration_state'"), 'client owner panel uses the owner state RPC')
 check(service.includes('collaborationService.getState()'), 'collaborator picker reuses the active global connection RPC')
-check(service.includes("'create_wedding_collaboration_invite_from_connection'")
+check(service.includes("'create_wedding_collaboration_invitation_configured'")
   && service.includes('p_connection_id: connectionId') && !service.includes('p_invitee_user_id'),
-  'owner invite service sends the connection ID to the server-side resolver')
+  'owner invite service sends the connection ID and explicit access config to configured creation')
 check(!service.includes('from(\'wedding_collaboration_invitations\')'), 'client never reads private collaboration tables directly')
 check(hooks.includes("['wedding-collaboration', userId, weddingId]"), 'owner state uses identity-scoped cache key')
 check(hooks.includes("['my-wedding-invitations', userId]"), 'incoming list uses identity-scoped cache key')

@@ -15,6 +15,9 @@ import {
   SettingsWorkspace,
 } from '@/features/settings/SettingsWorkspace'
 import { useAuth } from '@/features/auth/AuthProvider'
+import { useWeddings } from '@/features/weddings/hooks/useWeddings'
+import { CollaborationAccessManagementSheet } from '@/features/collaboration/CollaborationAccessManagementSheet'
+import { weddingCollaborationService } from '@/features/collaboration/weddingCollaborationService'
 import {
   collaborationService,
   type CollaborationConnection,
@@ -45,12 +48,26 @@ export function CollaborationSettingsPage() {
   const [busy, setBusy] = useState<string | null>(null)
   const [error, setError] = useState<string | null>(null)
   const [notice, setNotice] = useState<string | null>(null)
+  const [accessTarget, setAccessTarget] = useState<{ weddingId: string; membershipId?: string; invitationId?: string } | null>(null)
+  const accessManagementTriggerRef = useRef<HTMLButtonElement | null>(null)
   const idempotencyKeys = useRef(new Map<string, string>())
+  const weddings = useWeddings()
 
   const state = useQuery({
     queryKey: ['collaboration-settings', user?.id],
     queryFn: () => collaborationService.getState(),
     enabled: Boolean(user?.id),
+  })
+  const ownerWeddingStates = useQuery({
+    queryKey: ['wedding-collaboration', 'owner-settings', user?.id],
+    queryFn: async () => Promise.all((weddings.data ?? []).map(async (wedding) => ({
+      wedding,
+      state: await weddingCollaborationService.getOwnerState(wedding.id),
+    }))),
+    enabled: Boolean(user?.id && weddings.data),
+    staleTime: 0,
+    refetchOnMount: 'always',
+    refetchOnWindowFocus: true,
   })
 
   async function refresh() {
@@ -172,6 +189,34 @@ export function CollaborationSettingsPage() {
           {state.isPending ? <SettingsMuted>Ładowanie współpracy…</SettingsMuted> : null}
           {state.isError ? (
             <SettingsAlert>Nie udało się wczytać współpracy. Odśwież stronę i spróbuj ponownie.</SettingsAlert>
+          ) : null}
+
+          {ownerWeddingStates.data?.some(({ state: ownerState }) => (ownerState?.invitations.length ?? 0) > 0) ? (
+            <SettingsSection labelledBy="wedding-access-heading">
+              <SettingsSectionHeader id="wedding-access-heading" title="Dostęp do zleceń" />
+              <p className={styles.meta}>Zarządzaj rolą i zakresem dostępu osobno dla każdego zlecenia.</p>
+              {ownerWeddingStates.data.map(({ wedding, state: ownerState }) => {
+                const relevant = ownerState?.invitations.filter((invite) =>
+                  invite.status === 'pending' || (invite.status === 'accepted' && invite.membership_status === 'active')) ?? []
+                if (!relevant.length) return null
+                return <div className={styles.ownerAccessWedding} key={wedding.id}>
+                  <h3 className={styles.name}>{wedding.displayName || `${wedding.couple.partner1} i ${wedding.couple.partner2}`}</h3>
+                  <ul className={styles.list}>
+                    {relevant.map((invite) => <li className={styles.row} key={invite.invitation_id}>
+                      <div><p className={styles.name}>{invite.collaborator_display_name}</p>
+                        <p className={styles.meta}>{invite.status === 'pending' ? 'Zaproszenie oczekuje' : 'Aktywny dostęp do zlecenia'}</p></div>
+                      <Button type="button" variant="ghost" onClick={(event) => {
+                        accessManagementTriggerRef.current = event.currentTarget
+                        setAccessTarget({ weddingId: wedding.id,
+                          ...(invite.status === 'pending' ? { invitationId: invite.invitation_id } : { membershipId: invite.membership_id ?? undefined }) })
+                      }}>
+                        Zarządzaj dostępem
+                      </Button>
+                    </li>)}
+                  </ul>
+                </div>
+              })}
+            </SettingsSection>
           ) : null}
 
           {state.data && state.data.incoming_pending.length > 0 ? (
@@ -304,6 +349,8 @@ export function CollaborationSettingsPage() {
           <p className={styles.name}>{endTarget.display_name}</p>
         </Modal>
       ) : null}
+      {accessTarget ? <CollaborationAccessManagementSheet {...accessTarget} returnFocusTargetRef={accessManagementTriggerRef}
+        onClose={() => setAccessTarget(null)} /> : null}
     </SettingsLayout>
   )
 }

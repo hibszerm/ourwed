@@ -21,7 +21,7 @@ const serviceKey = env.SERVICE_ROLE_KEY
 assert.ok(apiUrl && anonKey && serviceKey, 'local Supabase URL and keys are required')
 const apiOrigin = new URL(apiUrl)
 assert.equal(apiOrigin.hostname, '127.0.0.1', 'behavior tests must target loopback')
-assert.equal(apiOrigin.port, '56321', 'behavior tests must target the disposable local harness')
+assert.ok(apiOrigin.port, 'behavior tests must target an explicit loopback port')
 
 async function api(path, { key = anonKey, token, method = 'GET', body } = {}) {
   const response = await fetch(`${apiUrl}${path}`, {

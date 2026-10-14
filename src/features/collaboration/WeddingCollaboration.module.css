@@ -91,6 +91,19 @@
   font: inherit;
 }
 
+.accessChoice { display: grid; gap: 8px; margin: 0; padding: 0; border: 0; }
+.accessChoice legend { margin-bottom: 6px; font-weight: 600; }
+.accessChoice label { display: flex; gap: 10px; align-items: flex-start; min-height: 44px; padding: 9px 11px; border: 1px solid var(--border-subtle, var(--color-border)); border-radius: 10px; }
+.accessChoice input { width: 20px; height: 20px; min-height: 20px; margin: 1px 0 0; flex: 0 0 auto; accent-color: var(--color-text-primary); }
+.accessChoice label span { display: grid; gap: 3px; }
+.accessChoice small { color: var(--color-text-secondary); line-height: 1.4; }
+.inviteMatrix { display: grid; gap: 8px; }
+.inviteMatrixRow { display: grid; grid-template-columns: minmax(130px, 1fr) minmax(150px, .9fr); gap: 10px; align-items: center; }
+.segment { display: flex; gap: 3px; max-width: 100%; padding: 3px; border-radius: 10px; background: var(--surface-secondary, var(--color-bg)); }
+.segment button { flex: 1; min-width: 50px; min-height: 44px; padding: 5px 8px; border: 1px solid transparent; border-radius: 8px; background: transparent; color: inherit; font: inherit; font-size: .82rem; cursor: pointer; }
+.segmentSelected { border-color: var(--border-subtle, var(--color-border)) !important; background: var(--surface-primary, var(--color-surface)) !important; box-shadow: 0 1px 3px rgb(0 0 0 / 8%); }
+.segment button:focus-visible { outline: 2px solid var(--color-focus, #4f76c7); outline-offset: 2px; }
+
 .amountField {
   display: flex;
   align-items: center;
@@ -293,4 +306,6 @@
   .invitePage {
     max-height: calc(100dvh - max(20px, env(safe-area-inset-top)) - max(20px, env(safe-area-inset-bottom)));
   }
+
+  .inviteMatrixRow { grid-template-columns: 1fr; gap: 5px; }
 }

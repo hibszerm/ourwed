@@ -1,7 +1,7 @@
 #!/bin/sh
 set -eu
 
-container=supabase_db_ourwed-internal-qa-harness-20261012
+container=${OURWED_TEST_DB_CONTAINER:-supabase_db_ourwed-internal-qa-harness-20261012}
 migration=${1:-supabase/migrations/20261014100000_collaboration_1c_e_permission_foundation.sql}
 db_migration_first=ourwed_1ce_race_migration_first
 db_accept_first=ourwed_1ce_race_accept_first

@@ -18,6 +18,7 @@ export type CollaborationCommandErrorCode =
   | 'VALIDATION_ERROR'
   | 'CONFLICT'
   | 'UNAVAILABLE'
+  | 'FORBIDDEN'
   | 'NETWORK_ERROR'
   | 'SERVER_ERROR'
 
@@ -88,7 +89,7 @@ function domainError(error: unknown): Error {
   if (!error || typeof error !== 'object') return new Error('SERVER_ERROR')
   const value = error as Record<string, unknown>
   if (value.code === 'P0001' && typeof value.message === 'string') {
-    for (const code of ['VALIDATION_ERROR', 'CONFLICT', 'UNAVAILABLE'] as const) {
+    for (const code of ['VALIDATION_ERROR', 'CONFLICT', 'UNAVAILABLE', 'FORBIDDEN'] as const) {
       if (value.message === code) return new Error(code)
     }
   }

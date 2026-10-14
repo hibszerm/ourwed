@@ -1,7 +1,7 @@
 #!/bin/sh
 set -eu
 
-db_container=supabase_db_ourwed-internal-qa-harness-20261012
+db_container=${OURWED_TEST_DB_CONTAINER:-supabase_db_ourwed-internal-qa-harness-20261012}
 db_name=${OURWED_TEST_DATABASE:-postgres}
 owner_id=1cd00000-0000-4000-8000-000000000001
 member_id=1cd00000-0000-4000-8000-000000000002
