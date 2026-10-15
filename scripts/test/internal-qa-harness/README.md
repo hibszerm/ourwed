@@ -145,3 +145,20 @@ deadlocks, partial DDL, duplicate lifecycle rows, and the exact three-grant
 legacy permission snapshot. It uses only the disposable local Supabase database
 container and keeps its replay databases for inspection; the next run rebuilds
 them from scratch.
+
+For Collaboration 1C-H1, apply the four additive migrations after 1C-G, then
+run the workspace/authority pgTAP matrix and the place-name optimistic race:
+
+```sh
+scripts/test/internal-qa-harness/run_pgtap.sh supabase/tests/collaboration_1c_h1_workspace_authority_test.sql
+sh scripts/test/internal-qa-harness/collaboration_1c_h1_name_concurrency.sh
+```
+
+The H1 race creates one disposable local owner/member/wedding with explicit v2
+name authority, issues two concurrent renames against one expected generation,
+and requires one commit plus one stale-version conflict. It removes only its
+fixed synthetic identities and wedding in cleanup. The lock-order runner uses
+legacy v1 memberships without activating Plan Day; v1 operational-time
+behavior remains available. In H1, Plan Day gates operational time only for
+mapping-v2 memberships and stays inactive until a later phase explicitly
+activates that canonical parent capability.

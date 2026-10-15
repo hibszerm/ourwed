@@ -1,15 +1,16 @@
 begin;
 select no_plan();
 
-select is((select count(*)::int from collaboration_private.capability_registry),13,
-  'registry contains exactly the 13 frozen capability keys');
+select is((select count(*)::int from collaboration_private.capability_registry),15,
+  'registry contains the 13 released keys and two explicit H1 keys');
 with expected(capability_key,active,grantable,owner_only,viewer_default,editor_default,introduced_version) as (
   values ('wedding.identity',true,true,false,1,1,1),('places.address',true,true,false,1,2,1),
     ('places.structure',false,true,false,0,0,1),('places.location_resolution',false,true,false,0,0,1),
     ('schedule.operational_time',true,true,false,1,2,1),('schedule.timeline',false,true,false,0,0,1),
     ('schedule.completion',false,true,false,0,0,1),('brief.curated',false,true,false,0,0,1),
     ('brief.artifact',false,true,false,0,0,1),('tasks',false,true,false,0,0,1),('notes',false,true,false,0,0,1),
-    ('travel.route',false,true,false,0,0,1),('travel.commercial',false,true,false,0,0,1)
+    ('travel.route',false,true,false,0,0,1),('travel.commercial',false,true,false,0,0,1),
+    ('places.name',true,true,false,0,0,2),('prewedding.plan_day',false,false,false,0,0,2)
 )
 select ok(not exists(
   (select capability_key,active,grantable,owner_only,viewer_default::int,editor_default::int,introduced_version
@@ -19,8 +20,9 @@ select ok(not exists(
    select capability_key,active,grantable,owner_only,viewer_default::int,editor_default::int,introduced_version
    from collaboration_private.capability_registry)
 ),'registry rows exactly match the frozen key/flag/default contract');
-select ok((select bool_and(introduced_version=1) from collaboration_private.capability_registry),
-  'all initial capabilities use registry version 1');
+select ok((select bool_and(introduced_version=1) from collaboration_private.capability_registry where capability_key not in ('places.name','prewedding.plan_day'))
+  and (select bool_and(introduced_version=2) from collaboration_private.capability_registry where capability_key in ('places.name','prewedding.plan_day')),
+  'released keys retain version 1 and H1 keys are explicitly version 2');
 select ok((select bool_and(viewer_default=0 and editor_default=0) from collaboration_private.capability_registry where not active),
   'inactive capabilities always have zero defaults');
 select is((select viewer_default::int from collaboration_private.capability_registry where capability_key='wedding.identity'),1,
@@ -155,7 +157,7 @@ select throws_ok($$update public.wedding_collaboration_invitations set access_co
   '23514'::character(5),'new row for relation "wedding_collaboration_invitations" violates check constraint "wedding_collaboration_invitations_access_config_check"'::text,'version-1 invitation rejects NULL access mode'::text);
 select throws_ok($$update public.wedding_collaboration_invitations set access_configuration_version=1,role_key='unspecified',access_mode='viewer',permission_group_mapping_version=null where id='74000000-0000-4000-8000-000000000002'$$::text,
   '23514'::character(5),'new row for relation "wedding_collaboration_invitations" violates check constraint "wedding_collaboration_invitations_access_config_check"'::text,'version-1 invitation rejects NULL mapping version'::text);
-select throws_ok($$update public.wedding_collaboration_invitations set access_configuration_version=1,role_key='unspecified',access_mode='viewer',permission_group_mapping_version='2' where id='74000000-0000-4000-8000-000000000002'$$::text,
+select throws_ok($$update public.wedding_collaboration_invitations set access_configuration_version=1,role_key='unspecified',access_mode='viewer',permission_group_mapping_version='3' where id='74000000-0000-4000-8000-000000000002'$$::text,
   '23514'::character(5),'new row for relation "wedding_collaboration_invitations" violates check constraint "wedding_collaboration_invitations_access_config_check"'::text,'version-1 invitation rejects unsupported mapping version'::text);
 select throws_ok($$update public.wedding_collaboration_invitations set access_configuration_version=1,role_key='system:Bad Role',access_mode='viewer',permission_group_mapping_version='1' where id='74000000-0000-4000-8000-000000000002'$$::text,
   '23514'::character(5),'new row for relation "wedding_collaboration_invitations" violates check constraint "wedding_collaboration_invitations_access_config_check"'::text,'version-1 invitation rejects malformed role key'::text);

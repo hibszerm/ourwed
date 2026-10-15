@@ -171,7 +171,7 @@ select is(public.update_collaborative_operational_time('21000000-0000-4000-8000-
 select is(public.update_collaborative_operational_time('21000000-0000-4000-8000-000000000001'::uuid,'ceremony',null,'1')->>'time_version','2','time tombstone advances generation');
 select is(public.get_collaborative_wedding_operational_edit_state('21000000-0000-4000-8000-000000000001'::uuid)->'places'->2->>'effective_operational_time','15:30','clearing ceremony override restores valid ceremony fallback');
 select is(public.get_collaborative_wedding_operational_edit_state('21000000-0000-4000-8000-000000000001'::uuid)->'places'->2->>'time_source','ceremony_fallback','edit state identifies fallback source');
-select throws_ok($$select public.update_collaborative_operational_time('21000000-0000-4000-8000-000000000001'::uuid,'ceremony','24:00','3')$$,'P0001','VALIDATION_ERROR','out-of-range time is rejected');
+select throws_ok($$select public.update_collaborative_operational_time('21000000-0000-4000-8000-000000000001'::uuid,'ceremony','24:00','3')$$,'P0001','VALIDATION_ERROR','time input validation retains precedence before authority evaluation');
 select throws_ok($$select public.update_collaborative_wedding_place('21000000-0000-4000-8000-000000000001'::uuid,'hotel','No','1')$$,'P0001','VALIDATION_ERROR','non-approved place role is rejected');
 select throws_ok($$select public.update_collaborative_wedding_place('21000000-0000-4000-8000-000000000001'::uuid,'ceremony',repeat('x',501),'1')$$,'P0001','VALIDATION_ERROR','oversized address is rejected');
 select throws_ok($$select public.update_collaborative_wedding_place('21000000-0000-4000-8000-000000000001'::uuid,'ceremony',E'bad\naddress','1')$$,'P0001','VALIDATION_ERROR','control characters in address are rejected');
@@ -192,6 +192,9 @@ where wedding_id='21000000-0000-4000-8000-000000000001' and stop_key='61000000-0
 reset role;
 select ok((select updated_by_user_id='11000000-0000-4000-8000-000000000001'::uuid and updated_source='owner'
  from public.wedding_places where wedding_id='21000000-0000-4000-8000-000000000001' and role='bride_preparation'),'existing owner place DML remains functional and records owner provenance');
+select is((select version::text from collaboration_private.wedding_operational_versions
+ where wedding_id='21000000-0000-4000-8000-000000000001' and resource_type='place_name' and role='bride_preparation'),'2',
+ 'existing owner label edit advances the separate place-name generation');
 select ok((select updated_by_user_id='11000000-0000-4000-8000-000000000001'::uuid and updated_source='owner'
  from public.wedding_operational_times where wedding_id='21000000-0000-4000-8000-000000000001' and stop_key='61000000-0000-4000-8000-000000000001'),'existing owner time DML remains functional and records owner provenance');
 select set_config('request.jwt.claim.sub','',true);

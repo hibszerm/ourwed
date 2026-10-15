@@ -7,8 +7,8 @@ select is((select max_custom_level::int from collaboration_private.capability_re
   'address Custom maximum allows edit');
 select is((select max_custom_level::int from collaboration_private.capability_registry where capability_key='schedule.operational_time'),2,
   'operational-time Custom maximum allows edit');
-select is((select count(*)::int from collaboration_private.capability_registry where not active and max_custom_level=0),10,
-  'all ten inactive capabilities remain fail-closed');
+select is((select count(*)::int from collaboration_private.capability_registry where not active and max_custom_level=0),11,
+  'all eleven inactive capabilities remain fail-closed, including Plan Day until H3');
 select ok(not has_table_privilege('authenticated','collaboration_private.capability_registry','select')
   and not has_table_privilege('authenticated','collaboration_private.membership_permission_grants','select')
   and not has_table_privilege('authenticated','collaboration_private.invitation_permission_grants','select'),
@@ -457,8 +457,8 @@ select is(collaboration_private.validate_owner_access_configuration('unspecified
 select throws_ok($$select collaboration_private.validate_owner_access_configuration('unspecified',null,'editor','[]'::jsonb)$$::text,
   null::character,'VALIDATION_ERROR'::text,'Editor rejects any Custom payload');
 select is((select count(*)::int from collaboration_private.capability_registry c
-  where c.active and c.viewer_default<=c.max_custom_level and c.editor_default<=c.max_custom_level),3,
-  'all active registry defaults fit their Custom maxima');
+  where c.active and c.viewer_default<=c.max_custom_level and c.editor_default<=c.max_custom_level),4,
+  'all active registry defaults, including zero-default places.name, fit their Custom maxima');
 select is((select count(*)::int from collaboration_private.capability_registry where not active and max_custom_level<>0),0,
   'inactive registry maximums remain zero with no activation');
 
