@@ -7,6 +7,8 @@ const service = read('src/features/collaboration/weddingCollaborationService.ts'
 const hooks = read('src/features/collaboration/useWeddingCollaboration.ts')
 const owner = read('src/features/collaboration/WeddingCollaborationOwnerPanel.tsx')
 const sheet = read('src/features/collaboration/CollaborationAccessManagementSheet.tsx')
+const matrix = read('src/features/collaboration/CollaborationPermissionMatrix.tsx')
+const matrixModel = read('src/features/collaboration/CollaborationPermissionMatrixModel.ts')
 const migration = read('supabase/migrations/20261014150000_collaboration_1c_f_owner_access_management.sql')
 const permissionHooks = read('src/features/collaboration/useCollaborativeWeddings.ts')
 
@@ -29,9 +31,11 @@ check(sheet.includes('viewer_preview') && sheet.includes('editor_preview') && sh
   'Custom entry uses server-provided current defaults')
 check(sheet.includes('Dostęp zmienił się w międzyczasie') && sheet.includes('Twoje ustawienia pozostają w formularzu'),
   'conflict and network failures retain the local draft')
-check(sheet.includes('role="radio"') && sheet.includes('aria-checked') && sheet.includes("import { Modal }")
+check(sheet.includes('<CollaborationPermissionMatrix') && matrix.includes('role="radio"')
+  && matrix.includes('aria-checked') && sheet.includes("import { Modal }")
   && !sheet.includes('window.confirm'), 'permission selectors and close confirmation use accessible app UI')
-check(sheet.includes("['wedding.identity']") && !sheet.includes("['wedding.identity', 'places.address']"),
+check(matrixModel.includes("capabilities: ['wedding.identity']")
+  && matrixModel.includes("capabilities: ['places.address', 'schedule.operational_time']"),
   'identity is isolated from editable places and time controls')
 check(!/Number\([^)]*(?:Version|version)|parseInt\([^)]*(?:Version|version)/.test(service + hooks + sheet),
   'decimal string versions are not coerced to JavaScript numbers')

@@ -1,0 +1,10 @@
+.matrix { display: grid; gap: 14px; }
+.row { min-width: 0; display: grid; gap: 8px; }
+.label { color: var(--color-text-primary); font-size: var(--text-sm); font-weight: 650; }
+.controls { display: grid; grid-template-columns: repeat(3, minmax(0, 1fr)); gap: 6px; }
+.controls button { min-height: 44px; min-width: 0; padding: 8px; border: 1px solid var(--color-border); border-radius: 10px; background: var(--color-surface); color: var(--color-text-secondary); font: inherit; cursor: pointer; }
+.controls button:focus-visible { outline: 2px solid var(--color-primary); outline-offset: 2px; }
+.controls .selected { border-color: var(--color-primary); background: var(--color-primary-soft, var(--color-bg)); color: var(--color-text-primary); font-weight: 650; }
+.controls button:disabled { opacity: .6; cursor: not-allowed; }
+.mixed { color: var(--color-text-secondary); font-size: var(--text-xs); }
+@media (max-width: 380px) { .controls { gap: 4px; } .controls button { padding: 7px 4px; font-size: .8125rem; } }

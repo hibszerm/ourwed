@@ -17,6 +17,7 @@ import {
 import { useAuth } from '@/features/auth/AuthProvider'
 import { useWeddings } from '@/features/weddings/hooks/useWeddings'
 import { CollaborationAccessManagementSheet } from '@/features/collaboration/CollaborationAccessManagementSheet'
+import { CollaborationPermissionPresetManager } from '@/features/collaboration/CollaborationPermissionPresetManager'
 import { weddingCollaborationService } from '@/features/collaboration/weddingCollaborationService'
 import {
   collaborationService,
@@ -281,6 +282,11 @@ export function CollaborationSettingsPage() {
               </ul>
             </SettingsSection>
           ) : null}
+
+          <SettingsSection labelledBy="permission-presets-heading">
+            <SettingsSectionHeader id="permission-presets-heading" title="Zestawy dostępu" />
+            <CollaborationPermissionPresetManager />
+          </SettingsSection>
 
           {state.data && state.data.connections.length === 0
             && state.data.incoming_pending.length === 0 && state.data.outgoing_pending.length === 0 ? (

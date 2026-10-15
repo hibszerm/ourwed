@@ -1,0 +1,14 @@
+.picker { display: grid; gap: 14px; padding: 14px; border: 1px solid var(--color-border); border-radius: 14px; background: var(--color-bg); }
+.help, .notice { margin: 0; color: var(--color-text-secondary); font-size: var(--text-sm); line-height: 1.5; }
+.group { display: grid; gap: 8px; }
+.group h4 { margin: 0; font-size: var(--text-sm); }
+.item { display: flex; min-height: 48px; align-items: center; justify-content: space-between; gap: 12px; padding: 10px 12px; border: 1px solid var(--color-border); border-radius: 12px; background: var(--color-surface); color: var(--color-text-primary); text-align: left; cursor: pointer; }
+.item:disabled { opacity: .6; cursor: wait; }
+.item > span:first-child { display: grid; gap: 3px; min-width: 0; }
+.item strong { font-size: var(--text-sm); }
+.item small { color: var(--color-text-secondary); font-size: var(--text-xs); }
+.item > span:last-child { flex: 0 0 auto; color: var(--color-primary); font-size: var(--text-sm); font-weight: 650; }
+.error { margin: 0; color: var(--color-danger, #a33); }
+.error { display: grid; gap: 8px; }
+.error p { margin: 0; }
+.error button { min-height: 44px; justify-self: start; padding: 8px 12px; border: 1px solid var(--color-border); border-radius: 10px; background: var(--color-surface); color: var(--color-text-primary); font: inherit; cursor: pointer; }

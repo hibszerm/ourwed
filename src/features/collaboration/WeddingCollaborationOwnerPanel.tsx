@@ -1,5 +1,7 @@
-import { useRef, useState, type KeyboardEvent } from 'react'
+import { useRef, useState } from 'react'
 import { CollaborationAccessManagementSheet } from '@/features/collaboration/CollaborationAccessManagementSheet'
+import { CollaborationPermissionMatrix } from '@/features/collaboration/CollaborationPermissionMatrix'
+import { CollaborationPermissionPresetPicker } from '@/features/collaboration/CollaborationPermissionPresetPicker'
 import { COLLABORATION_ROLE_CATALOG_V1, type CollaborationAccessModeV1, type CollaborationRoleKeyV1 } from '@/features/collaboration/roleCatalog.v1'
 import type { CustomCapabilityGrant } from '@/features/collaboration/accessManagementTypes'
 import { useActiveWeddingCollaborators, useCreateWeddingInvitation, useWeddingCollaborationState, useWeddingAccessPreviews, useWeddingInvitationCommand, useWeddingMembershipCommand } from '@/features/collaboration/useWeddingCollaboration'
@@ -62,25 +64,6 @@ export function WeddingCollaborationOwnerPanel({ wedding }: { wedding: Wedding }
   const customRoleInvalid = roleKey === 'custom' && (!customRoleLabel.trim()
     || customRoleLabel !== customRoleLabel.trim() || Array.from(customRoleLabel).length > 64 || hasControlCharacters(customRoleLabel))
   const error = create.error ?? cancel.error ?? revoke.error
-
-  function setInviteGroupLevel(keys: readonly string[], level: number) {
-    const keySet = new Set(keys)
-    const remaining = customGrants.filter((grant) => !keySet.has(grant.capability_key))
-    const grants = level === 0 ? [] : keys.map((capability_key) => ({ capability_key: capability_key as CustomCapabilityGrant['capability_key'], level: level as 1 | 2 }))
-    setCustomGrants([...remaining, ...grants].sort((a, b) => a.capability_key.localeCompare(b.capability_key)))
-    setReview(false)
-  }
-
-  function handleInviteGroupKey(event: KeyboardEvent<HTMLButtonElement>, keys: readonly string[], levels: readonly number[], current: number) {
-    const index = Math.max(0, levels.indexOf(current))
-    const next = event.key === 'ArrowRight' || event.key === 'ArrowDown' ? (index + 1) % levels.length
-      : event.key === 'ArrowLeft' || event.key === 'ArrowUp' ? (index + levels.length - 1) % levels.length
-        : event.key === 'Home' ? 0 : event.key === 'End' ? levels.length - 1 : -1
-    if (next < 0) return
-    event.preventDefault()
-    setInviteGroupLevel(keys, levels[next])
-    event.currentTarget.parentElement?.querySelectorAll<HTMLButtonElement>('[role="radio"]')[next]?.focus()
-  }
 
   async function sendInvitation() {
     if (!selected || amountInvalid) return
@@ -211,24 +194,10 @@ export function WeddingCollaborationOwnerPanel({ wedding }: { wedding: Wedding }
           {accessPreviews.isError ? <p className={styles.error} role="alert">Nie udało się pobrać podglądu uprawnień dla ustawienia niestandardowego.
             <button type="button" className={styles.textButton} onClick={() => void accessPreviews.refetch()}>Spróbuj ponownie</button>
           </p> : null}
-          {accessMode === 'custom' ? <div className={styles.inviteMatrix}>
-            {([
-              { label: 'Podstawowe informacje', keys: ['wedding.identity'] as const, values: [0, 1] as const },
-              { label: 'Miejsca i godziny', keys: ['places.address', 'schedule.operational_time'] as const, values: [0, 1, 2] as const },
-            ]).map((group) => {
-              const levels = group.keys.map((key) => customGrants.find((grant) => grant.capability_key === key)?.level ?? 0)
-              const current = levels.every((value) => value === levels[0]) ? levels[0] : -1
-              return <div className={styles.inviteMatrixRow} key={group.label}><span>{group.label}</span>
-                <div className={styles.segment} role="radiogroup" aria-label={group.label}>
-                  {group.values.map((level) => <button key={level} type="button" role="radio" aria-checked={current === level}
-                    tabIndex={current === level || (current === -1 && level === group.values[0]) ? 0 : -1}
-                    className={current === level ? styles.segmentSelected : ''} onClick={() => setInviteGroupLevel(group.keys, level)}
-                    onKeyDown={(event) => handleInviteGroupKey(event, group.keys, group.values, current)}>{level === 0 ? 'Brak' : level === 1 ? 'Podgląd' : 'Edycja'}</button>)}
-                </div>
-                {current === -1 ? <small>Różne poziomy</small> : null}
-              </div>
-            })}
-          </div> : null}
+          {accessMode === 'custom' ? <>
+            <CollaborationPermissionPresetPicker onApply={(grants) => { setCustomGrants(grants); setReview(false) }} />
+            <CollaborationPermissionMatrix grants={customGrants} onChange={(grants) => { setCustomGrants(grants); setReview(false) }} />
+          </> : null}
           <label className={styles.field}>
             <span>Proponowana kwota dla współpracownika</span>
             <div className={styles.amountField}>

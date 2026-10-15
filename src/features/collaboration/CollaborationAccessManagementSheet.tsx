@@ -1,5 +1,8 @@
-import { useLayoutEffect, useMemo, useRef, useState, type KeyboardEvent, type RefObject } from 'react'
+import { useLayoutEffect, useMemo, useRef, useState, type RefObject } from 'react'
 import { Modal } from '@/components/ui/Modal'
+import { CollaborationPermissionMatrix } from './CollaborationPermissionMatrix'
+import { CollaborationPermissionPresetPicker } from './CollaborationPermissionPresetPicker'
+import { SaveAccessAsPresetDialog } from './SaveAccessAsPresetDialog'
 import { useInvitationAccessManagement, useMembershipAccessManagement, useUpdateCollaborationAccess } from './useWeddingCollaboration'
 import { COLLABORATION_ROLE_CATALOG_V1, type CollaborationAccessModeV1, type CollaborationRoleKeyV1 } from './roleCatalog.v1'
 import type { AccessConfigurationInput } from './weddingCollaborationService'
@@ -8,14 +11,6 @@ import styles from './CollaborationAccessManagementSheet.module.css'
 
 type Props = { weddingId: string; membershipId?: string; invitationId?: string; returnFocusTargetRef?: RefObject<HTMLElement | null>; onClose: () => void }
 type Draft = { roleKey: CollaborationRoleKeyV1; customRoleLabel: string; accessMode: CollaborationAccessModeV1; grants: CustomCapabilityGrant[] }
-const groups = [
-  { key: 'identity', label: 'Podstawowe informacje', capabilities: ['wedding.identity'] as const, levels: [0, 1] as const },
-  { key: 'places-time', label: 'Miejsca i godziny', capabilities: ['places.address', 'schedule.operational_time'] as const, levels: [0, 1, 2] as const },
-]
-
-function previewLevel(preview: CustomCapabilityGrant[] | undefined, key: string): number {
-  return preview?.find((grant) => grant.capability_key === key)?.level ?? 0
-}
 
 function hasControlCharacters(value: string): boolean {
   return Array.from(value).some((character) => {
@@ -44,6 +39,7 @@ export function CollaborationAccessManagementSheet({ weddingId, membershipId, in
   const [dirtyClose, setDirtyClose] = useState(false)
   const [conflict, setConflict] = useState(false)
   const [expectedVersion, setExpectedVersion] = useState<string | null>(null)
+  const [saveAsOpen, setSaveAsOpen] = useState(false)
   const initialDraft = useMemo(() => query.data ? ({ roleKey: query.data.role_key,
     customRoleLabel: query.data.custom_role_label ?? '', accessMode: query.data.access_mode,
     grants: query.data.custom_grants.map((grant) => ({ ...grant })) }) : null, [query.data])
@@ -77,28 +73,6 @@ export function CollaborationAccessManagementSheet({ weddingId, membershipId, in
     if (!dto || !displayDraft) return
     setDraft({ ...displayDraft, accessMode: mode,
       grants: mode === 'custom' && displayDraft.accessMode !== 'custom' ? effectiveDraft(dto, displayDraft.accessMode) : displayDraft.grants })
-  }
-
-  function selectGroup(groupKey: string, level: number) {
-    if (!displayDraft) return
-    const group = groups.find((item) => item.key === groupKey)
-    if (!group) return
-    const keys = new Set<string>(group.capabilities)
-    const others = displayDraft.grants.filter((grant) => !keys.has(grant.capability_key))
-    const selected = level === 0 ? [] : group.capabilities.map((capability_key) => ({ capability_key, level: level as 1 | 2 }))
-    setDraft({ ...displayDraft, grants: [...others, ...selected].sort((a, b) => a.capability_key.localeCompare(b.capability_key)) })
-  }
-
-  function handleGroupKey(event: KeyboardEvent<HTMLButtonElement>, groupKey: string, levels: readonly number[], current: number) {
-    const currentIndex = Math.max(0, levels.indexOf(current))
-    const nextIndex = event.key === 'ArrowRight' || event.key === 'ArrowDown' ? (currentIndex + 1) % levels.length
-      : event.key === 'ArrowLeft' || event.key === 'ArrowUp' ? (currentIndex + levels.length - 1) % levels.length
-        : event.key === 'Home' ? 0 : event.key === 'End' ? levels.length - 1 : -1
-    if (nextIndex < 0) return
-    event.preventDefault()
-    selectGroup(groupKey, levels[nextIndex])
-    const target = event.currentTarget.parentElement?.querySelectorAll<HTMLButtonElement>('[role="radio"]')[nextIndex]
-    target?.focus()
   }
 
   async function save() {
@@ -153,21 +127,10 @@ export function CollaborationAccessManagementSheet({ weddingId, membershipId, in
         </fieldset>
         {displayDraft.accessMode === 'custom' ? <fieldset className={styles.fieldset}>
           <legend>Wybierz, do czego ta osoba ma dostęp.</legend>
-          {groups.map((group) => {
-            const values = group.capabilities.map((key) => previewLevel(displayDraft.grants, key))
-            const selected = values.every((value) => value === values[0]) ? values[0] : -1
-            return <div className={styles.permissionRow} key={group.key}>
-              <span>{group.label}</span>
-              <div className={styles.segment} role="radiogroup" aria-label={group.label}>
-                  {group.levels.map((level) => <button key={level} type="button" role="radio"
-                  tabIndex={selected === level || (selected === -1 && level === group.levels[0]) ? 0 : -1}
-                  aria-checked={selected === level} className={selected === level ? styles.selected : ''}
-                  onClick={() => selectGroup(group.key, level)}
-                  onKeyDown={(event) => handleGroupKey(event, group.key, group.levels, selected)}>{level === 0 ? 'Brak' : level === 1 ? 'Podgląd' : 'Edycja'}</button>)}
-              </div>
-              {selected === -1 ? <small>Różne poziomy</small> : null}
-            </div>
-          })}
+          <CollaborationPermissionPresetPicker onApply={(grants) => setDraft({ ...displayDraft, accessMode: 'custom', grants })} />
+          <CollaborationPermissionMatrix grants={displayDraft.grants}
+            onChange={(grants) => setDraft({ ...displayDraft, grants })} />
+          <button type="button" className={styles.cancel} onClick={() => setSaveAsOpen(true)}>Zapisz jako zestaw</button>
         </fieldset> : null}
         {conflict ? <div className={styles.notice} role="alert">
           <p>Dostęp zmienił się w międzyczasie. Sprawdź aktualne ustawienia przed ponownym zapisem.</p>
@@ -188,5 +151,7 @@ export function CollaborationAccessManagementSheet({ weddingId, membershipId, in
         <button type="button" onClick={finishClose}>Odrzuć zmiany</button>
       </div>
     </Modal>
+    {displayDraft?.accessMode === 'custom' ? <SaveAccessAsPresetDialog open={saveAsOpen}
+      grants={displayDraft.grants} onClose={() => setSaveAsOpen(false)} /> : null}
   </>
 }
