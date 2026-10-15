@@ -167,7 +167,10 @@ export function CollaborationPermissionPresetManager() {
             {descriptionError ? <small id="preset-description-error" className={styles.error}>{descriptionError}</small> : null}</label>
         </> : <p className={styles.hint}>{editor.preset?.description}</p>}
         <p className={styles.matrixLegend}>Zakres dostępu</p>
-        <CollaborationPermissionMatrix grants={editor.grants} disabled={editor.kind === 'view'}
+        {editor.kind === 'duplicate' ? <p className={styles.hint}>
+          Uprawnienia zostaną skopiowane dokładnie z wybranego zestawu. Po utworzeniu kopii możesz je edytować.
+        </p> : null}
+        <CollaborationPermissionMatrix grants={editor.grants} disabled={editor.kind === 'view' || editor.kind === 'duplicate'}
           onChange={(grants) => setEditor({ ...editor, grants })} />
         {savingError ? <p className={styles.error} role="alert">{savingError}</p> : null}
         {editor.latest ? <button type="button" onClick={refreshVersionPreservingDraft}>Wczytaj aktualną wersję, zachowując moje zmiany</button> : null}
