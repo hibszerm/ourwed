@@ -95,7 +95,7 @@ function wedding(partial: Partial<Wedding> = {}): Wedding {
   assert(!routePage.includes('WeddingsPage'), 'Classic weddings page not referenced')
   assert(!routePage.includes('resolveScreenPresentation'), 'no presentation resolver')
   assert(!routePage.includes('useInterfaceStyle'), 'no InterfaceStyle hook')
-  assert(modern.includes('useWeddings'), 'modern uses shared list hook')
+  assert(modern.includes('useUnifiedWeddingsWorkspace'), 'modern uses the unified projection-backed list hook')
   assert(!modern.includes('weddingService.getAll'), 'modern has no getAll')
   assert(!modern.includes('weddingListLightService'), 'modern does not fork the light service')
   assert(!existsSync(/* deleted */ 'src/pages/WeddingsPage.tsx'), 'Classic WeddingsPage deleted')
@@ -438,7 +438,8 @@ function wedding(partial: Partial<Wedding> = {}): Wedding {
   assert(cardCss.includes('.locationSlot'), 'location slot geometry')
   assert(cardCss.includes('.packageSlot'), 'package slot geometry')
   assert(cardCss.includes('minmax(0, 1fr)'), 'value is pushed to the bottom zone')
-  assert(!cardCss.includes('position: absolute'), 'no absolute offsets')
+  assert(cardCss.includes('.sharedHitArea') && cardCss.includes('position: absolute'), 'only the shared-card navigation layer separates its accessible attribution control')
+  assert(!cardCss.slice(0, cardCss.indexOf('.sharedCard')).includes('position: absolute'), 'owner-card geometry has no absolute offsets')
   assert(!cardCss.includes('ResizeObserver'), 'no measurement')
   assert(!page.includes('weddingService.getAll'), 'no new page query')
   assert(!workspace.includes('useWedding('), 'no per-row hydration')
@@ -471,14 +472,13 @@ function wedding(partial: Partial<Wedding> = {}): Wedding {
     assert(!src.includes('#22333B'), `${file} no graphite navy hardcode`)
   }
   const page = read('src/pages/WeddingsModernPage.tsx')
-  assert(page.includes('useWeddings'), 'shared hook')
+  assert(page.includes('useUnifiedWeddingsWorkspace'), 'unified list hook')
   assert(!page.includes('useWedding('), 'no per-row getById hook')
   console.log('PASS  glass / theme / performance source')
 }
 
 {
   const dash = read('src/pages/DashboardV3Page.tsx')
-  const classicDash = ({ includes: () => false, indexOf: () => -1, slice: () => '', length: 0, match: () => null } as { includes: (s: string) => boolean; indexOf: (s: string) => number; slice: (a?: number, b?: number) => string; length: number; match: (r: RegExp) => null })
   const layout = read('src/layouts/AppLayout.tsx')
   const sidebar = read('src/layouts/Sidebar.tsx')
   assert(dash.includes('DashboardV3Hero'), 'modern dashboard untouched')
@@ -497,8 +497,6 @@ function wedding(partial: Partial<Wedding> = {}): Wedding {
   const cardCss = read('src/features/weddings/modern/ModernWeddingCard.module.css')
   const switchCss = read('src/features/weddings/modern/ModernWeddingsViewSwitch.module.css')
   assert(!existsSync(resolve(process.cwd(), 'src/pages/WeddingsPage.tsx')), 'Classic WeddingsPage removed')
-  const classic = ({ includes: () => false, indexOf: () => -1, slice: () => '', length: 0, match: () => null } as { includes: (s: string) => boolean; indexOf: (s: string) => number; slice: (a?: number, b?: number) => string; length: number; match: (r: RegExp) => null })
-
   assert(pageCss.includes('--modern-motion-fast: 150ms'), 'fast token')
   assert(pageCss.includes('--modern-motion-base: 240ms'), 'base token')
   assert(pageCss.includes('--modern-motion-slow: 300ms'), 'slow token')
@@ -556,8 +554,6 @@ function wedding(partial: Partial<Wedding> = {}): Wedding {
   const dash = read('src/pages/DashboardV3Page.tsx')
   const layout = read('src/layouts/AppLayout.tsx')
   assert(!existsSync(resolve(process.cwd(), 'src/pages/WeddingsPage.tsx')), 'Classic WeddingsPage removed')
-  const classic = ({ includes: () => false, indexOf: () => -1, slice: () => '', length: 0, match: () => null } as { includes: (s: string) => boolean; indexOf: (s: string) => number; slice: (a?: number, b?: number) => string; length: number; match: (r: RegExp) => null })
-
   assert(page.includes('Nowy ślub'), 'primary create preserved')
   assert(page.includes('Importuj z pliku'), 'import preserved')
   assert(page.includes('styles.importAction'), 'import is a tertiary class')

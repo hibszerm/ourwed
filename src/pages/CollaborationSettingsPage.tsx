@@ -182,7 +182,7 @@ export function CollaborationSettingsPage() {
           <SettingsHelper>
             Połączenie kont nie udostępnia automatycznie żadnych zleceń, klientów ani danych.
           </SettingsHelper>
-          <Link className={styles.collaborativeWeddingsLink} to="/wspolpraca/sluby">
+          <Link className={styles.collaborativeWeddingsLink} to="/sluby?scope=shared">
             Zobacz wspólne zlecenia
           </Link>
           {error ? <SettingsAlert>{error}</SettingsAlert> : null}

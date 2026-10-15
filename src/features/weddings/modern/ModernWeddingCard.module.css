@@ -106,8 +106,69 @@
   color: var(--color-text-primary);
 }
 
+.sharedCard {
+  position: relative;
+  display: block;
+  overflow: visible;
+}
+
+.sharedHitArea {
+  position: absolute;
+  inset: 0;
+  z-index: 1;
+  border-radius: inherit;
+}
+
+.sharedHitArea:focus-visible {
+  outline: 2px solid var(--color-accent);
+  outline-offset: 2px;
+}
+
+.sharedVisual {
+  position: relative;
+  z-index: 2;
+  display: grid;
+  grid-template-columns: 4.25rem minmax(0, 1fr);
+  column-gap: var(--space-5);
+  min-height: 100%;
+  padding: var(--space-5);
+  pointer-events: none;
+}
+
+.sharedBody {
+  grid-template-rows: auto;
+}
+
+.sharedCouple {
+  display: flex;
+  align-items: flex-start;
+  min-height: 0;
+}
+
+.sharedCouple > :global(button) {
+  pointer-events: auto;
+}
+
+.srOnly {
+  position: absolute;
+  width: 1px;
+  height: 1px;
+  padding: 0;
+  margin: -1px;
+  overflow: hidden;
+  clip: rect(0, 0, 0, 0);
+  white-space: nowrap;
+  border: 0;
+}
+
 @media (max-width: 767px) {
   .card {
+    grid-template-columns: 3.25rem minmax(0, 1fr);
+    column-gap: var(--space-3);
+    padding: 14px 16px;
+  }
+
+  .sharedVisual {
     grid-template-columns: 3.25rem minmax(0, 1fr);
     column-gap: var(--space-3);
     padding: 14px 16px;

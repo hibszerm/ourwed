@@ -1,4 +1,5 @@
 import {
+  useEffect,
   useLayoutEffect,
   useMemo,
   useRef,
@@ -10,11 +11,19 @@ import { ModernWeddingCard } from '@/features/weddings/modern/ModernWeddingCard'
 import { ModernWeddingLedger } from '@/features/weddings/modern/ModernWeddingLedger'
 import { ModernWeddingsViewSwitch } from '@/features/weddings/modern/ModernWeddingsViewSwitch'
 import {
+  filterWorkspaceWeddingRows,
+  getWorkspaceWeddingDate,
+  matchesWorkspaceWeddingYear,
+  matchesWorkspaceWeddingSearch,
+  resolveWorkspaceSearchYear,
+  type WorkspaceScopeFilter,
+  type WorkspaceWeddingDisplayItem,
+} from '@/features/weddings/modern/workspaceWeddings'
+import {
   defaultExpandedCurrentFutureYears,
   expandAllCurrentFutureYears,
   isArchivedOrCancelled,
   listCurrentAndFutureYears,
-  matchesModernWeddingSearch,
   resolveCurrentFutureChipSelection,
   selectExclusiveCurrentFutureYear,
   splitModernWeddingsSeasons,
@@ -27,17 +36,18 @@ import {
 import { prefersReducedMotion } from '@/features/shared/presentation/seasonNavigation'
 import { localCalendarDateKey } from '@/lib/utils/localCalendarDate'
 import type { WeddingsViewMode } from '@/features/weddings/presentation/weddingsViewMode'
-import type { Wedding } from '@/types/wedding'
 import styles from './ModernWeddingsWorkspace.module.css'
 
 interface ModernWeddingsWorkspaceProps {
-  weddings: Wedding[]
+  weddings: WorkspaceWeddingDisplayItem[]
+  scope: WorkspaceScopeFilter
+  onScopeChange: (scope: WorkspaceScopeFilter) => void
   viewMode: WeddingsViewMode
   onViewChange: (mode: WeddingsViewMode) => void
   entrance?: 'full' | 'soft'
 }
 
-function CardCollection({ weddings }: { weddings: Wedding[] }) {
+function CardCollection({ weddings }: { weddings: WorkspaceWeddingDisplayItem[] }) {
   if (weddings.length === 0) return null
   return (
     <div className={styles.grid} data-testid="modern-weddings-grid">
@@ -52,7 +62,7 @@ function SeasonCollection({
   weddings,
   viewMode,
 }: {
-  weddings: Wedding[]
+  weddings: WorkspaceWeddingDisplayItem[]
   viewMode: WeddingsViewMode
 }) {
   const [shown, setShown] = useState(viewMode)
@@ -82,6 +92,8 @@ function SeasonCollection({
 
 export function ModernWeddingsWorkspace({
   weddings,
+  scope,
+  onScopeChange,
   viewMode,
   onViewChange,
   entrance = 'full',
@@ -95,59 +107,91 @@ export function ModernWeddingsWorkspace({
   const [showArchived, setShowArchived] = useState(false)
   const [currentFutureExpanded, setCurrentFutureExpanded] =
     useState<Set<number> | null>(null)
+  const [searchYear, setSearchYear] = useState<number | null>(null)
   const [historyYearsExpanded, setHistoryYearsExpanded] = useState(
     () => new Set<number>(),
   )
   const [previousOpen, setPreviousOpen] = useState(false)
   const [pendingScroll, setPendingScroll] = useState<number | null>(null)
 
+  const scopedWeddings = useMemo(
+    () => filterWorkspaceWeddingRows(weddings, scope),
+    [weddings, scope],
+  )
+
   const hiddenArchivedCount = useMemo(
-    () => weddings.filter(isArchivedOrCancelled).length,
-    [weddings],
+    () => scopedWeddings.filter((item) =>
+      item.ownershipKind === 'owned' && isArchivedOrCancelled(item.wedding),
+    ).length,
+    [scopedWeddings],
   )
 
   const catalog = useMemo(() => {
-    return weddings.filter((wedding) => {
-      if (!showArchived && isArchivedOrCancelled(wedding)) return false
+    return scopedWeddings.filter((item) => {
+      if (
+        !showArchived
+        && item.ownershipKind === 'owned'
+        && isArchivedOrCancelled(item.wedding)
+      ) return false
       return true
     })
-  }, [weddings, showArchived])
+  }, [scopedWeddings, showArchived])
 
-  const searching = query.trim().length > 0
-
-  const visible = useMemo(() => {
-    if (!searching) return catalog
-    return catalog.filter((wedding) =>
-      matchesModernWeddingSearch(wedding, query),
-    )
-  }, [catalog, searching, query])
+  // Derive the usable year synchronously from the complete scoped catalog so
+  // a scope transition can never render with an invisible active year. The
+  // effect commits that invalidation so a later scope cannot restore it.
+  const activeSearchYear = resolveWorkspaceSearchYear(searchYear, catalog)
+  const invalidSearchYear = searchYear != null && activeSearchYear == null
 
   const catalogLayers = useMemo(() => {
-    const groups = groupAssignmentsBySeason(catalog, (w) => w.date, {
+    const groups = groupAssignmentsBySeason(catalog, getWorkspaceWeddingDate, {
       referenceYear,
     })
     return splitModernWeddingsSeasons(groups, referenceYear)
   }, [catalog, referenceYear])
-
-  const layers = useMemo(() => {
-    if (!searching) return catalogLayers
-    const groups = groupAssignmentsBySeason(visible, (w) => w.date, {
-      referenceYear,
-    })
-    return splitModernWeddingsSeasons(groups, referenceYear)
-  }, [searching, catalogLayers, visible, referenceYear])
 
   const chipYears = useMemo(
     () => listCurrentAndFutureYears(catalogLayers),
     [catalogLayers],
   )
 
+  const searching = query.trim().length > 0
+  const explicitSearchYear = searching ? activeSearchYear : null
+
+  const visible = useMemo(() => {
+    if (!searching && explicitSearchYear == null) return catalog
+    return catalog.filter((item) => {
+      if (searching && !matchesWorkspaceWeddingSearch(item, query)) return false
+      if (explicitSearchYear != null && !matchesWorkspaceWeddingYear(item, explicitSearchYear)) return false
+      return true
+    })
+  }, [catalog, searching, explicitSearchYear, query])
+
+  const layers = useMemo(() => {
+    if (!searching) return catalogLayers
+    const groups = groupAssignmentsBySeason(visible, getWorkspaceWeddingDate, {
+      referenceYear,
+    })
+    return splitModernWeddingsSeasons(groups, referenceYear)
+  }, [searching, catalogLayers, visible, referenceYear])
+
   const defaultCurrentFuture = useMemo(
     () => defaultExpandedCurrentFutureYears(chipYears, referenceYear),
     [chipYears, referenceYear],
   )
 
-  const storedCurrentFuture = currentFutureExpanded ?? defaultCurrentFuture
+  const storedCurrentFuture = invalidSearchYear
+    ? expandAllCurrentFutureYears(chipYears)
+    : currentFutureExpanded ?? defaultCurrentFuture
+
+  useEffect(() => {
+    if (!invalidSearchYear) return
+    // Filtering and chip state already use the synchronous derived value above;
+    // this idempotent transition prevents the cleared selection resurfacing.
+    // eslint-disable-next-line react-hooks/set-state-in-effect
+    setSearchYear(null)
+    setCurrentFutureExpanded(expandAllCurrentFutureYears(chipYears))
+  }, [invalidSearchYear, chipYears])
 
   const displayedCurrentFuture = useMemo(() => {
     if (!searching) return storedCurrentFuture
@@ -163,12 +207,18 @@ export function ModernWeddingsWorkspace({
     return new Set(layers.previous.map((group) => group.season))
   }, [searching, historyYearsExpanded, layers.previous])
 
-  const { allSelected, selectedYear } = resolveCurrentFutureChipSelection(
+  const currentFutureChipSelection = resolveCurrentFutureChipSelection(
     chipYears,
     storedCurrentFuture,
   )
+  const allSelected = searching
+    ? activeSearchYear == null
+    : currentFutureChipSelection.allSelected
+  const selectedYear = searching
+    ? activeSearchYear
+    : currentFutureChipSelection.selectedYear
 
-  const showChips = chipYears.length > 1
+  const showChips = chipYears.length > 1 || searching
 
   function scrollToSeason(season: number) {
     const node = sectionRefs.current.get(season)
@@ -188,11 +238,13 @@ export function ModernWeddingsWorkspace({
   }, [pendingScroll, displayedCurrentFuture])
 
   function selectYear(season: number) {
+    setSearchYear(season)
     setCurrentFutureExpanded(selectExclusiveCurrentFutureYear(season))
     setPendingScroll(season)
   }
 
   function showAllCurrentFuture() {
+    setSearchYear(null)
     setCurrentFutureExpanded(expandAllCurrentFutureYears(chipYears))
   }
 
@@ -206,7 +258,13 @@ export function ModernWeddingsWorkspace({
     !searching &&
     visible.length === 0 &&
     hiddenArchivedCount > 0 &&
-    weddings.length > 0
+    scopedWeddings.length > 0
+
+  const undated = (searching ? visible : catalog).filter(
+    (item) => !getWorkspaceWeddingDate(item),
+  )
+
+  const scopeEmpty = catalog.length === 0 && !searching
 
   return (
     <div
@@ -227,7 +285,26 @@ export function ModernWeddingsWorkspace({
             autoComplete="off"
           />
         </label>
-        <ModernWeddingsViewSwitch value={viewMode} onChange={onViewChange} />
+        <div className={styles.scopeFilter} role="group" aria-label="Zakres ślubów">
+          {([
+            ['all', 'Wszystkie'],
+            ['mine', 'Moje'],
+            ['shared', 'Współdzielone'],
+          ] as const).map(([value, label]) => (
+            <button
+              key={value}
+              type="button"
+              className={scope === value ? styles.chipActive : styles.chip}
+              aria-pressed={scope === value}
+              onClick={() => onScopeChange(value)}
+            >
+              {label}
+            </button>
+          ))}
+        </div>
+        <div className={styles.desktopViewSwitch}>
+          <ModernWeddingsViewSwitch value={viewMode} onChange={onViewChange} />
+        </div>
       </div>
 
       {hiddenArchivedCount > 0 && !onlyArchivedHidden ? (
@@ -245,30 +322,37 @@ export function ModernWeddingsWorkspace({
       {showChips ? (
         <div className={styles.stickyNav}>
           <div className={styles.chips} role="toolbar" aria-label="Sezony">
-            <button
-              type="button"
-              className={allSelected ? styles.chipActive : styles.chip}
-              aria-pressed={allSelected}
-              onClick={showAllCurrentFuture}
-            >
-              Wszystkie
-            </button>
-            {chipYears.map((year) => (
-              <button
-                key={year}
-                type="button"
-                className={
-                  !allSelected && selectedYear === year
-                    ? styles.chipActive
-                    : styles.chip
-                }
-                aria-pressed={!allSelected && selectedYear === year}
-                aria-current={selectedYear === year ? 'true' : undefined}
-                onClick={() => selectYear(year)}
-              >
-                {year}
-              </button>
-            ))}
+            {showChips ? (
+              <>
+                <button
+                  type="button"
+                  className={allSelected ? styles.chipActive : styles.chip}
+                  aria-pressed={allSelected}
+                  onClick={showAllCurrentFuture}
+                >
+                  Wszystkie lata
+                </button>
+                {chipYears.map((year) => (
+                  <button
+                    key={year}
+                    type="button"
+                    className={
+                      !allSelected && selectedYear === year
+                        ? styles.chipActive
+                        : styles.chip
+                    }
+                    aria-pressed={!allSelected && selectedYear === year}
+                    aria-current={selectedYear === year ? 'true' : undefined}
+                    onClick={() => selectYear(year)}
+                  >
+                    {year}
+                  </button>
+                ))}
+              </>
+            ) : null}
+          </div>
+          <div className={styles.mobileViewSwitch}>
+            <ModernWeddingsViewSwitch value={viewMode} onChange={onViewChange} />
           </div>
         </div>
       ) : null}
@@ -291,6 +375,17 @@ export function ModernWeddingsWorkspace({
           >
             Pokaż zarchiwizowane
           </button>
+        </div>
+      ) : scopeEmpty ? (
+        <div className={styles.empty} role="status">
+          <p className={styles.emptyTitle}>
+            {scope === 'mine' ? 'Brak własnych ślubów' : 'Brak współdzielonych ślubów'}
+          </p>
+          <p className={styles.emptyDesc}>
+            {scope === 'mine'
+              ? 'Możesz przełączyć zakres na Współdzielone, aby zobaczyć dostępne wspólne zlecenia.'
+              : 'Współdzielone zlecenia pojawią się tutaj po przyjęciu zaproszenia.'}
+          </p>
         </div>
       ) : (
         <div className={styles.seasons}>
@@ -352,6 +447,12 @@ export function ModernWeddingsWorkspace({
               }}
             />
           ) : null}
+          {undated.length > 0 ? (
+            <section className={styles.undated} data-testid="modern-weddings-undated">
+              <h2 className={styles.undatedHeading}>Termin do ustalenia</h2>
+              <SeasonCollection weddings={undated} viewMode={viewMode} />
+            </section>
+          ) : null}
         </div>
       )}
     </div>
@@ -368,7 +469,7 @@ function PreviousSeasons({
   onToggleYear,
   sectionRef,
 }: {
-  groups: { season: number; items: Wedding[] }[]
+  groups: { season: number; items: WorkspaceWeddingDisplayItem[] }[]
   viewMode: WeddingsViewMode
   open: boolean
   searching: boolean

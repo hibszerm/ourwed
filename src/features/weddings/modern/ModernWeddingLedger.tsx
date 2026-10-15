@@ -1,6 +1,11 @@
 import { Link } from 'react-router-dom'
 import { getWeddingDisplayName } from '@/features/weddings/presentation/getWeddingDisplayName'
 import { getWeddingPrimaryLocationSummary } from '@/features/weddings/presentation/getWeddingPrimaryLocationSummary'
+import { SharedWeddingAttribution } from '@/features/weddings/modern/SharedWeddingAttribution'
+import {
+  getWorkspaceWeddingName,
+  type WorkspaceWeddingDisplayItem,
+} from '@/features/weddings/modern/workspaceWeddings'
 import {
   formatLedgerFullDate,
   getEditorialDateParts,
@@ -11,7 +16,7 @@ import type { Wedding } from '@/types/wedding'
 import styles from './ModernWeddingLedger.module.css'
 
 interface ModernWeddingLedgerProps {
-  weddings: Wedding[]
+  weddings: (WorkspaceWeddingDisplayItem | Wedding)[]
 }
 
 function supportingLine(
@@ -75,12 +80,46 @@ function ModernWeddingLedgerRow({ wedding }: { wedding: Wedding }) {
   )
 }
 
+function SharedWeddingLedgerRow({
+  wedding,
+}: {
+  wedding: Extract<WorkspaceWeddingDisplayItem, { ownershipKind: 'shared' }>
+}) {
+  const name = getWorkspaceWeddingName(wedding)
+  return (
+    <li className={styles.item} data-ownership-kind="shared">
+      <div className={`${styles.row} ${styles.sharedRow}`}>
+        <Link
+          to={`/wspolpraca/sluby/${wedding.id}`}
+          className={styles.sharedHitArea}
+          aria-label={`Otwórz ślub współdzielony: ${name}`}
+        >
+          <span className={styles.srOnly}>Otwórz ślub współdzielony: {name}</span>
+        </Link>
+        <div className={styles.dateCol}>
+          {wedding.date ? <LedgerDate date={wedding.date} /> : null}
+        </div>
+        <div className={`${styles.booking} ${styles.sharedBooking}`}>
+          <div className={styles.sharedNameRow}>
+            <span className={styles.name}>{name}</span>
+            <SharedWeddingAttribution ownerDisplayName={wedding.ownerDisplayName} />
+          </div>
+        </div>
+      </div>
+    </li>
+  )
+}
+
 export function ModernWeddingLedger({ weddings }: ModernWeddingLedgerProps) {
   return (
     <ul className={styles.list} data-testid="modern-weddings-list">
-      {weddings.map((wedding) => (
-        <ModernWeddingLedgerRow key={wedding.id} wedding={wedding} />
-      ))}
+      {weddings.map((item) => {
+        if ('ownershipKind' in item && item.ownershipKind === 'shared') {
+          return <SharedWeddingLedgerRow key={item.id} wedding={item} />
+        }
+        const wedding = 'ownershipKind' in item ? item.wedding : item
+        return <ModernWeddingLedgerRow key={wedding.id} wedding={wedding} />
+      })}
     </ul>
   )
 }

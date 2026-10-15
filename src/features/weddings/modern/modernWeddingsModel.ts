@@ -120,25 +120,27 @@ export function compareWeddingDateAsc(a: Wedding, b: Wedding): number {
   return (a.date || '').localeCompare(b.date || '')
 }
 
-export type ModernSeasonGroup = {
+export type ModernSeasonGroup<T = Wedding> = {
   season: number
-  items: Wedding[]
+  items: T[]
 }
 
-export type ModernSeasonLayer = {
+export type ModernSeasonLayer<T = Wedding> = {
   /** Full calendar year of the current season. Null when that year has no visible weddings. */
-  active: ModernSeasonGroup | null
-  future: ModernSeasonGroup[]
+  active: ModernSeasonGroup<T> | null
+  future: ModernSeasonGroup<T>[]
   /** Calendar years earlier than the current season. Never includes the current year. */
-  previous: ModernSeasonGroup[]
+  previous: ModernSeasonGroup<T>[]
 }
 
-function chronologicalYear(
-  group: { season: number; items: readonly Wedding[] },
-): ModernSeasonGroup {
+function chronologicalYear<T extends { date: string | null }>(
+  group: { season: number; items: readonly T[] },
+): ModernSeasonGroup<T> {
   return {
     season: group.season,
-    items: [...group.items].sort(compareWeddingDateAsc),
+    items: [...group.items].sort((a, b) =>
+      (a.date ?? '').localeCompare(b.date ?? ''),
+    ),
   }
 }
 
@@ -148,10 +150,10 @@ function chronologicalYear(
  * Previous = only years before the current year.
  * Future years stay as their own layer.
  */
-export function splitModernWeddingsSeasons(
-  groups: readonly { season: number; items: readonly Wedding[] }[],
+export function splitModernWeddingsSeasons<T extends { date: string | null }>(
+  groups: readonly { season: number; items: readonly T[] }[],
   referenceYear: number,
-): ModernSeasonLayer {
+): ModernSeasonLayer<T> {
   const current = groups.find((g) => g.season === referenceYear) ?? null
   return {
     active: current ? chronologicalYear(current) : null,
@@ -165,8 +167,8 @@ export function splitModernWeddingsSeasons(
 }
 
 /** Top selector years: current calendar year + future years only. */
-export function listCurrentAndFutureYears(
-  layers: Pick<ModernSeasonLayer, 'active' | 'future'>,
+export function listCurrentAndFutureYears<T>(
+  layers: Pick<ModernSeasonLayer<T>, 'active' | 'future'>,
 ): number[] {
   const years: number[] = []
   if (layers.active) years.push(layers.active.season)

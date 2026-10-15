@@ -1,4 +1,4 @@
-import { createBrowserRouter, Navigate, useParams } from 'react-router-dom'
+import { createBrowserRouter, Navigate, useLocation, useParams } from 'react-router-dom'
 import { AuthCallbackGate } from '@/features/auth/callback/AuthCallbackGate'
 import { ProtectedRoute } from '@/features/auth/ProtectedRoute'
 import { DashboardRoutePage } from '@/pages/DashboardRoutePage'
@@ -29,7 +29,7 @@ import { NotificationSettingsPage } from '@/pages/NotificationSettingsPage'
 import { CollaborationSettingsPage } from '@/pages/CollaborationSettingsPage'
 import { NotificationsPage } from '@/pages/NotificationsPage'
 import { WeddingInvitationListPage, WeddingInvitationPreviewPage } from '@/features/collaboration/WeddingInvitationPages'
-import { CollaborativeWeddingDetailPage, CollaborativeWeddingListPage } from '@/features/collaboration/CollaborativeWeddingPages'
+import { CollaborativeWeddingDetailPage } from '@/features/collaboration/CollaborativeWeddingPages'
 import { FinancePage } from '@/pages/FinancePage'
 import { TasksPage } from '@/pages/TasksPage'
 import { PrzewodnikPage } from '@/pages/PrzewodnikPage'
@@ -72,6 +72,18 @@ function RedirectTemplateDeepLink({
   )
 }
 
+// eslint-disable-next-line react-refresh/only-export-components -- route modules intentionally hold route-only components.
+function RedirectLegacyCollaborativeWeddingList() {
+  const location = useLocation()
+  return (
+    <Navigate
+      to={{ pathname: '/sluby', search: '?scope=shared', hash: location.hash }}
+      state={location.state}
+      replace
+    />
+  )
+}
+
 const devRoutes = import.meta.env.DEV
   ? [
       {
@@ -94,6 +106,20 @@ const devRoutes = import.meta.env.DEV
         },
       },
     ]
+  : []
+
+// Local-only fixture used to inspect the H2 workspace without requiring an
+// authenticated Supabase session. It is absent from production builds.
+const h2VisualFixtureRoute = import.meta.env.DEV
+  ? [{
+      path: '/dev/collaboration-h2-workspace',
+      lazy: async () => {
+        const { WeddingsH2VisualFixture } = await import(
+          '@/features/weddings/modern/WeddingsH2VisualFixture'
+        )
+        return { Component: WeddingsH2VisualFixture }
+      },
+    }]
   : []
 
 export const router = createBrowserRouter([
@@ -124,6 +150,7 @@ export const router = createBrowserRouter([
       { path: '/powierzenie-danych', element: <PowierzenieDanychPage /> },
       { path: '/form/:token', element: <PublicFormTokenPage /> },
       { path: '/ankieta/:token', element: <PublicPreWeddingQuestionnairePage /> },
+      ...h2VisualFixtureRoute,
       {
         element: <ProtectedRoute />,
         children: [
@@ -135,7 +162,7 @@ export const router = createBrowserRouter([
           { path: '/powiadomienia', element: <NotificationsPage /> },
           { path: '/wspolpraca/zaproszenia', element: <WeddingInvitationListPage /> },
           { path: '/wspolpraca/zaproszenie/:invitationId', element: <WeddingInvitationPreviewPage /> },
-          { path: '/wspolpraca/sluby', element: <CollaborativeWeddingListPage /> },
+          { path: '/wspolpraca/sluby', element: <RedirectLegacyCollaborativeWeddingList /> },
           { path: '/wspolpraca/sluby/:weddingId', element: <CollaborativeWeddingDetailPage /> },
           { path: '/finanse', element: <FinancePage /> },
           // Retired experimental Dashboard V2 — bookmarks redirect to production Pulpit.

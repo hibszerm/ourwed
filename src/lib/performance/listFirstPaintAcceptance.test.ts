@@ -27,6 +27,7 @@ const weddingsModernPage = read('src/pages/WeddingsModernPage.tsx')
 const sessionsPage = ({ includes: () => true, indexOf: () => 0, slice: () => '', length: 0, match: () => null } as { includes: (s: string) => boolean; indexOf: (s: string) => number; slice: (a?: number, b?: number) => string; length: number; match: (r: RegExp) => null })
 const sessionsModernPage = read('src/pages/SessionsModernPage.tsx')
 const useWeddings = read('src/features/weddings/hooks/useWeddings.ts')
+const unifiedWeddings = read('src/features/weddings/modern/useUnifiedWeddingsWorkspace.ts')
 const useSessions = read('src/features/sessions/hooks/useSessions.ts')
 const weddingLight = read('src/lib/api/weddingListLightService.ts')
 const sessionLight = read('src/lib/api/sessionListLightService.ts')
@@ -54,7 +55,8 @@ console.log('\nList first-paint performance\n')
     'finalizeWeddingViews',
     'WeddingsPage no finalize',
   )
-  assertIncludes(weddingsModernPage, 'useWeddings', 'Modern Weddings uses list hook')
+  assertIncludes(weddingsModernPage, 'useUnifiedWeddingsWorkspace', 'Modern Weddings uses unified list hook')
+  assertIncludes(unifiedWeddings, 'listAllVisibleWorkspaceRows', 'Modern Weddings consumes the paged H1 workspace projection')
   assertNotIncludes(
     weddingsModernPage,
     'weddingService.getAll',

@@ -1,9 +1,14 @@
 import { useState } from 'react'
+import { useSearchParams } from 'react-router-dom'
 import { AppLayout } from '@/layouts/AppLayout'
 import { PageContainer } from '@/components/ui/PageContainer'
 import { Button } from '@/components/ui/Button'
 import { ProGateNavButton } from '@/features/billing/ProGateNavButton'
-import { useWeddings } from '@/features/weddings/hooks/useWeddings'
+import { useUnifiedWeddingsWorkspace } from '@/features/weddings/modern/useUnifiedWeddingsWorkspace'
+import {
+  parseWorkspaceScope,
+  WORKSPACE_SCOPE_QUERY_PARAM,
+} from '@/features/weddings/modern/workspaceWeddings'
 import { ModernWeddingsWorkspace } from '@/features/weddings/modern/ModernWeddingsWorkspace'
 import {
   readWeddingsViewMode,
@@ -14,7 +19,9 @@ import { getUserFacingErrorMessage } from '@/lib/errors/userFacingError'
 import styles from './WeddingsModernPage.module.css'
 
 export function WeddingsModernPage() {
-  const { data: weddings, isLoading, isError, error, refetch } = useWeddings()
+  const { data: weddings, isLoading, isError, error, refetch } = useUnifiedWeddingsWorkspace()
+  const [searchParams, setSearchParams] = useSearchParams()
+  const scope = parseWorkspaceScope(searchParams.get(WORKSPACE_SCOPE_QUERY_PARAM))
   const [viewMode, setViewMode] = useState<WeddingsViewMode>(() =>
     readWeddingsViewMode(),
   )
@@ -25,6 +32,13 @@ export function WeddingsModernPage() {
   function handleViewChange(mode: WeddingsViewMode) {
     setViewMode(mode)
     writeWeddingsViewMode(mode)
+  }
+
+  function handleScopeChange(nextScope: typeof scope) {
+    const next = new URLSearchParams(searchParams)
+    if (nextScope === 'all') next.delete(WORKSPACE_SCOPE_QUERY_PARAM)
+    else next.set(WORKSPACE_SCOPE_QUERY_PARAM, nextScope)
+    setSearchParams(next, { preventScrollReset: true })
   }
 
   return (
@@ -69,7 +83,7 @@ export function WeddingsModernPage() {
                 Spróbuj ponownie
               </Button>
             </div>
-          ) : !weddings || weddings.length === 0 ? (
+          ) : (!weddings || weddings.length === 0) && scope === 'all' ? (
             <div className={styles.empty}>
               <p className={styles.emptyTitle}>Brak ślubów</p>
               <p className={styles.emptyDesc}>
@@ -85,7 +99,9 @@ export function WeddingsModernPage() {
             </div>
           ) : (
             <ModernWeddingsWorkspace
-              weddings={weddings}
+              weddings={weddings ?? []}
+              scope={scope}
+              onScopeChange={handleScopeChange}
               viewMode={viewMode}
               onViewChange={handleViewChange}
               entrance={entrance}

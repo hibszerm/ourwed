@@ -19,6 +19,24 @@
     var(--modern-ease-out) 40ms both;
 }
 
+.scopeFilter {
+  display: flex;
+  flex: 0 0 auto;
+  align-items: center;
+  gap: var(--space-1);
+  min-width: 0;
+}
+
+.desktopViewSwitch {
+  flex: 0 0 auto;
+  margin-left: auto;
+}
+
+.mobileViewSwitch {
+  display: none;
+  flex: 0 0 auto;
+}
+
 .searchLabel {
   flex: 1 1 16rem;
   min-width: 0;
@@ -83,6 +101,10 @@
   top: 0;
   z-index: 4;
   padding: var(--space-2) 0;
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: var(--space-2);
   background: var(--v3-environment, var(--app-background));
   animation: modernWeddingsEnter var(--modern-motion-base)
     var(--modern-ease-out) 80ms both;
@@ -92,6 +114,19 @@
   display: flex;
   flex-wrap: wrap;
   gap: var(--space-2);
+}
+
+.undated {
+  min-width: 0;
+  padding-top: var(--space-2);
+  border-top: 1px solid color-mix(in srgb, var(--color-text-primary) 8%, transparent);
+}
+
+.undatedHeading {
+  margin: 0 0 var(--space-3);
+  font-size: var(--text-sm);
+  font-weight: 600;
+  color: var(--color-text-secondary);
 }
 
 .chip,
@@ -444,26 +479,54 @@
     font-size: 16px;
   }
 
-  .controls > :not(.searchLabel) {
-    grid-column: 2;
+  .scopeFilter {
+    grid-column: 1 / -1;
     grid-row: 2;
-    align-self: center;
-    justify-self: end;
+    width: 100%;
+    flex-wrap: nowrap;
+    overflow-x: auto;
+    overscroll-behavior-x: contain;
+    scrollbar-width: none;
   }
 
-  .root:not(:has(.stickyNav)) .controls > :not(.searchLabel) {
-    grid-column: 1 / -1;
-    justify-self: start;
+  .scopeFilter::-webkit-scrollbar {
+    display: none;
+  }
+
+  .scopeFilter .chip,
+  .scopeFilter .chipActive {
+    flex: 0 0 auto;
+    min-height: var(--touch-target);
+  }
+
+  .desktopViewSwitch {
+    display: none;
   }
 
   .stickyNav {
-    grid-column: 1;
-    grid-row: 2;
+    grid-column: 1 / -1;
+    grid-row: 3;
     position: static;
     z-index: auto;
     min-width: 0;
     padding: 0;
     animation: none;
+  }
+
+  .chips {
+    flex: 1 1 auto;
+    min-width: 0;
+  }
+
+  .mobileViewSwitch {
+    display: flex;
+  }
+
+  .root:not(:has(.stickyNav)) .desktopViewSwitch {
+    display: flex;
+    grid-column: 1 / -1;
+    grid-row: 3;
+    justify-self: end;
   }
 
   .chips {
