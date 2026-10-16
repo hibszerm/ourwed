@@ -401,11 +401,11 @@ run('LOCATION_ROLES and PLAN_DNIA match groom-before-bride', () => {
   assert(groomIdx > 0 && groomIdx < brideIdx, 'LOCATION_ROLES groom first')
 })
 
-run('UI itinerary follows route stop keys, not fixed role list alone', () => {
+run('canonical UI itinerary follows route stop keys, not fixed role list alone', () => {
   const day = readFileSync(
     resolve(
       process.cwd(),
-      'src/features/weddings/detail/v2/WeddingDayWorkspace.tsx',
+      'src/features/weddings/modern-detail/CanonicalWeddingLogisticsPresentation.tsx',
     ),
     'utf8',
   )

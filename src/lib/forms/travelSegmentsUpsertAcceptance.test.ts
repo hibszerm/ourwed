@@ -38,7 +38,7 @@ const MIGRATION =
   'supabase/migrations/20260725250000_travel_segments_wedding_sequence_unique.sql'
 const SERVICE = 'src/lib/api/travelService.ts'
 const DETAIL = 'src/features/weddings/components/detail/WeddingDetailTravel.tsx'
-const DAY = 'src/features/weddings/modern-detail/ModernWeddingLogisticsWorkspace.tsx'
+const DAY = 'src/features/weddings/modern-detail/CanonicalWeddingLogisticsPresentation.tsx'
 const BOOTSTRAP =
   'supabase/migrations_archive/bootstrap/travel_planning.sql'
 
@@ -221,10 +221,9 @@ run('persistence failure does not suppress map with coordinates', () => {
   assert(detail.includes('persistenceError'), 'shows warn')
   assert(detail.includes('<TravelMap stops={flow.stops} />'), 'map still rendered')
   const day = readFileSync(resolve(process.cwd(), DAY), 'utf8')
-  assert(day.includes('persistenceError'), 'v2 warn')
-  assert(day.includes('<TravelMap stops={mapStops}'), 'v2 map')
-  // Hard catch must not wipe places in V2 (props available)
-  assert(day.includes('places,'), 'v2 catch keeps places')
+  assert(day.includes('persistenceError'), 'canonical warning remains visible')
+  assert(day.includes('<TravelMap stops={mapStops}'), 'canonical map remains rendered')
+  assert(day.includes('places,'), 'canonical presentation retains places when route persistence fails')
 })
 
 run('idempotent sync contract: upsert after wedding-scoped delete', () => {

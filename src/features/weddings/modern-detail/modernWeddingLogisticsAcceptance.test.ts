@@ -33,8 +33,9 @@ function run(name: string, fn: () => void) {
 }
 
 const logistics = read(
-  'src/features/weddings/modern-detail/ModernWeddingLogisticsWorkspace.tsx',
+  'src/features/weddings/modern-detail/CanonicalWeddingLogisticsPresentation.tsx',
 )
+const logisticsAdapter = read('src/features/weddings/modern-detail/ModernWeddingLogisticsWorkspace.tsx')
 const logisticsCss = read(
   'src/features/weddings/modern-detail/ModernWeddingLogisticsWorkspace.module.css',
 )
@@ -44,7 +45,6 @@ const workspace = read(
 const tabs = read(
   'src/features/weddings/modern-detail/ModernWeddingDetailTabs.tsx',
 )
-const classicDay = (assert(!existsSync(resolve(process.cwd(), 'src/features/weddings/detail/v2/WeddingDayWorkspace.tsx')), 'deleted src/features/weddings/detail/v2/WeddingDayWorkspace.tsx'), ({ includes: () => false, indexOf: () => -1, slice: () => '', length: 0, match: () => null } as any))
 const classicTabs = read(
   'src/features/weddings/detail/v2/weddingWorkspaceSelectors.ts',
 )
@@ -81,13 +81,13 @@ run('Modern mounts dedicated logistics workspace, not Classic bridge', () => {
 run('Canonical places, order, and travel-plan are reused', () => {
   assert(logistics.includes('getWeddingLocationItems'), 'shared location items')
   assert(logistics.includes('getOperationalOrderedPlaces'), 'canonical order')
-  assert(logistics.includes('travelPlanQueryKey'), 'travel-plan factory')
-  assert(logistics.includes('weddingPlacesQueryKey'), 'wedding-places factory')
-  assert(logistics.includes('withAuthoritativePlaces'), 'places overlay')
+  assert(logisticsAdapter.includes('travelPlanQueryKey'), 'travel-plan factory')
+  assert(logisticsAdapter.includes('weddingPlacesQueryKey'), 'wedding-places factory')
+  assert(logisticsAdapter.includes('withAuthoritativePlaces'), 'places overlay')
   assert(logistics.includes('buildTravelFlow'), 'shared flow')
   assert(logistics.includes('orderedPlaceIds'), 'explicit ids from places')
   assert(logistics.includes('places: []'), 'plan.places not authority')
-  assert(logistics.includes("travelService.recalculate"), 'same recalc')
+  assert(logisticsAdapter.includes("travelService.recalculate"), 'same recalc')
   assert(!logistics.includes('create extra place'), 'no extra model')
 })
 
@@ -163,7 +163,6 @@ run('Modern Edytuj miejsca uses centered modal, not the right drawer', () => {
   const modernWorkspace = read(
     'src/features/weddings/modern-detail/ModernWeddingDetailWorkspace.tsx',
   )
-  const classic = (assert(!existsSync(resolve(process.cwd(), 'src/features/weddings/detail/v2/WeddingDetailV2.tsx')), 'deleted src/features/weddings/detail/v2/WeddingDetailV2.tsx'), ({ includes: () => false, indexOf: () => -1, slice: () => '', length: 0, match: () => null } as any))
   const surface = read(
     'src/features/weddings/detail/v2/WeddingWorkspaceEditSurface.tsx',
   )

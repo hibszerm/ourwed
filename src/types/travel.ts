@@ -61,6 +61,8 @@ export interface WeddingPlace {
   sortOrder: number
   createdAt: string
   updatedAt: string
+  addressVersion?: string
+  nameVersion?: string
 }
 
 export interface TravelSegment {

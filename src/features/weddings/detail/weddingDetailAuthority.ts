@@ -130,6 +130,7 @@ export function useEvictIncompatibleWeddingDetailCaches(
       ['wedding-source-contracts', weddingId],
     ])
     if (authority.kind === 'unavailable') {
+      queryClient.removeQueries({ queryKey: ['collaborative-logistics-v3', userId, weddingId] })
       queryClient.removeQueries({
         queryKey: collaborativeWeddingIdentityQueryKey(userId, weddingId),
         exact: true,

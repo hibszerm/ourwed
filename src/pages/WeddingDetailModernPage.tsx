@@ -12,6 +12,7 @@ import { WeddingDetailHostModals } from '@/features/weddings/detail/WeddingDetai
 import { useWeddingDetailHost } from '@/features/weddings/detail/useWeddingDetailHost'
 import { ModernWeddingDetailWorkspace } from '@/features/weddings/modern-detail/ModernWeddingDetailWorkspace'
 import { ModernWeddingIdentityHero } from '@/features/weddings/modern-detail/ModernWeddingIdentityHero'
+import { SharedV3LogisticsWorkspace } from '@/features/weddings/modern-detail/SharedV3LogisticsWorkspace'
 import { getUserFacingErrorMessage } from '@/lib/errors/userFacingError'
 import type { CollaborativeWeddingIdentity } from '@/features/collaboration/collaborativeWeddingIdentityTypes'
 import type { Wedding } from '@/types/wedding'
@@ -45,7 +46,8 @@ export function WeddingDetailModernPage() {
   }
   if (branch === 'owned') return <OwnedWeddingDetail />
   if (branch === 'shared' && authority?.kind === 'shared') {
-    return <SharedWeddingDetail weddingId={authority.weddingId} userId={user?.id} />
+    return <SharedWeddingDetail weddingId={authority.weddingId} userId={user?.id}
+      accessVersion={authority.accessVersion} logisticsLevel={authority.effectiveAreas.logistics} />
   }
   return <UnavailableDetail />
 }
@@ -75,7 +77,9 @@ function OwnedWeddingDetail() {
   )
 }
 
-function SharedWeddingDetail({ weddingId, userId }: { weddingId: string; userId: string | undefined }) {
+function SharedWeddingDetail({ weddingId, userId, accessVersion, logisticsLevel }: {
+  weddingId: string; userId: string | undefined; accessVersion: string; logisticsLevel: 0 | 1 | 2
+}) {
   const queryClient = useQueryClient()
   const detail = useCollaborativeWeddingIdentity(weddingId, userId)
 
@@ -105,6 +109,8 @@ function SharedWeddingDetail({ weddingId, userId }: { weddingId: string; userId:
         <div className={styles.page} data-testid="wedding-detail-modern" data-authority="shared">
           <div className={workspaceStyles.workspace} data-testid="shared-canonical-wedding-detail">
             <ModernWeddingIdentityHero wedding={wedding} places={[]} testId="modern-wedding-detail-header" />
+            {userId ? <SharedV3LogisticsWorkspace wedding={wedding} userId={userId}
+              accessVersion={accessVersion} level={logisticsLevel} /> : null}
           </div>
         </div>
       </PageContainer>

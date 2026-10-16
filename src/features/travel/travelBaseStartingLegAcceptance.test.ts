@@ -292,30 +292,30 @@ run('7. Cache key includes studio coordinates (source)', () => {
   assert(!routeStops.includes("'return'"), 'no return trip in order')
 })
 
-run('8. UI: Start base, settings link, labeled legs, missing/invalid notices', () => {
+run('8. canonical UI: owner start base and shared-safe missing/invalid notices', () => {
   const day = readFileSync(
     resolve(
       process.cwd(),
-      'src/features/weddings/detail/v2/WeddingDayWorkspace.tsx',
+      'src/features/weddings/modern-detail/CanonicalWeddingLogisticsPresentation.tsx',
     ),
     'utf8',
   )
   assert(day.includes('data-testid="travel-base-stop"'), 'base stop')
-  assert(day.includes('itineraryStartLabel'), 'Start label')
+  assert(day.includes("role=\"Start\""), 'Start label')
   assert(day.includes(TRAVEL_SETTINGS_PATH) || day.includes('TRAVEL_SETTINGS_PATH'), 'settings')
   assert(day.includes('travel-base-missing'), 'missing notice')
   assert(day.includes('travel-base-invalid'), 'invalid notice')
   assert(
-    day.includes('Ustaw bazę podróży, aby obliczyć dojazd do pierwszej'),
-    'missing copy',
+    day.includes('Brak punktu startowego właściciela do wyliczenia dojazdu.'),
+    'shared missing copy',
   )
   assert(
-    day.includes('Nie można użyć adresu bazy do obliczenia trasy'),
-    'invalid copy',
+    day.includes('Adres punktu startowego właściciela jest niekompletny.'),
+    'shared invalid copy',
   )
-  assert(day.includes('itineraryLegRoute'), 'leg corridor label')
+  assert(day.includes('TravelLeg'), 'route legs')
   assert(
-    day.includes('TravelRouteTotals') || day.includes('distanceLabel'),
+    day.includes('travel-total-distance') && day.includes('travel-total-duration'),
     'totals label',
   )
   assert(!day.includes('O której muszę wyjechać'), 'no departure time')
@@ -337,13 +337,13 @@ run('8. UI: Start base, settings link, labeled legs, missing/invalid notices', (
   assert(map.includes("kind === 'studio'"), 'studio marker branch')
 })
 
-run('9. Map consumes flow stops including base (source)', () => {
+run('9. Canonical map consumes route flow stops including the owner base', () => {
   const day = readFileSync(
     resolve(
       process.cwd(),
-      'src/features/weddings/detail/v2/WeddingDayWorkspace.tsx',
+      'src/features/weddings/modern-detail/CanonicalWeddingLogisticsPresentation.tsx',
     ),
     'utf8',
   )
-  assert(day.includes('<TravelMap stops={flow.stops} />'), 'map from flow')
+  assert(day.includes('<TravelMap stops={mapStops} size="logistics" />'), 'map from canonical route stops')
 })

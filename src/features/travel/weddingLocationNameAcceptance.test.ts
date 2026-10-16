@@ -295,7 +295,12 @@ run('10. Source: Places mapping + editor use shared model', () => {
     ),
     'utf8',
   )
-  assert(roles.includes('WeddingLocationEditor'), 'shared editor')
+  assert(roles.includes('LocationRoleFieldsPresentation'), 'owner adapter delegates to shared editor presentation')
+  const rolePresentation = readFileSync(
+    resolve(process.cwd(), 'src/features/weddings/detail/editing/fields/LocationRoleFieldsPresentation.tsx'),
+    'utf8',
+  )
+  assert(rolePresentation.includes('WeddingLocationEditor'), 'shared editor presentation retains canonical editor')
 
   const proxy = readFileSync(
     resolve(process.cwd(), 'supabase/functions/places-proxy/config.ts'),
