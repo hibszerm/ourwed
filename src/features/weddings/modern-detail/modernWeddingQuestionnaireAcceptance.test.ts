@@ -58,7 +58,9 @@ run('1. Option B chapters and Modern wiring', () => {
   assert(ui.includes("presentation=\"modern\""), 'modern plan presentation')
   assert(ui.includes('mapping-panel'), 'review stays in ankieta chapter')
   assert(ui.includes('usePreWeddingQuestionnaireWorkspace'), 'shared controller')
-  assert(!ui.includes('queryKey:'), 'no new query layer in modern UI')
+  assert(!ui.includes('useQuery({'), 'no duplicate response read query in modern UI')
+  assert(ui.includes('invalidateQueries'), 'owner answer writes refresh the existing response query')
+  assert(ui.includes('saveOwnerAnswer'), 'owner edits use the owner-authorized answer command')
 })
 
 run('2. Status presentation mapping — empty, draft, shared, completed', () => {
@@ -182,7 +184,6 @@ run('4. Visual language — stream answers, share hierarchy, no Classic chrome',
   const css = read(
     'src/features/weddings/modern-detail/ModernWeddingQuestionnaireWorkspace.module.css',
   )
-  const classic = (assert(!existsSync(resolve(process.cwd(), 'src/features/weddings/detail/v2/WeddingPreWeddingQuestionnaireWorkspace.tsx')), 'deleted src/features/weddings/detail/v2/WeddingPreWeddingQuestionnaireWorkspace.tsx'), ({ includes: () => false, indexOf: () => -1, slice: () => '', length: 0, match: () => null } as any))
   assert(!existsSync(resolve(process.cwd(), 'src/features/weddings/detail/v2/WeddingPreWeddingQuestionnaireWorkspace.tsx')), 'Classic questionnaire workspace removed')
   assert(!ui.includes('statusBadge'), 'modern has no classic badge class')
   assert(!css.includes('backdrop-filter'), 'no glass')

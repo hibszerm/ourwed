@@ -170,6 +170,7 @@ export function usePreWeddingQuestionnaireWorkspace(
     () => (response?.answers ?? {}) as Record<string, PreWeddingAnswerValue>,
     [response?.answers],
   )
+  const hasAnswers = Object.keys(answers).length > 0
 
   const candidates = useMemo(() => {
     if (!questionnaire || Object.keys(answers).length === 0) return []
@@ -533,13 +534,10 @@ export function usePreWeddingQuestionnaireWorkspace(
     questionnaire?.status === 'draft' ||
     isSubmitted
   const pendingCandidates = candidates.filter((c) => !appliedIds.has(c.id))
-  const hasAnswers = Object.keys(answers).length > 0
-  const showAnswers =
-    Boolean(questionnaire) &&
-    hasAnswers &&
-    (isSubmitted ||
-      questionnaire?.status === 'in_progress' ||
-      questionnaire?.status === 'opened')
+  // Keep the owner operational answer editor available as soon as a prepared
+  // questionnaire can receive answers, including before the first response.
+  // The canonical editor can create the response row at revision zero.
+  const showAnswers = Boolean(questionnaire) && questionnaire?.status !== 'draft' && questionnaire?.status !== 'archived'
 
   return {
     wedding,

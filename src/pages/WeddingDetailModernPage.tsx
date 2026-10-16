@@ -1,5 +1,5 @@
 import { useEffect } from 'react'
-import { Link, useParams } from 'react-router-dom'
+import { Link, useParams, useSearchParams } from 'react-router-dom'
 import { useQueryClient } from '@tanstack/react-query'
 import { AppLayout } from '@/layouts/AppLayout'
 import { Button } from '@/components/ui/Button'
@@ -13,6 +13,7 @@ import { useWeddingDetailHost } from '@/features/weddings/detail/useWeddingDetai
 import { ModernWeddingDetailWorkspace } from '@/features/weddings/modern-detail/ModernWeddingDetailWorkspace'
 import { ModernWeddingIdentityHero } from '@/features/weddings/modern-detail/ModernWeddingIdentityHero'
 import { SharedV3LogisticsWorkspace } from '@/features/weddings/modern-detail/SharedV3LogisticsWorkspace'
+import { SharedV3PreweddingWorkspace } from '@/features/weddings/modern-detail/SharedV3PreweddingWorkspace'
 import { getUserFacingErrorMessage } from '@/lib/errors/userFacingError'
 import type { CollaborativeWeddingIdentity } from '@/features/collaboration/collaborativeWeddingIdentityTypes'
 import type { Wedding } from '@/types/wedding'
@@ -47,7 +48,8 @@ export function WeddingDetailModernPage() {
   if (branch === 'owned') return <OwnedWeddingDetail />
   if (branch === 'shared' && authority?.kind === 'shared') {
     return <SharedWeddingDetail weddingId={authority.weddingId} userId={user?.id}
-      accessVersion={authority.accessVersion} logisticsLevel={authority.effectiveAreas.logistics} />
+      accessVersion={authority.accessVersion} logisticsLevel={authority.effectiveAreas.logistics}
+      preweddingLevel={authority.effectiveAreas.prewedding} />
   }
   return <UnavailableDetail />
 }
@@ -77,10 +79,11 @@ function OwnedWeddingDetail() {
   )
 }
 
-function SharedWeddingDetail({ weddingId, userId, accessVersion, logisticsLevel }: {
-  weddingId: string; userId: string | undefined; accessVersion: string; logisticsLevel: 0 | 1 | 2
+function SharedWeddingDetail({ weddingId, userId, accessVersion, logisticsLevel, preweddingLevel }: {
+  weddingId: string; userId: string | undefined; accessVersion: string; logisticsLevel: 0 | 1 | 2; preweddingLevel: 0 | 1 | 2
 }) {
   const queryClient = useQueryClient()
+  const [searchParams, setSearchParams] = useSearchParams()
   const detail = useCollaborativeWeddingIdentity(weddingId, userId)
 
   useEffect(() => {
@@ -103,14 +106,31 @@ function SharedWeddingDetail({ weddingId, userId, accessVersion, logisticsLevel 
   if (!detail.data) return <UnavailableDetail />
 
   const wedding = toSharedIdentityWedding(detail.data)
+  const visible = [
+    ...(logisticsLevel > 0 ? [{ id: 'wedding_day', label: 'Logistyka' }] : []),
+    ...(preweddingLevel > 0 ? [{ id: 'pre_wedding_questionnaire', label: 'Ankieta przedślubna' }] : []),
+  ]
+  const requestedTab = searchParams.get('tab')
+  const activeTab = visible.some((item) => item.id === requestedTab) ? requestedTab : visible[0]?.id
+  const selectTab = (tab: string) => {
+    const next = new URLSearchParams(searchParams)
+    next.set('tab', tab)
+    setSearchParams(next, { replace: true })
+  }
   return (
     <AppLayout>
       <PageContainer width="full">
         <div className={styles.page} data-testid="wedding-detail-modern" data-authority="shared">
           <div className={workspaceStyles.workspace} data-testid="shared-canonical-wedding-detail">
             <ModernWeddingIdentityHero wedding={wedding} places={[]} testId="modern-wedding-detail-header" />
-            {userId ? <SharedV3LogisticsWorkspace wedding={wedding} userId={userId}
-              accessVersion={accessVersion} level={logisticsLevel} /> : null}
+            {visible.length ? <nav className={workspaceStyles.sharedNavigation} role="tablist" aria-label="Sekcje zlecenia">
+              {visible.map((item) => <button key={item.id} type="button" role="tab"
+                aria-selected={activeTab === item.id} onClick={() => selectTab(item.id)}>{item.label}</button>)}
+            </nav> : null}
+            {userId && activeTab === 'wedding_day' ? <SharedV3LogisticsWorkspace wedding={wedding} userId={userId}
+              accessVersion={accessVersion} level={logisticsLevel} embedded /> : null}
+            {userId && activeTab === 'pre_wedding_questionnaire' ? <SharedV3PreweddingWorkspace weddingId={weddingId}
+              userId={userId} accessVersion={accessVersion} level={preweddingLevel} /> : null}
           </div>
         </div>
       </PageContainer>

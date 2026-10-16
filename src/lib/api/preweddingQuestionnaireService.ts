@@ -770,6 +770,7 @@ export const weddingQuestionnaireService = {
     return {
       questionnaireId,
       answers: (data.answers_json as Record<string, PreWeddingAnswerValue>) ?? {},
+      responseRevision: data.collaboration_revision == null ? '0' : String(data.collaboration_revision),
       answeredRequired: data.answered_required as number,
       totalRequired: data.total_required as number,
       submittedAt: data.submitted_at as string | null,
@@ -812,7 +813,7 @@ export const weddingQuestionnaireService = {
       ceremonyTime: 'Godzina ślubu',
       receptionVenue: 'Sala weselna',
       photoVideoPriorities: 'Priorytety zdjęć i filmu',
-      sensitiveFamilyNotes: 'Kwestie rodzinne (prywatne)',
+      sensitiveFamilyNotes: 'Kwestie rodzinne',
       djBandProvider: 'DJ / Zespół',
       blessingPlan: 'Plan błogosławieństwa',
       groupPhotoPlan: 'Zdjęcie grupowe',
@@ -923,7 +924,7 @@ export const weddingQuestionnaireService = {
 export const publicPreWeddingService = {
   /** Load questionnaire via token. Returns null if not found. */
   async getByToken(token: string): Promise<PublicPreWeddingForm | null> {
-    const { data, error } = await supabase.rpc('public_get_prewedding_questionnaire', {
+    const { data, error } = await supabase.rpc('public_get_prewedding_questionnaire_v2', {
       p_token: token,
     })
     if (error) throw error
@@ -941,6 +942,7 @@ export const publicPreWeddingService = {
       savedAnswers: (row.saved_answers as Record<string, PreWeddingAnswerValue>) ?? {},
       answeredRequired: (row.answered_required as number) ?? 0,
       totalRequired: (row.total_required as number) ?? 0,
+      responseRevision: typeof row.response_revision === 'string' ? row.response_revision : '0',
       studioName: (row.studio_name as string | null) ?? null,
       studioLogoUrl: (row.studio_logo_url as string | null) ?? null,
       privacyController: parsePublicQuestionnaireController(
@@ -955,19 +957,43 @@ export const publicPreWeddingService = {
     answers: Record<string, PreWeddingAnswerValue>,
     answeredRequired: number,
     totalRequired: number,
-  ): Promise<{ ok: boolean; savedAt?: string }> {
-    const { data, error } = await supabase.rpc('public_autosave_prewedding_questionnaire', {
+    expectedRevision: string,
+  ): Promise<{ ok: boolean; savedAt?: string; responseRevision: string }> {
+    const { data, error } = await supabase.rpc('public_autosave_prewedding_questionnaire_v2', {
       p_token: token,
       p_answers: answers,
       p_answered_req: answeredRequired,
       p_total_req: totalRequired,
+      p_expected_revision: expectedRevision,
     })
     if (error) throw error
     const result = data as Record<string, unknown>
     return {
       ok: Boolean(result?.ok),
       savedAt: (result?.saved_at as string | undefined) ?? undefined,
+      responseRevision: typeof result?.response_revision === 'string' ? result.response_revision : expectedRevision,
     }
+  },
+
+  /** Revision checked single-answer patch; untouched fields are never sent. */
+  async autosaveAnswer(
+    token: string,
+    questionId: string,
+    value: PreWeddingAnswerValue | undefined,
+    clear: boolean,
+    answeredRequired: number,
+    totalRequired: number,
+    expectedRevision: string,
+  ): Promise<{ responseRevision: string }> {
+    const { data, error } = await supabase.rpc('public_autosave_prewedding_answer_v2', {
+      p_token: token, p_question_id: questionId, p_value: clear ? null : value,
+      p_clear: clear, p_answered_req: answeredRequired, p_total_req: totalRequired,
+      p_expected_revision: expectedRevision,
+    })
+    if (error) throw error
+    const result = data as Record<string, unknown>
+    if (!result?.ok || typeof result.response_revision !== 'string') throw new Error(String(result?.error ?? 'SAVE_FAILED'))
+    return { responseRevision: result.response_revision }
   },
 
   /** Final submission. */
@@ -976,12 +1002,14 @@ export const publicPreWeddingService = {
     answers: Record<string, PreWeddingAnswerValue>,
     answeredRequired: number,
     totalRequired: number,
+    expectedRevision: string,
   ): Promise<{ ok: boolean; submittedAt?: string; alreadySubmitted?: boolean }> {
-    const { data, error } = await supabase.rpc('public_submit_prewedding_questionnaire', {
+    const { data, error } = await supabase.rpc('public_submit_prewedding_questionnaire_v2', {
       p_token: token,
       p_answers: answers,
       p_answered_req: answeredRequired,
       p_total_req: totalRequired,
+      p_expected_revision: expectedRevision,
     })
     if (error) throw error
     const result = data as Record<string, unknown>

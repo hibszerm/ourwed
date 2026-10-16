@@ -185,6 +185,7 @@ export type PreWeddingAnswerValue =
 export interface WeddingQuestionnaireResponse {
   questionnaireId: string
   answers: Record<string, PreWeddingAnswerValue>
+  responseRevision: string
   answeredRequired: number
   totalRequired: number
   submittedAt?: string | null
@@ -207,6 +208,7 @@ export interface PublicPreWeddingForm {
   savedAnswers: Record<string, PreWeddingAnswerValue>
   answeredRequired: number
   totalRequired: number
+  responseRevision: string
   /** Photographer studio branding (from studio_details). */
   studioName?: string | null
   studioLogoUrl?: string | null

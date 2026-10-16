@@ -26,3 +26,6 @@
     padding-top: 18px;
   }
 }
+.sharedNavigation { display: flex; gap: .5rem; flex-wrap: wrap; margin: 1rem 0; border-bottom: 1px solid var(--border-subtle, #e8e3dd); }
+.sharedNavigation button { border: 0; border-bottom: 2px solid transparent; background: transparent; padding: .7rem .9rem; color: inherit; cursor: pointer; }
+.sharedNavigation button[aria-selected="true"] { border-bottom-color: var(--accent, #8c735b); font-weight: 600; }

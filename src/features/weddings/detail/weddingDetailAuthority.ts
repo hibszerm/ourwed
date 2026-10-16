@@ -143,6 +143,13 @@ export function useEvictIncompatibleWeddingDetailCaches(
         queryKey: collaborativeWeddingQueryKeys.editState(userId, weddingId),
         exact: true,
       })
+    } else if (authority.kind === 'shared') {
+      queryClient.removeQueries({
+        predicate: (query) => Array.isArray(query.queryKey)
+          && query.queryKey[0] === 'collaborative-prewedding-v3'
+          && query.queryKey[1] === userId && query.queryKey[2] === weddingId
+          && (authority.effectiveAreas.prewedding === 0 || query.queryKey[3] !== authority.accessVersion),
+      })
     }
   }, [authority, queryClient, userId, weddingId])
 }

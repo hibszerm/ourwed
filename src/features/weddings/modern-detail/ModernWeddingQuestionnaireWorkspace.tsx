@@ -1,4 +1,5 @@
 import { useEffect, useId, useRef, useState, type KeyboardEvent } from 'react'
+import { useMutation, useQueryClient } from '@tanstack/react-query'
 import { Link } from 'react-router-dom'
 import { MoreHorizontal } from 'lucide-react'
 import { Button } from '@/components/ui/Button'
@@ -7,6 +8,8 @@ import { Modal } from '@/components/ui/Modal'
 import { IconCheck } from '@/components/icons'
 import { PreWeddingTemplateSelectDialog } from '@/features/prewedding/PreWeddingTemplateSelectDialog'
 import { PreWeddingDayPlan } from '@/features/prewedding/PreWeddingDayPlan'
+import { CanonicalQuestionAnswer } from '@/features/prewedding/CanonicalQuestionAnswer'
+import { collaborativePreweddingService } from '@/features/collaboration/collaborativePreweddingService'
 import { buildAnswerList } from '@/features/prewedding/answerSummary'
 import { answerToGeoPlace } from '@/features/prewedding/preweddingLocation'
 import { preweddingShareMessage } from '@/features/prewedding/preweddingShareHelpers'
@@ -22,6 +25,7 @@ import { googleMapsPlaceUrl } from '@/services/googleMapsLinks'
 import { formatDate } from '@/lib/utils/dates'
 import type { GeoPlace, WeddingPlace } from '@/types/travel'
 import type { Wedding } from '@/types/wedding'
+import type { PreWeddingAnswerValue } from '@/types/preweddingQuestionnaire'
 import {
   composeModernQuestionnaireChapter,
   EMPTY_QUESTIONNAIRE_COPY,
@@ -252,16 +256,72 @@ function ReviewPanel({
 function AnswersDocument({
   questionnaire,
   answers,
+  weddingId,
+  responseRevision,
 }: {
   questionnaire: NonNullable<
     ReturnType<typeof usePreWeddingQuestionnaireWorkspace>['questionnaire']
   >
   answers: Record<string, unknown>
+  weddingId: string
+  responseRevision: string
 }) {
+  const client = useQueryClient()
+  const [editing, setEditing] = useState(false)
+  const [draft, setDraft] = useState<Record<string, unknown>>(answers)
+  const [revision, setRevision] = useState(responseRevision)
+  const [feedback, setFeedback] = useState('')
+  const dirty = useRef(new Set<string>())
+  const save = useMutation({
+    mutationFn: (input: { questionId: string; value?: PreWeddingAnswerValue; clear?: boolean }) =>
+      collaborativePreweddingService.saveOwnerAnswer({
+        weddingId, questionnaireId: questionnaire.id, questionId: input.questionId,
+        value: input.value, clear: input.clear, responseRevision: revision,
+      }),
+    onSuccess: async (result) => {
+      setDraft(result.answers)
+      setRevision(result.response_revision)
+      setFeedback('Odpowiedź zapisana.')
+      await client.invalidateQueries({ queryKey: ['prewedding-response', questionnaire.id], exact: true })
+    },
+    onError: async () => {
+      setFeedback('Odpowiedź nie została zapisana. Odśwież dane przed ponowną próbą.')
+      await client.invalidateQueries({ queryKey: ['prewedding-response', questionnaire.id], exact: true })
+    },
+  })
   const items = buildAnswerList(questionnaire.schema, answers)
 
   return (
     <div data-testid="prewedding-answers">
+      <button type="button" onClick={() => {
+        setDraft(answers)
+        setRevision(responseRevision)
+        dirty.current.clear()
+        setEditing((current) => !current)
+      }}>{editing ? 'Zakończ edycję odpowiedzi' : 'Edytuj odpowiedzi'}</button>
+      {feedback ? <p role="status">{feedback}</p> : null}
+      {editing ? <div data-testid="owner-canonical-answer-editor">
+        {questionnaire.schema.sections.flatMap((section) => section.questions).filter((question) => !question.hidden).map((question) => {
+          const value = draft[question.id] as PreWeddingAnswerValue | undefined
+          return <div key={question.id} onBlur={(event) => {
+            if (event.currentTarget.contains(event.relatedTarget as Node | null) || !dirty.current.has(question.id)) return
+            dirty.current.delete(question.id)
+            save.mutate({ questionId: question.id, value })
+          }}>
+            <CanonicalQuestionAnswer question={question} value={value} mode="edit" saving={save.isPending}
+              conflict={feedback.includes('nie została zapisana')} onChange={(next) => {
+                setDraft((previous) => ({ ...previous, [question.id]: next }))
+                dirty.current.add(question.id)
+              }} />
+            {value !== undefined && question.type !== 'information' ? <button type="button" disabled={save.isPending}
+              onClick={() => {
+                setDraft((previous) => { const next = { ...previous }; delete next[question.id]; return next })
+                dirty.current.delete(question.id)
+                save.mutate({ questionId: question.id, clear: true })
+              }}>Wyczyść odpowiedź</button> : null}
+          </div>
+        })}
+      </div> : null}
       <div data-testid="prewedding-summary-cards">
         <div
           className={styles.answerStream}
@@ -307,14 +367,6 @@ function AnswersDocument({
                 ) : (
                   <p className={styles.answerValue}>{item.value}</p>
                 )}
-                {item.kind === 'sensitive' ? (
-                  <p
-                    className={styles.sensitiveNote}
-                    aria-label="Tylko dla fotografa"
-                  >
-                    Tylko dla fotografa
-                  </p>
-                ) : null}
               </div>
             )
           })}
@@ -872,6 +924,8 @@ export function ModernWeddingQuestionnaireWorkspace({
             <AnswersDocument
               questionnaire={ctrl.questionnaire}
               answers={ctrl.answers}
+              weddingId={wedding.id}
+              responseRevision={ctrl.response?.responseRevision ?? '0'}
             />
           </div>
         </section>

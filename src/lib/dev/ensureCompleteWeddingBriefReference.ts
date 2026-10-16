@@ -511,7 +511,9 @@ async function ensurePreWeddingQuestionnaire(wedding: Wedding): Promise<void> {
     q.id,
     wedding.id,
   )
-  await publicPreWeddingService.submit(token, answers, 26, 26)
+  const publicForm = await publicPreWeddingService.getByToken(token)
+  if (!publicForm) throw new Error('Public questionnaire unavailable during reference fixture setup.')
+  await publicPreWeddingService.submit(token, answers, 26, 26, publicForm.responseRevision)
 }
 
 async function ensureCorrespondence(wedding: Wedding): Promise<Wedding> {
@@ -562,7 +564,7 @@ export async function ensureCompleteWeddingBriefReference(): Promise<{
       ? commercial.packageItems
       : snapshotPackageItemsFromStudioPackage(pkg)
 
-  let weddingId = await findBriefWeddingId(userId)
+  const weddingId = await findBriefWeddingId(userId)
   let wedding: Wedding
 
   if (weddingId) {
@@ -686,7 +688,6 @@ export async function ensureCompleteWeddingBriefReference(): Promise<{
       preparationLocation: LOCATIONS.bridePrep.formattedAddress,
       workflowStage: 'preparation',
     })
-    weddingId = wedding.id
   }
 
   await ensureMarkerNote(wedding.id)

@@ -1,290 +1,15 @@
 import { useCallback, useEffect, useLayoutEffect, useRef, useState } from 'react'
 import { Button } from '@/components/ui/Button'
-import { DatePickerField } from '@/features/forms/DatePickerField'
-import { QuestionnaireLocationField } from '@/features/prewedding/QuestionnaireLocationField'
-import {
-  isAnswerEmpty,
-  isStructuredLocationAnswer,
-  formatLocationAnswerDisplay,
-} from '@/features/prewedding/preweddingLocation'
-import {
-  normalizeMultipleChoiceAnswer,
-  toggleMultipleChoiceValue,
-} from '@/features/prewedding/multipleChoiceAnswer'
+import { isAnswerEmpty } from '@/features/prewedding/preweddingLocation'
 import { publicPreWeddingService } from '@/lib/api/preweddingQuestionnaireService'
 import { scrollPublicFormToTop } from '@/features/prewedding/scrollPublicFormToTop'
-import type {
-  PrefillValue,
-  PreWeddingAnswerValue,
-  PreWeddingQuestion,
-  PreWeddingSection,
-  PublicPreWeddingForm,
-} from '@/types/preweddingQuestionnaire'
+import type { PreWeddingAnswerValue, PreWeddingQuestion, PreWeddingSection, PublicPreWeddingForm } from '@/types/preweddingQuestionnaire'
 import { PublicFormPrivacyNotice } from '@/features/legal/LegalLinks'
 import styles from './PreWeddingPublicForm.module.css'
 import { getUserFacingErrorMessage } from '@/lib/errors/userFacingError'
 
-// ---------------------------------------------------------------------------
-// Field components
-// ---------------------------------------------------------------------------
-
-interface FieldProps {
-  question: PreWeddingQuestion
-  value: PreWeddingAnswerValue
-  error?: string
-  onChange: (value: PreWeddingAnswerValue) => void
-  /** Scalar placeholder only — structured place prefill is applied as answer value. */
-  prefill?: string
-}
-
-function prefillPlaceholder(value: PrefillValue | undefined): string | undefined {
-  if (value == null) return undefined
-  if (typeof value === 'string') return value
-  const display = formatLocationAnswerDisplay(value)
-  return display || undefined
-}
-
-function ShortTextField({ question, value, error, onChange, prefill }: FieldProps) {
-  return (
-    <div className={styles.field}>
-      <label htmlFor={question.id} className={styles.label}>
-        {question.label}
-        {question.required && <span className={styles.required} aria-label="wymagane"> *</span>}
-      </label>
-      {question.helpText && <p className={styles.helpText}>{question.helpText}</p>}
-      <input
-        id={question.id}
-        type="text"
-        className={`${styles.input} ${error ? styles.inputError : ''}`}
-        value={String(value ?? '')}
-        placeholder={question.placeholder ?? prefill ?? ''}
-        onChange={(e) => onChange(e.target.value)}
-        aria-required={question.required}
-        aria-describedby={error ? `${question.id}-error` : undefined}
-      />
-      {error && (
-        <p id={`${question.id}-error`} className={styles.error} role="alert">
-          {error}
-        </p>
-      )}
-    </div>
-  )
-}
-
-function LongTextField({ question, value, error, onChange }: FieldProps) {
-  return (
-    <div className={styles.field}>
-      <label htmlFor={question.id} className={styles.label}>
-        {question.label}
-        {question.required && <span className={styles.required} aria-label="wymagane"> *</span>}
-      </label>
-      {question.helpText && <p className={styles.helpText}>{question.helpText}</p>}
-      <textarea
-        id={question.id}
-        className={`${styles.textarea} ${error ? styles.inputError : ''}`}
-        value={String(value ?? '')}
-        placeholder={question.placeholder ?? ''}
-        rows={4}
-        onChange={(e) => onChange(e.target.value)}
-        aria-required={question.required}
-        aria-describedby={error ? `${question.id}-error` : undefined}
-      />
-      {error && (
-        <p id={`${question.id}-error`} className={styles.error} role="alert">
-          {error}
-        </p>
-      )}
-    </div>
-  )
-}
-
-function DateField({ question, value, error, onChange, prefill }: FieldProps) {
-  const isoValue = String(value ?? prefill ?? '')
-  return (
-    <div className={styles.field}>
-      <label htmlFor={question.id} className={styles.label}>
-        {question.label}
-        {question.required && <span className={styles.required} aria-label="wymagane"> *</span>}
-      </label>
-      {question.helpText && <p className={styles.helpText}>{question.helpText}</p>}
-      <DatePickerField
-        id={question.id}
-        value={isoValue}
-        error={error}
-        placeholder="dd.mm.rrrr"
-        onChange={(iso) => onChange(iso)}
-      />
-    </div>
-  )
-}
-
-function TimeField({ question, value, error, onChange }: FieldProps) {
-  return (
-    <div className={styles.field}>
-      <label htmlFor={question.id} className={styles.label}>
-        {question.label}
-        {question.required && <span className={styles.required} aria-label="wymagane"> *</span>}
-      </label>
-      <input
-        id={question.id}
-        type="time"
-        className={`${styles.input} ${error ? styles.inputError : ''}`}
-        value={String(value ?? '')}
-        onChange={(e) => onChange(e.target.value)}
-        aria-required={question.required}
-        aria-describedby={error ? `${question.id}-error` : undefined}
-      />
-      {error && (
-        <p id={`${question.id}-error`} className={styles.error} role="alert">
-          {error}
-        </p>
-      )}
-    </div>
-  )
-}
-
-function SingleChoiceField({ question, value, error, onChange }: FieldProps) {
-  const options = question.options ?? []
-  return (
-    <fieldset className={styles.fieldset} aria-describedby={error ? `${question.id}-error` : undefined}>
-      <legend className={styles.label}>
-        {question.label}
-        {question.required && <span className={styles.required} aria-label="wymagane"> *</span>}
-      </legend>
-      {question.helpText && <p className={styles.helpText}>{question.helpText}</p>}
-      <div className={styles.optionsList}>
-        {options.map((opt) => (
-          <label key={opt} className={styles.optionLabel}>
-            <input
-              type="radio"
-              name={question.id}
-              value={opt}
-              checked={value === opt}
-              onChange={() => onChange(opt)}
-              className={styles.optionInput}
-            />
-            <span className={styles.optionText}>{opt}</span>
-          </label>
-        ))}
-      </div>
-      {error && (
-        <p id={`${question.id}-error`} className={styles.error} role="alert">
-          {error}
-        </p>
-      )}
-    </fieldset>
-  )
-}
-
-function MultipleChoiceField({ question, value, error, onChange }: FieldProps) {
-  const options = question.options ?? []
-  const selected = normalizeMultipleChoiceAnswer(value)
-  return (
-    <fieldset
-      className={styles.fieldset}
-      data-testid={`prewedding-multi-${question.id}`}
-      aria-describedby={error ? `${question.id}-error` : undefined}
-    >
-      <legend className={styles.label}>
-        {question.label}
-        {question.required && <span className={styles.required} aria-label="wymagane"> *</span>}
-      </legend>
-      {question.helpText && <p className={styles.helpText}>{question.helpText}</p>}
-      <div className={styles.optionsList}>
-        {options.map((opt) => (
-          <label key={opt} className={styles.optionLabel}>
-            <input
-              type="checkbox"
-              name={`${question.id}[]`}
-              value={opt}
-              checked={selected.includes(opt)}
-              onChange={() => onChange(toggleMultipleChoiceValue(selected, opt))}
-              className={styles.optionInput}
-            />
-            <span className={styles.optionText}>{opt}</span>
-          </label>
-        ))}
-      </div>
-      {error && (
-        <p id={`${question.id}-error`} className={styles.error} role="alert">
-          {error}
-        </p>
-      )}
-    </fieldset>
-  )
-}
-
-function YesNoField({ question, value, error, onChange }: FieldProps) {
-  const options = question.options ?? ['Tak', 'Nie']
-  return (
-    <fieldset className={styles.fieldset} aria-describedby={error ? `${question.id}-error` : undefined}>
-      <legend className={styles.label}>
-        {question.label}
-        {question.required && <span className={styles.required} aria-label="wymagane"> *</span>}
-      </legend>
-      <div className={styles.optionsList}>
-        {options.map((opt) => (
-          <label key={opt} className={styles.optionLabel}>
-            <input
-              type="radio"
-              name={question.id}
-              value={opt}
-              checked={value === opt}
-              onChange={() => onChange(opt)}
-              className={styles.optionInput}
-            />
-            <span className={styles.optionText}>{opt}</span>
-          </label>
-        ))}
-      </div>
-      {error && (
-        <p id={`${question.id}-error`} className={styles.error} role="alert">
-          {error}
-        </p>
-      )}
-    </fieldset>
-  )
-}
-
-function InformationBlock({ question }: { question: PreWeddingQuestion }) {
-  return (
-    <div className={styles.infoBlock} role="note">
-      {question.helpText && (
-        <p className={styles.infoText} style={{ whiteSpace: 'pre-line' }}>
-          {question.helpText}
-        </p>
-      )}
-    </div>
-  )
-}
-
-function AcknowledgementField({ question, value, error, onChange }: FieldProps) {
-  const checked = Boolean(value)
-  return (
-    <div className={styles.field}>
-      <label className={`${styles.checkboxLabel} ${error ? styles.inputError : ''}`}>
-        <input
-          id={question.id}
-          type="checkbox"
-          checked={checked}
-          onChange={(e) => onChange(e.target.checked)}
-          className={styles.checkbox}
-          aria-required={question.required}
-          aria-describedby={error ? `${question.id}-error` : undefined}
-        />
-        <span className={styles.checkboxText}>
-          {question.label}
-          {question.required && <span className={styles.required} aria-label="wymagane"> *</span>}
-        </span>
-      </label>
-      {error && (
-        <p id={`${question.id}-error`} className={styles.error} role="alert">
-          {error}
-        </p>
-      )}
-    </div>
-  )
-}
+import { AcknowledgementField, QuestionFieldRouter } from '@/features/prewedding/CanonicalQuestionFields'
+import { prefillPlaceholder } from '@/features/prewedding/preweddingFieldUtils'
 
 /** Tips text + confirmation checkbox in a single card (presentation only). */
 function TipsAckCard({
@@ -327,71 +52,11 @@ function TipsAckCard({
   )
 }
 
-/** Defensive guard: if a question's type changed after the couple already
- * answered it with an address, avoid rendering a raw object as plain text. */
-function normalizeAnswerForType(
-  question: PreWeddingQuestion,
-  value: PreWeddingAnswerValue,
-): PreWeddingAnswerValue {
-  if (question.type !== 'address' && isStructuredLocationAnswer(value)) {
-    const formatted =
-      typeof (value as { formattedAddress?: string }).formattedAddress === 'string'
-        ? (value as { formattedAddress: string }).formattedAddress
-        : ''
-    return formatted
-  }
-  return value
-}
-
-function QuestionFieldRouter({
-  question,
-  value: rawValue,
-  error,
-  onChange,
-  prefill,
-}: FieldProps) {
-  const value = normalizeAnswerForType(question, rawValue)
-  switch (question.type) {
-    case 'short_text':
-      return <ShortTextField question={question} value={value} error={error} onChange={onChange} prefill={prefill} />
-    case 'long_text':
-      return <LongTextField question={question} value={value} error={error} onChange={onChange} prefill={prefill} />
-    case 'date':
-      return <DateField question={question} value={value} error={error} onChange={onChange} prefill={prefill} />
-    case 'time':
-      return <TimeField question={question} value={value} error={error} onChange={onChange} prefill={prefill} />
-    case 'single_choice':
-      return <SingleChoiceField question={question} value={value} error={error} onChange={onChange} prefill={prefill} />
-    case 'multiple_choice':
-      return <MultipleChoiceField question={question} value={value} error={error} onChange={onChange} prefill={prefill} />
-    case 'yes_no':
-      return <YesNoField question={question} value={value} error={error} onChange={onChange} prefill={prefill} />
-    case 'address':
-      return (
-        <QuestionnaireLocationField
-          id={question.id}
-          label={question.label}
-          required={question.required}
-          helpText={question.helpText}
-          placeholder={question.placeholder ?? prefill}
-          value={value}
-          error={error}
-          onChange={onChange}
-        />
-      )
-    case 'information':
-      return <InformationBlock question={question} />
-    case 'acknowledgement':
-      return <AcknowledgementField question={question} value={value} error={error} onChange={onChange} prefill={prefill} />
-    default:
-      return <ShortTextField question={question} value={value} error={error} onChange={onChange} prefill={prefill} />
-  }
-}
-
 // ---------------------------------------------------------------------------
 // Count required questions + answered + validation (exported for tests)
 // ---------------------------------------------------------------------------
 
+// eslint-disable-next-line react-refresh/only-export-components -- reused by the public-form validation suite
 export function countRequired(sections: PreWeddingSection[]): number {
   let count = 0
   for (const s of sections) {
@@ -402,6 +67,7 @@ export function countRequired(sections: PreWeddingSection[]): number {
   return count
 }
 
+// eslint-disable-next-line react-refresh/only-export-components -- shared by public autosave and submit flows
 export function countAnsweredRequired(
   sections: PreWeddingSection[],
   answers: Record<string, PreWeddingAnswerValue>,
@@ -417,6 +83,7 @@ export function countAnsweredRequired(
   return count
 }
 
+// eslint-disable-next-line react-refresh/only-export-components -- consumed by existing progress presentations
 export function countAnsweredVisible(
   sections: PreWeddingSection[],
   answers: Record<string, PreWeddingAnswerValue>,
@@ -433,6 +100,7 @@ export function countAnsweredVisible(
   return { answered, total }
 }
 
+// eslint-disable-next-line react-refresh/only-export-components -- reused by the public-form validation suite
 export function validateRequired(
   sections: PreWeddingSection[],
   answers: Record<string, PreWeddingAnswerValue>,
@@ -514,14 +182,20 @@ export function PreWeddingPublicFormPage({ token }: { token: string }) {
   const [saveState, setSaveState] = useState<SaveState>('idle')
   const [submitting, setSubmitting] = useState(false)
   const [submitted, setSubmitted] = useState(false)
+  const [responseRevision, setResponseRevision] = useState('0')
 
   const autosaveTimerRef = useRef<ReturnType<typeof setTimeout> | null>(null)
   const lastSavedAnswersRef = useRef<string>('')
+  const savedSnapshotRef = useRef<Record<string, PreWeddingAnswerValue>>({})
+  const serverAnswersRef = useRef<Record<string, PreWeddingAnswerValue>>({})
+  const responseRevisionRef = useRef('0')
+  const blockedConflictKeysRef = useRef(new Set<string>())
   const inflightRef = useRef<number>(0)
   const thankYouRef = useRef<HTMLDivElement | null>(null)
 
   useEffect(() => {
     if (!token) {
+      // eslint-disable-next-line react-hooks/set-state-in-effect -- initialize an invalid-token terminal state
       setLoadError('Brak tokenu.')
       setLoading(false)
       return
@@ -537,23 +211,11 @@ export function PreWeddingPublicFormPage({ token }: { token: string }) {
           return
         }
         setForm(result)
-        const restored: Record<string, PreWeddingAnswerValue> = { ...result.savedAnswers }
-        for (const section of result.schema.sections) {
-          for (const q of section.questions) {
-            if (q.type === 'information') continue
-            const alreadyAnswered = q.id in restored && !isAnswerEmpty(restored[q.id])
-            if (!alreadyAnswered) {
-              const prefillValue = q.weddingDayMapping
-                ? result.prefill[q.weddingDayMapping]
-                : undefined
-              if (prefillValue) {
-                restored[q.id] = prefillValue
-              } else {
-                restored[q.id] = q.type === 'acknowledgement' ? false : ''
-              }
-            }
-          }
-        }
+        responseRevisionRef.current = result.responseRevision
+        setResponseRevision(result.responseRevision)
+        serverAnswersRef.current = { ...result.savedAnswers }
+        const restored = hydratePublicAnswers(result.schema, result.prefill, result.savedAnswers)
+        savedSnapshotRef.current = { ...restored }
         setAnswers(restored)
         // Submitted questionnaires stay editable via the same link (prefilled).
         // Thank-you is shown only after a successful submit in this session.
@@ -582,14 +244,67 @@ export function PreWeddingPublicFormPage({ token }: { token: string }) {
           const sections = schema.sections
           const totalReq = countRequired(sections)
           const answeredReq = countAnsweredRequired(sections, nextAnswers)
-          await publicPreWeddingService.autosave(token, nextAnswers, answeredReq, totalReq)
+          const keys = [...new Set([...Object.keys(savedSnapshotRef.current), ...Object.keys(nextAnswers)])]
+            .filter((key) => !blockedConflictKeysRef.current.has(key)
+              && JSON.stringify(savedSnapshotRef.current[key]) !== JSON.stringify(nextAnswers[key]))
+          for (const key of keys) {
+            const saved = await publicPreWeddingService.autosaveAnswer(token, key, nextAnswers[key], !(key in nextAnswers), answeredReq, totalReq, responseRevisionRef.current)
+            responseRevisionRef.current = saved.responseRevision
+            setResponseRevision(saved.responseRevision)
+            if (key in nextAnswers) {
+              savedSnapshotRef.current[key] = nextAnswers[key]!
+              serverAnswersRef.current[key] = nextAnswers[key]!
+            } else {
+              delete savedSnapshotRef.current[key]
+              delete serverAnswersRef.current[key]
+            }
+          }
           if (inflightRef.current === seq) {
             lastSavedAnswersRef.current = serialized
             setSaveState('saved')
             setTimeout(() => setSaveState((s) => (s === 'saved' ? 'idle' : s)), 3000)
           }
-        } catch {
+        } catch (error) {
           if (inflightRef.current === seq) setSaveState('error')
+          if (inflightRef.current !== seq || !(error instanceof Error) || !/CONFLICT/i.test(error.message)) return
+          try {
+            const latest = await publicPreWeddingService.getByToken(token)
+            if (!latest) {
+              setSaveState('error')
+              return
+            }
+            const oldBase = savedSnapshotRef.current
+            const oldServer = serverAnswersRef.current
+            const hydrated = hydratePublicAnswers(latest.schema, latest.prefill, latest.savedAnswers)
+            const dirty = [...new Set([...Object.keys(oldBase), ...Object.keys(nextAnswers)])]
+              .filter((key) => JSON.stringify(oldBase[key]) !== JSON.stringify(nextAnswers[key]))
+            const overlaps = dirty.filter((key) => JSON.stringify(oldServer[key]) !== JSON.stringify(latest.savedAnswers[key]))
+            const rebased = { ...hydrated }
+            for (const key of dirty) if (key in nextAnswers) rebased[key] = nextAnswers[key]!
+            setAnswers(rebased)
+            savedSnapshotRef.current = { ...hydrated }
+            serverAnswersRef.current = { ...latest.savedAnswers }
+            responseRevisionRef.current = latest.responseRevision
+            setResponseRevision(latest.responseRevision)
+            if (overlaps.length) {
+              overlaps.forEach((key) => blockedConflictKeysRef.current.add(key))
+              setErrors((current) => ({ ...current, _form: 'Odpowiedź zmieniła się równolegle. Twoja wersja pozostała na ekranie; sprawdź ją przed ponownym zapisem.' }))
+              return
+            }
+            const latestTotalRequired = countRequired(schema.sections)
+            const latestAnsweredRequired = countAnsweredRequired(schema.sections, rebased)
+            for (const key of dirty) {
+              const retry = await publicPreWeddingService.autosaveAnswer(token, key, rebased[key], !(key in rebased), latestAnsweredRequired, latestTotalRequired, responseRevisionRef.current)
+              responseRevisionRef.current = retry.responseRevision
+              if (key in rebased) { savedSnapshotRef.current[key] = rebased[key]!; serverAnswersRef.current[key] = rebased[key]! }
+              else { delete savedSnapshotRef.current[key]; delete serverAnswersRef.current[key] }
+            }
+            setResponseRevision(responseRevisionRef.current)
+            lastSavedAnswersRef.current = JSON.stringify(rebased)
+            setSaveState('saved')
+          } catch {
+            setSaveState('error')
+          }
         }
       }, AUTOSAVE_DEBOUNCE_MS)
     },
@@ -598,6 +313,7 @@ export function PreWeddingPublicFormPage({ token }: { token: string }) {
 
   function handleChange(questionId: string, value: PreWeddingAnswerValue) {
     if (!form || submitted) return
+    blockedConflictKeysRef.current.delete(questionId)
     setAnswers((prev) => {
       const next = { ...prev, [questionId]: value }
       setErrors((e) => {
@@ -629,7 +345,7 @@ export function PreWeddingPublicFormPage({ token }: { token: string }) {
       const sections = form.schema.sections
       const totalReq = countRequired(sections)
       const answeredReq = countAnsweredRequired(sections, answers)
-      await publicPreWeddingService.submit(token, answers, answeredReq, totalReq)
+      await publicPreWeddingService.submit(token, answers, answeredReq, totalReq, responseRevisionRef.current)
       setSubmitted(true)
     } catch (err) {
       setErrors({
@@ -745,11 +461,11 @@ export function PreWeddingPublicFormPage({ token }: { token: string }) {
         </div>
       </div>
 
-      <form className={styles.form} onSubmit={handleSubmit} noValidate>
+      <form className={styles.form} onSubmit={handleSubmit} noValidate data-response-revision={responseRevision}>
         {visibleQuestions.map((q) => {
           if (q.id === 'q28' && tipsMerged) return null
 
-          const isPrivate = q.weddingDayMapping === 'sensitiveFamilyNotes'
+          const isFamilyNotes = q.weddingDayMapping === 'sensitiveFamilyNotes'
           const isTipsMerge = q.id === 'q27_info' && tipsMerged && ackQuestion
 
           let number: string | null = null
@@ -764,7 +480,7 @@ export function PreWeddingPublicFormPage({ token }: { token: string }) {
           return (
             <div key={q.id} className={styles.questionStack}>
               <div
-                className={`${styles.questionCard} ${isPrivate ? styles.privateSection : ''} ${isTipsMerge ? styles.tipsAckQuestionCard : ''}`}
+                className={`${styles.questionCard} ${isFamilyNotes ? styles.familyNotesSection : ''} ${isTipsMerge ? styles.tipsAckQuestionCard : ''}`}
                 data-testid="prewedding-question-card"
                 data-question-id={q.id}
               >
@@ -821,4 +537,19 @@ export function PreWeddingPublicFormPage({ token }: { token: string }) {
       </div>
     </div>
   )
+}
+
+function hydratePublicAnswers(
+  schema: PublicPreWeddingForm['schema'],
+  prefill: PublicPreWeddingForm['prefill'],
+  saved: Record<string, PreWeddingAnswerValue>,
+): Record<string, PreWeddingAnswerValue> {
+  const restored = { ...saved }
+  for (const section of schema.sections) for (const question of section.questions) {
+    if (question.type === 'information') continue
+    if (question.id in restored && !isAnswerEmpty(restored[question.id])) continue
+    const value = question.weddingDayMapping ? prefill[question.weddingDayMapping] : undefined
+    restored[question.id] = value ?? (question.type === 'acknowledgement' ? false : '')
+  }
+  return restored
 }

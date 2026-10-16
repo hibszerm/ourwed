@@ -12,19 +12,19 @@ import type { WeddingPlace, WeddingPlaceRole } from '@/types/travel'
 import styles from './SharedV3LogisticsWorkspace.module.css'
 
 export function SharedV3LogisticsWorkspace({
-  wedding, userId, accessVersion, level,
-}: { wedding: Wedding; userId: string; accessVersion: string; level: 0 | 1 | 2 }) {
+  wedding, userId, accessVersion, level, embedded = false,
+}: { wedding: Wedding; userId: string; accessVersion: string; level: 0 | 1 | 2; embedded?: boolean }) {
   const queryClient = useQueryClient()
   useEffect(() => {
     if (level === 0) queryClient.removeQueries({ queryKey: ['collaborative-logistics-v3', userId, wedding.id] })
   }, [level, queryClient, userId, wedding.id])
   if (level === 0) return null
-  return <EnabledSharedV3LogisticsWorkspace wedding={wedding} userId={userId} accessVersion={accessVersion} level={level} />
+  return <EnabledSharedV3LogisticsWorkspace wedding={wedding} userId={userId} accessVersion={accessVersion} level={level} embedded={embedded} />
 }
 
 function EnabledSharedV3LogisticsWorkspace({
-  wedding, userId, accessVersion, level,
-}: { wedding: Wedding; userId: string; accessVersion: string; level: 1 | 2 }) {
+  wedding, userId, accessVersion, level, embedded,
+}: { wedding: Wedding; userId: string; accessVersion: string; level: 1 | 2; embedded: boolean }) {
   const queryClient = useQueryClient()
   const [searchParams, setSearchParams] = useSearchParams()
   const [editorVersion, setEditorVersion] = useState<string | null>(null)
@@ -86,7 +86,7 @@ function EnabledSharedV3LogisticsWorkspace({
       await queryClient.invalidateQueries({ queryKey: weddingDetailAuthorityQueryKey(userId, wedding.id), exact: true })
     },
   })
-  const open = searchParams.get('tab') === 'wedding_day'
+  const open = embedded || searchParams.get('tab') === 'wedding_day'
   const setOpen = (next: boolean) => {
     const params = new URLSearchParams(searchParams)
     if (next) params.set('tab', 'wedding_day')
@@ -99,10 +99,10 @@ function EnabledSharedV3LogisticsWorkspace({
   const error = logistics.isError ? getUserFacingErrorMessage(logistics.error, 'Nie udało się załadować logistyki.') : null
   return (
     <div className={styles.root} data-testid="shared-v3-logistics" data-logistics-level={level}>
-      <nav className={styles.nav} role="tablist" aria-label="Sekcje zlecenia">
+      {!embedded ? <nav className={styles.nav} role="tablist" aria-label="Sekcje zlecenia">
         <button type="button" role="tab" aria-selected={open} aria-controls="shared-logistics-panel"
           onClick={() => setOpen(!open)}>Logistyka</button>
-      </nav>
+      </nav> : null}
       {open ? <section id="shared-logistics-panel" role="tabpanel" className={styles.panel}>
         {error ? <p role="alert">{error}</p> : null}
         {logistics.isPending ? <p role="status">Ładowanie lokalizacji…</p> : null}

@@ -161,6 +161,12 @@ interface Props {
   answers: Record<string, unknown>
   /** Classic keeps the existing Plan dnia chrome. Modern is TIME → role editorial. */
   presentation?: 'classic' | 'modern'
+  capabilities?: { canEditTimes: boolean; canReorderPlaces: boolean; canRecalculateRoute: boolean }
+  sharedData?: {
+    places: Array<{ id: string; role: string; name: string | null; address: string | null; sort_order: number }>
+    times: Array<{ stop_key: string; time: string | null; revision: string }>
+  }
+  onOperationalTimeChange?: (stopKey: string, time: string | null) => Promise<void>
 }
 
 export function PreWeddingDayPlan({
@@ -169,6 +175,9 @@ export function PreWeddingDayPlan({
   schema,
   answers,
   presentation = 'classic',
+  capabilities = { canEditTimes: true, canReorderPlaces: true, canRecalculateRoute: true },
+  sharedData,
+  onOperationalTimeChange,
 }: Props) {
   const queryClient = useQueryClient()
   const userId = useStudioAuthId()
@@ -178,14 +187,14 @@ export function PreWeddingDayPlan({
   const travelKey = travelPlanQueryKey(userId, weddingId)
   const timesKey = operationalTimesQueryKey(userId, weddingId)
 
-  const { data: places = [], isLoading: placesLoading } = useQuery({
+  const { data: ownerPlaces = [], isLoading: placesLoading } = useQuery({
     queryKey: placesKey,
     queryFn: () => weddingPlaceService.listByWeddingId(weddingId),
-    enabled: Boolean(userId && weddingId),
+    enabled: !sharedData && Boolean(userId && weddingId),
     retry: false,
   })
 
-  const { data: plan, isLoading: planLoading } = useQuery({
+  const { data: ownerPlan, isLoading: planLoading } = useQuery({
     queryKey: travelKey,
     queryFn: async (): Promise<TravelPlan> => {
       try {
@@ -215,16 +224,28 @@ export function PreWeddingDayPlan({
         return emptyStalePlan(weddingId, null)
       }
     },
-    enabled: Boolean(userId && weddingId),
+    enabled: !sharedData && Boolean(userId && weddingId),
     retry: false,
   })
 
-  const { data: operationalTimes = {} } = useQuery({
+  const { data: ownerOperationalTimes = {} } = useQuery({
     queryKey: timesKey,
     queryFn: () => weddingOperationalTimesService.listByWeddingId(weddingId),
-    enabled: Boolean(userId && weddingId),
+    enabled: !sharedData && Boolean(userId && weddingId),
     retry: false,
   })
+
+  const places: WeddingPlace[] = sharedData
+    ? sharedData.places.map((place) => ({
+      id: place.id, weddingId, role: place.role as WeddingPlace['role'], label: place.name,
+      placeId: null, formattedAddress: place.address ?? '', latitude: null, longitude: null,
+      sortOrder: place.sort_order, createdAt: '', updatedAt: '',
+    }))
+    : ownerPlaces
+  const plan = ownerPlan
+  const operationalTimes: OperationalTimeMap = sharedData
+    ? Object.fromEntries(sharedData.times.flatMap((row) => row.time == null ? [] : [[row.stop_key, row.time]]))
+    : ownerOperationalTimes
 
   const [routeStatus, setRouteStatus] = useState<TravelRouteUiStatus>('idle')
 
@@ -294,6 +315,11 @@ export function PreWeddingDayPlan({
       stopKey: string
       time: string | null
     }) => {
+      if (sharedData) {
+        if (!capabilities.canEditTimes || !onOperationalTimeChange) throw new Error('FORBIDDEN')
+        await onOperationalTimeChange(stopKey, time)
+        return { stopKey, time }
+      }
       if (time) {
         const saved = await weddingOperationalTimesService.setTime(
           weddingId,
@@ -337,7 +363,7 @@ export function PreWeddingDayPlan({
     setDraftPlaceIds(next)
   }
 
-  const baseStops = hasOperationalPlaces
+  const builtStops = hasOperationalPlaces
     ? buildOperationalDayStops({
         studio: plan?.studio ?? null,
         places: canonicalPlaces,
@@ -346,11 +372,15 @@ export function PreWeddingDayPlan({
         weddingCeremonyTime: weddingCeremonyTime,
       })
     : []
+  const baseStops = builtStops.map((stop) => ({
+    ...stop,
+    reorderable: capabilities.canReorderPlaces && stop.reorderable,
+  }))
 
   // Remap place cards by displayIds — do NOT re-sort by sort_order here.
   const studioStop = baseStops.filter((s) => s.kind === 'studio')
   const byId = new Map(
-    baseStops.filter((s) => s.reorderable).map((s) => [s.key, s]),
+    baseStops.filter((s) => s.kind === 'wedding_place').map((s) => [s.key, s]),
   )
   const renderStops: OperationalDayStop[] = hasOperationalPlaces
     ? [
@@ -461,10 +491,11 @@ export function PreWeddingDayPlan({
           }
         : null
       : summarizeTravelRoute(flow)
-  const isLoading = placesLoading || planLoading
+  const isLoading = !sharedData && (placesLoading || planLoading)
   const useTravel = Boolean(flow?.stops.some((s) => s.kind === 'wedding_place'))
 
   async function commitReorder(nextIds: string[]) {
+    if (!capabilities.canReorderPlaces || sharedData) return
     const beforeIds = canonicalIds
     const unchanged =
       nextIds.length === beforeIds.length &&
@@ -752,7 +783,7 @@ export function PreWeddingDayPlan({
                   <div className={styles.timeCol}>
                     <OperationalTimeControl
                       time={stop.time}
-                      disabled={!hasOperationalPlaces && stop.kind !== 'studio'}
+                    disabled={!capabilities.canEditTimes || (!hasOperationalPlaces && stop.kind !== 'studio')}
                       onCommit={async (next) => {
                         await saveTime.mutateAsync({
                           stopKey: stop.key,
@@ -801,7 +832,7 @@ export function PreWeddingDayPlan({
                     {modern ? null : (
                       <OperationalTimeControl
                         time={stop.time}
-                        disabled={!hasOperationalPlaces && stop.kind !== 'studio'}
+                        disabled={!capabilities.canEditTimes || (!hasOperationalPlaces && stop.kind !== 'studio')}
                         onCommit={async (next) => {
                           await saveTime.mutateAsync({
                             stopKey: stop.key,
@@ -838,7 +869,7 @@ export function PreWeddingDayPlan({
         })}
       </ol>
 
-      {useTravel || hasOperationalPlaces ? (
+      {capabilities.canRecalculateRoute && (useTravel || hasOperationalPlaces) ? (
         modern ? (
           <div className={styles.modernTravel}>
             {routeStatus === 'error' ? (

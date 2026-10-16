@@ -295,7 +295,7 @@
 
 /* ── Private / sensitive section ── */
 
-.privateSection {
+.familyNotesSection {
   box-shadow: 0 0 0 1px color-mix(in srgb, var(--color-warning-500, #f59e0b) 40%, var(--color-border));
 }
 
