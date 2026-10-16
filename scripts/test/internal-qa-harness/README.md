@@ -1,5 +1,50 @@
 # Internal QA local Supabase harness
 
+## Frozen Collaboration baseline through V3 Pre-Wedding
+
+For frozen checkpoint `0670d0c5795d9951d2eed9d28dc23ef8d057a7ab`, use disposable local Supabase project `ourwed-collab-harness-1016`, database container `supabase_db_ourwed-collab-harness-1016`, and the unpublished GoTrue schema initializer `supabase_auth_ourwed-collab-harness-1016` (database `postgres`). This project lives under `/private/tmp`; its migrations and seeds are disabled, and no other application services are enabled. It is never production data.
+
+The startup wrapper exists because Supabase CLI 2.109.1 may publish PostgreSQL on wildcard interfaces. It runs the CLI through a fail-closed Docker API guard on a temporary owner-only Unix socket (directory `0700`, socket `0600`). The guard recognizes only the exact project, DB container, unpublished GoTrue initializer, DB volume, and project network; unknown API calls are denied. On the exact DB create request it rewrites only PostgreSQL `HostIp` to `127.0.0.1`, retaining the assigned host port and all other request configuration. GoTrue is allowed only on the project network with no host ports, to provision the `auth.users` schema required by the frozen migrations. The guard timeout is 240 seconds; after it expires, the CLI child is stopped and the temporary socket and directory are removed. This wrapper is the trusted startup procedure; do not run the Supabase CLI directly for this project.
+
+```sh
+export HOME=/private/tmp/ourwed-harness-repair-home
+export XDG_CONFIG_HOME="$HOME/config"
+export XDG_CACHE_HOME="$HOME/cache"
+mkdir -p "$XDG_CONFIG_HOME" "$XDG_CACHE_HOME"
+SUPABASE=/Users/marcin/.local/share/supabase/supabase
+"$SUPABASE" stop --workdir /private/tmp/ourwed-collaboration-harness-repair-20261016 --project-id ourwed-collab-harness-1016 --no-backup --yes >/dev/null
+bash scripts/test/internal-qa-harness/start_frozen_collaboration_db.sh
+```
+
+The start script verifies the actual PostgreSQL mapping and `docker exec` SQL access. Confirm the live state before building or testing:
+
+```sh
+bash scripts/test/internal-qa-harness/assert_frozen_db_network_isolation.sh supabase_db_ourwed-collab-harness-1016
+```
+
+The safety check requires the exact project labels and exactly one DB container, then verifies PostgreSQL is published only as `127.0.0.1:<port>`. Missing, duplicate, malformed, wildcard, IPv6, or other host bindings fail closed. Baseline construction and pgTAP execution also run this check automatically.
+
+Build only on a fresh database in that dedicated container. The builder extracts the current account fixture and then applies the repository's canonical prerequisite, Pre-Wedding, operational-time, source-contract, and frozen Collaboration migrations in order. It verifies the frozen H1/H3/V3 migration hashes, checks the resulting schema, and deliberately does not apply the V3 Contacts migration:
+
+```sh
+bash scripts/test/internal-qa-harness/build_frozen_collaboration_baseline.sh supabase_db_ourwed-collab-harness-1016
+bash scripts/test/internal-qa-harness/assert_frozen_pre_wedding_schema.sh supabase_db_ourwed-collab-harness-1016 postgres
+```
+
+Run the six frozen suites, in this order, against that same disposable database. The frozen gate contains 349 assertions:
+
+```sh
+export OURWED_TEST_DB_CONTAINER=supabase_db_ourwed-collab-harness-1016
+scripts/test/internal-qa-harness/run_pgtap.sh supabase/tests/collaboration_v3_prewedding_shared_test.sql
+scripts/test/internal-qa-harness/run_pgtap.sh supabase/tests/collaboration_v3_six_area_foundation_test.sql
+scripts/test/internal-qa-harness/run_pgtap.sh supabase/tests/collaboration_1c_h3_detail_authority_test.sql
+scripts/test/internal-qa-harness/run_pgtap.sh supabase/tests/collaboration_1c_h3_shared_identity_projection_test.sql
+scripts/test/internal-qa-harness/run_pgtap.sh supabase/tests/collaboration_1c_h1_workspace_authority_test.sql
+scripts/test/internal-qa-harness/run_pgtap.sh supabase/tests/collaboration_v3_logistics_test.sql
+```
+
+The verified `postgres` database in this named disposable project is the reusable baseline. To rebuild from fresh state, stop only this project with the documented `--no-backup` option, start it through the guarded wrapper, and run the build command above. Do not run broad Docker cleanup commands. Do not apply `supabase/migrations/20261016151212_collaboration_v3_contacts_canonical.sql`; the Contacts migration is excluded. The schema self-check guards against skeletal questionnaire tables by requiring canonical `introduction`, `status`, response revision, and operational-time version fields before the Pre-Wedding suite runs.
+
 This is test-only tooling. `build_baseline.py` extracts current account and Collaboration 1B definitions from committed canonical migrations and adds synthetic fixtures. Its output is SQL for a disposable database; it is not a Supabase migration and must not be copied into `supabase/migrations`.
 
 ## Recreate the local harness

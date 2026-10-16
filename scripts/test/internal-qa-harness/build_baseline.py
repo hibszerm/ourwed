@@ -36,6 +36,9 @@ def table(source: str, name: str) -> str:
 
 ddl = r"""
 -- TEST-ONLY: minimum current-production account schema; no production data.
+-- Questionnaire and operational-time schemas are intentionally omitted here.
+-- Their canonical historical migrations are applied by
+-- build_frozen_collaboration_baseline.sh so this fixture cannot shadow them.
 create extension if not exists pgcrypto with schema extensions;
 create extension if not exists pgtap with schema extensions;
 
@@ -137,19 +140,6 @@ create table public.extra_services (
   is_system_template boolean not null default false,
   check (price >= 0),
   check ((is_system_template and user_id is null) or (not is_system_template and user_id is not null))
-);
-create table public.questionnaire_templates (
-  id uuid primary key default extensions.gen_random_uuid(),
-  owner_id uuid not null references auth.users(id) on delete cascade,
-  name text not null, source_key text, title text not null default '',
-  introduction text not null default '', schema_json jsonb not null default '{"sections":[]}'::jsonb,
-  version integer not null default 1, is_default boolean not null default false,
-  is_archived boolean not null default false,
-  created_at timestamptz not null default timezone('utc', now()),
-  updated_at timestamptz not null default timezone('utc', now()),
-  type text not null default 'pre_wedding',
-  check (type in ('contract', 'pre_wedding')),
-  unique(owner_id, source_key)
 );
 create table public.user_legal_acceptances (
   id uuid primary key default extensions.gen_random_uuid(),
@@ -257,17 +247,6 @@ create table public.payments (
   amount numeric(12,2) not null default 0,
   created_at timestamptz not null default timezone('utc', now())
 );
-create table public.wedding_questionnaires (
-  id uuid primary key default extensions.gen_random_uuid(),
-  wedding_id uuid not null references public.weddings(id) on delete cascade,
-  owner_id uuid not null references auth.users(id) on delete cascade,
-  title text not null default ''
-);
-create table public.wedding_questionnaire_responses (
-  id uuid primary key default extensions.gen_random_uuid(),
-  questionnaire_id uuid not null unique references public.wedding_questionnaires(id) on delete cascade,
-  answers_json jsonb not null default '{}'::jsonb
-);
 create table public.sessions (
   id uuid primary key default extensions.gen_random_uuid(),
   user_id uuid not null references public.users(id) on delete cascade,
@@ -334,17 +313,6 @@ create policy {name}_select_owner_fixture on public.{name} for select to authent
     for name in wedding_child_fixture_tables
 )
 child_fixture_ddl += r"""
-alter table public.wedding_questionnaires enable row level security;
-alter table public.wedding_questionnaires force row level security;
-grant select on public.wedding_questionnaires to authenticated;
-create policy wedding_questionnaires_select_owner_fixture on public.wedding_questionnaires
-  for select to authenticated using (owner_id=auth.uid());
-alter table public.wedding_questionnaire_responses enable row level security;
-alter table public.wedding_questionnaire_responses force row level security;
-grant select on public.wedding_questionnaire_responses to authenticated;
-create policy wedding_questionnaire_responses_select_owner_fixture on public.wedding_questionnaire_responses
-  for select to authenticated using (exists(select 1 from public.wedding_questionnaires q
-    where q.id=questionnaire_id and q.owner_id=auth.uid()));
 create table public.wedding_operational_completions (
   wedding_id uuid not null references public.weddings(id) on delete cascade,
   stop_key text not null,
@@ -422,19 +390,6 @@ alter table public.travel_segments force row level security;
 grant select on public.travel_segments to authenticated;
 create policy travel_segments_select_owner_fixture on public.travel_segments
   for select to authenticated using (public.is_wedding_owner(wedding_id));
-create table public.wedding_operational_times (
-  wedding_id uuid not null references public.weddings(id) on delete cascade,
-  stop_key text not null,
-  operational_time text not null,
-  created_at timestamptz not null default timezone('utc',now()),
-  updated_at timestamptz not null default timezone('utc',now()),
-  primary key (wedding_id,stop_key)
-);
-alter table public.wedding_operational_times enable row level security;
-alter table public.wedding_operational_times force row level security;
-grant select on public.wedding_operational_times to authenticated;
-create policy wedding_operational_times_select_owner_fixture on public.wedding_operational_times
-  for select to authenticated using (public.is_wedding_owner(wedding_id));
 """
 
 ddl += r"""
@@ -462,10 +417,6 @@ create table public.document_component_versions (id uuid primary key default ext
 create table public.document_template_component_links (id uuid primary key default extensions.gen_random_uuid(), template_version_id uuid, component_version_id uuid);
 create table public.document_blocks (id uuid primary key default extensions.gen_random_uuid(), component_version_id uuid);
 create table public.document_block_conditions (id uuid primary key default extensions.gen_random_uuid(), block_id uuid);
-alter table public.questionnaire_templates enable row level security;
-alter table public.questionnaire_templates force row level security;
-grant select, insert, update, delete on public.questionnaire_templates to authenticated;
-
 """
 
 ddl += r"""
@@ -626,15 +577,6 @@ create policy weddings_select_own on public.weddings for select to authenticated
 create policy weddings_insert_own on public.weddings for insert to authenticated with check (user_id=auth.uid() and public.account_has_pro_access());
 create policy weddings_update_own on public.weddings for update to authenticated using (user_id=auth.uid() and public.account_has_pro_access()) with check (user_id=auth.uid() and public.account_has_pro_access());
 create policy weddings_delete_own on public.weddings for delete to authenticated using (user_id=auth.uid() and public.account_has_pro_access());
-create policy qt_select_own on public.questionnaire_templates for select to authenticated using (owner_id=auth.uid());
-create policy qt_insert_own on public.questionnaire_templates for insert to authenticated
-  with check (owner_id = auth.uid() and public.account_has_pro_access());
-create policy qt_update_own on public.questionnaire_templates for update to authenticated
-  using (owner_id = auth.uid() and public.account_has_pro_access())
-  with check (owner_id = auth.uid() and public.account_has_pro_access());
-create policy qt_delete_own on public.questionnaire_templates for delete to authenticated
-  using (owner_id = auth.uid() and public.account_has_pro_access());
-
 grant select, insert, update, delete on all tables in schema public to service_role;
 grant execute on function public.admin_get_subscription_metrics() to authenticated;
 grant execute on function public.admin_list_subscriptions(integer, integer, text) to authenticated;
