@@ -153,8 +153,7 @@ run('10. Phase 1C / Next Action freeze markers', () => {
     resolve(root, 'src/features/weddings/edit/persistWeddingEditDraft.ts'),
     'utf8',
   )
-  assert(persist.includes('taskService.create'), 'wedding persist create')
-  assert(persist.includes('description is intentionally omitted'), 'desc preserve')
+  assert(!persist.includes('taskService.'), 'Tasks retain their own revisioned persistence path outside broad wedding save')
   const resolver = readFileSync(
     resolve(root, 'src/lib/workflow/resolveWeddingNextAction.ts'),
     'utf8',

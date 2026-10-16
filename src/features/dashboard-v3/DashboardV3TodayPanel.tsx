@@ -22,14 +22,13 @@ import {
   removeDashboardDueTask,
   restoreDashboardDueTasks,
   restoreStudioTasksBundle,
+  collaborativeTaskErrorCode,
+  reconcileSharedTaskCaches,
 } from '@/features/tasks/invalidateTaskDomain'
-import { getWeddingDisplayName } from '@/features/weddings/presentation/getWeddingDisplayName'
 import { taskService } from '@/lib/api/taskService'
-import { formatShortDate } from '@/lib/utils/dates'
-import {
-  localCalendarDateKey,
-  toLocalCalendarDateKey,
-} from '@/lib/utils/localCalendarDate'
+import { collaborativeTasksService } from '@/features/collaboration/collaborativeTasksService'
+import { CanonicalTaskRow } from '@/features/tasks/CanonicalTaskRow'
+import { localCalendarDateKey } from '@/lib/utils/localCalendarDate'
 import type { Task, Wedding } from '@/types/wedding'
 import styles from './DashboardV3TodayPanel.module.css'
 
@@ -126,36 +125,41 @@ export function DashboardV3TodayPanel({ weddings }: DashboardV3TodayPanelProps) 
       userId,
       endDate,
       task.id,
+      task.shared === true,
     )
     const previousStudio = patchStudioTaskStatus(queryClient, userId, task.id, {
-      status: 'done',
-      completed: true,
-      completedAt: new Date().toISOString(),
-    })
-    patchWeddingTaskStatus(queryClient, userId, task, { completed: true })
+      status: 'done', completed: true, completedAt: new Date().toISOString(),
+    }, task.shared === true)
+    if (!task.shared) patchWeddingTaskStatus(queryClient, userId, task, { completed: true })
 
     try {
-      await taskService.complete(task.id)
+      if (task.shared) {
+        if (!task.weddingId || !task.accessVersion || !task.revision) throw new Error('TASK_AUTHORITY_REQUIRED')
+        await collaborativeTasksService.mutate({ action: 'complete', weddingId: task.weddingId,
+          accessVersion: task.accessVersion, taskId: task.id, expectedRevision: task.revision })
+      } else await taskService.complete(task.id)
       void invalidateTaskDomain(queryClient, {
         weddingIds: [task.weddingId],
       })
-    } catch {
-      restoreDashboardDueTasks(
-        queryClient,
-        userId,
-        endDate,
-        previousDashboard,
-      )
-      restoreStudioTasksBundle(queryClient, userId, previousStudio)
+    } catch (error) {
+      const authorityError = task.shared ? collaborativeTaskErrorCode(error) : null
+      if (task.shared && authorityError) {
+        restoreDashboardDueTasks(queryClient, userId, endDate, previousDashboard, true)
+        restoreStudioTasksBundle(queryClient, userId, previousStudio, true)
+        await reconcileSharedTaskCaches(queryClient, userId, { weddingId: task.weddingId ?? undefined, outcome: authorityError })
+      } else {
+        restoreDashboardDueTasks(queryClient, userId, endDate, previousDashboard, task.shared === true)
+        restoreStudioTasksBundle(queryClient, userId, previousStudio, task.shared === true)
+      }
       if (previousStudio) {
         const rolled = previousStudio.tasks.find((t) => t.id === task.id)
-        if (rolled) {
+        if (rolled && !task.shared) {
           patchWeddingTaskStatus(queryClient, userId, rolled, {
             completed: rolled.completed,
           })
         }
       } else {
-        patchWeddingTaskStatus(queryClient, userId, task, {
+        if (!task.shared) patchWeddingTaskStatus(queryClient, userId, task, {
           completed: false,
         })
       }
@@ -249,83 +253,18 @@ export function DashboardV3TodayPanel({ weddings }: DashboardV3TodayPanelProps) 
         </div>
       ) : (
         <ul className={styles.list}>
-          {preview.map((task) => {
-            const wedding = task.weddingId
-              ? weddingById.get(task.weddingId)
-              : undefined
-            const couple = wedding ? getWeddingDisplayName(wedding) : null
-            const dueKey = toLocalCalendarDateKey(task.dueDate)
-            const overdue = Boolean(dueKey && dueKey < todayKey)
-            const isToday = dueKey === todayKey
-            const isFuture = Boolean(dueKey && dueKey > todayKey)
-
-            const bodyLabel = couple
-              ? `Otwórz ślub: ${couple}`
-              : task.weddingId
-                ? `Otwórz ślub`
-                : task.title
-            const bodyContent = (
-              <>
-                {couple ? (
-                  <span className={styles.couple}>{couple}</span>
-                ) : !task.weddingId ? (
-                  <span className={styles.unlinked}>Bez zlecenia</span>
-                ) : null}
-                <span className={styles.taskTitle}>{task.title}</span>
-                {overdue && dueKey ? (
-                  <span className={styles.overdueMeta}>
-                    Zaległe · {formatShortDate(dueKey)}
-                  </span>
-                ) : isFuture && dueKey ? (
-                  <span className={styles.date}>{formatShortDate(dueKey)}</span>
-                ) : isToday && wedding ? (
-                  <span className={styles.date}>
-                    {formatShortDate(wedding.date)}
-                  </span>
-                ) : null}
-              </>
-            )
-
-            return (
-              <li key={task.id} className={styles.item}>
-                <button
-                  type="button"
-                  className={styles.checkbox}
-                  disabled={completingId === task.id}
-                  onClick={() => void handleComplete(task)}
-                  aria-label={`Oznacz jako wykonane: ${task.title}`}
-                >
-                  <IconCheck
-                    className={styles.checkIcon}
-                    width={12}
-                    height={12}
-                  />
-                </button>
-
-                {wedding ? (
-                  <Link
-                    to={`/sluby/${wedding.id}`}
-                    className={styles.body}
-                    aria-label={bodyLabel}
-                  >
-                    {bodyContent}
-                  </Link>
-                ) : task.weddingId ? (
-                  <Link
-                    to={`/sluby/${task.weddingId}`}
-                    className={styles.body}
-                    aria-label={bodyLabel}
-                  >
-                    {bodyContent}
-                  </Link>
-                ) : (
-                  <div className={styles.body} aria-label={bodyLabel}>
-                    {bodyContent}
-                  </div>
-                )}
-              </li>
-            )
-          })}
+          {preview.map((task) => (
+            <CanonicalTaskRow
+              key={task.id}
+              task={task}
+              wedding={task.weddingId ? weddingById.get(task.weddingId) : undefined}
+              canComplete={task.canEdit !== false}
+              onComplete={(selected) => void handleComplete(selected)}
+              shared={task.shared === true}
+              completing={completingId === task.id}
+              rowStyles={styles}
+            />
+          ))}
         </ul>
       )}
       {remaining > 0 ? (

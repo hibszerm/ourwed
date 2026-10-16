@@ -1,7 +1,6 @@
 import { contactService } from '@/lib/api/contactService'
 import { noteService } from '@/lib/api/noteService'
 import { paymentService } from '@/lib/api/paymentService'
-import { taskService } from '@/lib/api/taskService'
 import { travelService } from '@/lib/api/travelService'
 import { weddingExtraServiceService } from '@/lib/api/weddingExtraServiceService'
 import { weddingService } from '@/lib/api/weddingService'
@@ -274,43 +273,8 @@ export async function persistWeddingEditDraft(
     }
   }
 
-  // Tasks
-  const origTaskIds = new Set(original.tasks.map((t) => t.id))
-  const draftTaskIds = new Set(draft.tasks.map((t) => t.id))
-  for (const id of origTaskIds) {
-    if (!draftTaskIds.has(id)) await taskService.delete(id)
-  }
-  for (const task of draft.tasks) {
-    const dueDate = task.dueDate?.trim() ? task.dueDate.slice(0, 10) : null
-    if (isTempId(task.id)) {
-      await taskService.create({
-        weddingId,
-        title: task.title,
-        dueDate: dueDate ?? undefined,
-        status: task.completed ? 'done' : 'todo',
-      })
-    } else {
-      const orig = original.tasks.find((t) => t.id === task.id)
-      const patch: {
-        title: string
-        dueDate: string | null
-        status?: 'todo' | 'done'
-      } = {
-        title: task.title,
-        dueDate,
-      }
-      // Preserve richer DB statuses (in_progress / cancelled) unless the
-      // done/not-done checkbox actually changed.
-      if (orig) {
-        if (task.completed && !orig.completed) patch.status = 'done'
-        else if (!task.completed && orig.completed) patch.status = 'todo'
-      } else {
-        patch.status = task.completed ? 'done' : 'todo'
-      }
-      // description is intentionally omitted — partial update preserves DB value.
-      await taskService.update(task.id, patch)
-    }
-  }
+  // Tasks have their own revisioned persistence path. They are intentionally
+  // excluded from this broad multi-domain save.
 
   // Payments
   const origPaymentIds = new Set(original.wedding.payments.map((p) => p.id))

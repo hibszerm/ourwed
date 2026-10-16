@@ -184,10 +184,10 @@ run('7. Overview / day Edytuj call onEditSection (per-role day)', () => {
   assert(day.includes('Edytuj'), 'day edit label')
 
   const shell = readFileSync(v2, 'utf8')
-  assert(shell.includes("onEditSection('tasks')"), 'Historia→tasks')
+  assert(!shell.includes("onEditSection('tasks')"), 'task CRUD is no longer routed through Historia editor')
   assert(shell.includes("onEditSection('notes')"), 'Historia→notes')
   const surface = readFileSync(editSurface, 'utf8')
-  assert(surface.includes('TaskFields'), 'TaskFields in surface')
+  assert(!surface.includes('TaskFields'), 'task CRUD is outside broad wedding editor')
   assert(surface.includes('NoteFields'), 'NoteFields in surface')
 })
 
@@ -196,6 +196,8 @@ run('8. Cancel clears editor; save uses persistWeddingEditDraft', () => {
   assert(src.includes('cancelEdit'), 'cancel')
   assert(src.includes('requestCancelEdit'), 'request cancel')
   assert(src.includes('persistWeddingEditDraft'), 'persist')
+  const broadSave = readFileSync(resolve(process.cwd(), 'src/features/weddings/edit/persistWeddingEditDraft.ts'), 'utf8')
+  assert(!broadSave.includes('taskService.'), 'broad wedding save does not persist task changes')
   assert(src.includes('setEditorSection(null)'), 'clear section')
 })
 

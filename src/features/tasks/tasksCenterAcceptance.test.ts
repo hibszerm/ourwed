@@ -101,7 +101,7 @@ run('3. Owner-scoped studio task query', () => {
   assert(hook.includes('listForStudio'), 'listForStudio')
   assert(hook.includes('studioTasksQueryKey'), 'query key helper')
   assert(keys.includes("TASKS_QUERY_ROOT"), 'root')
-  assert(keys.includes("'studio'"), 'studio scope')
+  assert(keys.includes("'studio-owner'"), 'owner studio cache scope')
   assert(service.includes('eq(\'user_id\', userId)'), 'owner filter')
 })
 

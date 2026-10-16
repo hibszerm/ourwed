@@ -438,6 +438,12 @@ export interface Task {
   completed: boolean
   /** Display-only — not persisted. */
   priority: 'low' | 'medium' | 'high'
+  /** Collaboration Tasks V3 presentation authority metadata. */
+  shared?: boolean
+  canEdit?: boolean
+  revision?: string
+  accessVersion?: string
+  weddingLabel?: string
 }
 
 export interface Notification {

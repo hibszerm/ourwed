@@ -1,7 +1,11 @@
 import { TASKS_QUERY_ROOT } from '@/lib/api/taskService'
 
 export function studioTasksQueryKey(userId: string | undefined) {
-  return [TASKS_QUERY_ROOT, 'studio', userId] as const
+  return [TASKS_QUERY_ROOT, 'studio-owner', userId] as const
+}
+
+export function collaborativeStudioTasksQueryKey(userId: string | undefined) {
+  return [TASKS_QUERY_ROOT, 'collaborative-global', userId] as const
 }
 
 export function weddingTasksQueryKey(
@@ -16,7 +20,14 @@ export function dashboardDueTasksQueryKey(
   userId: string | undefined,
   endDate: string,
 ) {
-  return [TASKS_QUERY_ROOT, 'dashboard-due', userId, endDate] as const
+  return [TASKS_QUERY_ROOT, 'dashboard-due-owner', userId, endDate] as const
+}
+
+export function dashboardSharedDueTasksQueryKey(
+  userId: string | undefined,
+  endDate: string,
+) {
+  return [TASKS_QUERY_ROOT, 'dashboard-due-shared', userId, endDate] as const
 }
 
 /** Light active-wedding options for the Tasks Center form. */

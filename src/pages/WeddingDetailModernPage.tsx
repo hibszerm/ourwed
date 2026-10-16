@@ -16,6 +16,7 @@ import { SharedV3LogisticsWorkspace } from '@/features/weddings/modern-detail/Sh
 import { SharedV3PreweddingWorkspace } from '@/features/weddings/modern-detail/SharedV3PreweddingWorkspace'
 import { CanonicalCoupleCard } from '@/features/weddings/modern-detail/ModernWeddingOverview'
 import { CanonicalCoupleContactsEditor } from '@/features/weddings/detail/CanonicalCoupleContactsEditor'
+import { CanonicalWeddingTasksCard } from '@/features/tasks/CanonicalWeddingTasksCard'
 import { collaborativeContactsService, contactsToCouple, type WeddingContactsAggregate } from '@/features/collaboration/collaborativeContactsService'
 import { getUserFacingErrorMessage } from '@/lib/errors/userFacingError'
 import type { CollaborativeWeddingIdentity } from '@/features/collaboration/collaborativeWeddingIdentityTypes'
@@ -53,7 +54,8 @@ export function WeddingDetailModernPage() {
     return <SharedWeddingDetail key={`${user?.id}:${authority.weddingId}:${authority.accessVersion}:${authority.effectiveAreas.contacts}`}
       weddingId={authority.weddingId} userId={user?.id}
       accessVersion={authority.accessVersion} logisticsLevel={authority.effectiveAreas.logistics}
-      preweddingLevel={authority.effectiveAreas.prewedding} contactsLevel={authority.effectiveAreas.contacts} />
+      preweddingLevel={authority.effectiveAreas.prewedding} contactsLevel={authority.effectiveAreas.contacts}
+      tasksLevel={authority.effectiveAreas.tasks} />
   }
   return <UnavailableDetail />
 }
@@ -83,8 +85,8 @@ function OwnedWeddingDetail() {
   )
 }
 
-function SharedWeddingDetail({ weddingId, userId, accessVersion, logisticsLevel, preweddingLevel, contactsLevel }: {
-  weddingId: string; userId: string | undefined; accessVersion: string; logisticsLevel: 0 | 1 | 2; preweddingLevel: 0 | 1 | 2; contactsLevel: 0 | 1 | 2
+function SharedWeddingDetail({ weddingId, userId, accessVersion, logisticsLevel, preweddingLevel, contactsLevel, tasksLevel }: {
+  weddingId: string; userId: string | undefined; accessVersion: string; logisticsLevel: 0 | 1 | 2; preweddingLevel: 0 | 1 | 2; contactsLevel: 0 | 1 | 2; tasksLevel: 0 | 1 | 2
 }) {
   const queryClient = useQueryClient()
   const [searchParams, setSearchParams] = useSearchParams()
@@ -189,6 +191,8 @@ function SharedWeddingDetail({ weddingId, userId, accessVersion, logisticsLevel,
               accessVersion={accessVersion} level={logisticsLevel} embedded /> : null}
             {userId && activeTab === 'pre_wedding_questionnaire' ? <SharedV3PreweddingWorkspace weddingId={weddingId}
               userId={userId} accessVersion={accessVersion} level={preweddingLevel} /> : null}
+            {userId && tasksLevel > 0 ? <CanonicalWeddingTasksCard weddingId={weddingId} wedding={wedding}
+              accessVersion={accessVersion} tasksLevel={tasksLevel} /> : null}
           </div>
         </div>
       </PageContainer>

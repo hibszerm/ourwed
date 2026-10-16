@@ -4,6 +4,7 @@ import type { TaskWeddingMeta } from '@/features/tasks/taskWeddingMeta'
 import { TaskOverflowMenu } from '@/features/tasks/modern/TaskOverflowMenu'
 import { localCalendarDateKey } from '@/lib/utils/localCalendarDate'
 import styles from './ModernTasksWorkspace.module.css'
+import { Users } from 'lucide-react'
 
 function formatDueLabel(dueDate: string, todayKey: string): string {
   const key = dueDate.slice(0, 10)
@@ -32,6 +33,7 @@ export interface ModernTasksRowProps {
   onToggleComplete: (task: StudioTask) => void
   onEdit: (task: StudioTask) => void
   onDelete: (task: StudioTask) => void
+  canEdit?: boolean
 }
 
 export function ModernTasksRow({
@@ -46,6 +48,7 @@ export function ModernTasksRow({
   onToggleComplete,
   onEdit,
   onDelete,
+  canEdit = true,
 }: ModernTasksRowProps) {
   const todayKey = localCalendarDateKey()
   const dueLabel =
@@ -53,16 +56,16 @@ export function ModernTasksRow({
 
   return (
     <li className={styles.row}>
-      <button
+      {canEdit && task.canEdit !== false ? <button
         type="button"
         className={completed ? styles.checkDone : styles.check}
         aria-pressed={completed}
         aria-label={completed ? 'Oznacz jako aktywne' : 'Oznacz jako wykonane'}
         disabled={toggling}
         onClick={() => onToggleComplete(task)}
-      />
+      /> : null}
       <div className={styles.identity}>
-        <p className={completed ? styles.titleDone : styles.title}>{task.title}</p>
+        <p className={completed ? styles.titleDone : styles.title}>{task.title}{task.shared ? <Users size={13} aria-label="Wspólne zlecenie" /> : null}</p>
         {task.weddingId && wedding ? (
           <Link
             to={`/sluby/${task.weddingId}`}
@@ -87,12 +90,12 @@ export function ModernTasksRow({
       ) : (
         <span className={styles.dueSlot} aria-hidden="true" />
       )}
-      <TaskOverflowMenu
+      {canEdit && task.canEdit !== false ? <TaskOverflowMenu
         open={menuOpen}
         onOpenChange={onMenuOpenChange}
         onEdit={() => onEdit(task)}
         onDelete={() => onDelete(task)}
-      />
+      /> : null}
     </li>
   )
 }

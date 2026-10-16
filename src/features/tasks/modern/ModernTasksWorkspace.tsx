@@ -4,6 +4,7 @@ import { Button } from '@/components/ui/Button'
 import { useToast } from '@/components/ui/Toast'
 import { useCurrentStudioUser } from '@/features/auth/useCurrentStudioUser'
 import { ProGateAction } from '@/features/billing/ProAccessGate'
+import { useProAccessGate } from '@/features/billing/ProAccessGate'
 import {
   groupActiveStudioTasks,
   listDoneStudioTasks,
@@ -37,6 +38,9 @@ import { taskService, type StudioTask } from '@/lib/api/taskService'
 import { localCalendarDateKey } from '@/lib/utils/localCalendarDate'
 import { getUserFacingErrorMessage } from '@/lib/errors/userFacingError'
 import styles from './ModernTasksWorkspace.module.css'
+import { collaborativeTasksService } from '@/features/collaboration/collaborativeTasksService'
+import { useQuery } from '@tanstack/react-query'
+import { collaborativeTaskErrorCode, reconcileSharedTaskCaches } from '@/features/tasks/invalidateTaskDomain'
 
 const SKELETON_ROWS = 4
 
@@ -46,6 +50,13 @@ export function ModernTasksWorkspace() {
   const { data: studioUser } = useCurrentStudioUser()
   const userId = studioUser?.id
   const { showToast } = useToast()
+  const { canUsePro } = useProAccessGate()
+  const sharedTargetsQuery = useQuery({
+    queryKey: ['collaborative-task-targets-v3', userId],
+    queryFn: () => collaborativeTasksService.listTargets(),
+    enabled: Boolean(userId), staleTime: 0, refetchOnMount: 'always', refetchOnWindowFocus: true,
+    refetchInterval: 30_000, refetchIntervalInBackground: false,
+  })
   const [filter, setFilter] = useState<TasksCenterFilter>('active')
   const [formOpen, setFormOpen] = useState(false)
   const [editingTask, setEditingTask] = useState<StudioTask | null>(null)
@@ -53,8 +64,16 @@ export function ModernTasksWorkspace() {
   const [togglingId, setTogglingId] = useState<string | null>(null)
   const [openMenuId, setOpenMenuId] = useState<string | null>(null)
   const todayKey = localCalendarDateKey()
-
   const bundle = query.data
+
+  const currentEditingSharedTask = editingTask?.shared
+    ? bundle?.tasks.find((task) => task.id === editingTask.id && task.shared)
+    : undefined
+  const sharedEditStillAuthorized = !editingTask?.shared || Boolean(
+    currentEditingSharedTask?.canEdit
+    && currentEditingSharedTask.accessVersion === editingTask.accessVersion,
+  )
+
   const showBody = bundle != null
 
   const activeSections = useMemo(() => {
@@ -108,15 +127,20 @@ export function ModernTasksWorkspace() {
         }
 
     // Optimistic: move between Aktywne / Wykonane immediately.
-    const previous = patchStudioTaskStatus(queryClient, userId, task.id, next)
-    patchWeddingTaskStatus(queryClient, userId, task, {
+    const previous = patchStudioTaskStatus(queryClient, userId, task.id, next, task.shared)
+    if (!task.shared) patchWeddingTaskStatus(queryClient, userId, task, {
       completed: next.completed,
     })
     setFilter(completing ? 'done' : 'active')
     setTogglingId(task.id)
 
     try {
-      if (completing) {
+      if (task.shared) {
+        if (!task.weddingId || !task.accessVersion || !task.revision) throw new Error('TASK_AUTHORITY_REQUIRED')
+        await collaborativeTasksService.mutate({ action: completing ? 'complete' : 'reopen',
+          weddingId: task.weddingId, accessVersion: task.accessVersion, taskId: task.id,
+          expectedRevision: task.revision })
+      } else if (completing) {
         await taskService.complete(task.id)
       } else {
         await taskService.reopen(task.id)
@@ -126,16 +150,20 @@ export function ModernTasksWorkspace() {
         weddingIds: [task.weddingId],
       })
     } catch (err) {
-      restoreStudioTasksBundle(queryClient, userId, previous)
+      const authorityError = task.shared ? collaborativeTaskErrorCode(err) : null
+      if (task.shared && authorityError) {
+        restoreStudioTasksBundle(queryClient, userId, previous, true)
+        await reconcileSharedTaskCaches(queryClient, userId, { weddingId: task.weddingId ?? undefined, outcome: authorityError })
+      } else restoreStudioTasksBundle(queryClient, userId, previous, task.shared)
       if (previous) {
         const rolled = previous.tasks.find((t) => t.id === task.id)
-        if (rolled) {
+        if (rolled && !task.shared) {
           patchWeddingTaskStatus(queryClient, userId, rolled, {
             completed: rolled.completed,
           })
         }
       }
-      setFilter(completing ? 'active' : 'done')
+      if (!task.shared || !authorityError) setFilter(completing ? 'active' : 'done')
       const message =
         getUserFacingErrorMessage(err, 'Nie udało się zaktualizować zadania.')
       showToast(message, 'error')
@@ -145,6 +173,9 @@ export function ModernTasksWorkspace() {
   }
 
   const createButton = (
+    sharedTargetsQuery.data?.length || canUsePro ? <button type="button" className={styles.createAction} onClick={openCreate}>
+      {TASKS_ADD_LABEL}
+    </button> :
     <ProGateAction
       actionKey="create_task"
       className={styles.createAction}
@@ -250,6 +281,7 @@ export function ModernTasksWorkspace() {
                           onToggleComplete={handleToggle}
                           onEdit={openEdit}
                           onDelete={openDelete}
+                          canEdit={task.canEdit !== false}
                         />
                       ))}
                     </ul>
@@ -286,6 +318,7 @@ export function ModernTasksWorkspace() {
                   onToggleComplete={handleToggle}
                   onEdit={openEdit}
                   onDelete={openDelete}
+                  canEdit={task.canEdit !== false}
                 />
               ))}
             </ul>
@@ -294,8 +327,10 @@ export function ModernTasksWorkspace() {
       </div>
 
       <TaskFormModal
-        open={formOpen}
+        open={formOpen && sharedEditStillAuthorized}
         task={editingTask}
+        sharedTargets={sharedTargetsQuery.data ?? []}
+        allowOwnedTargets={canUsePro === true}
         onClose={() => {
           setFormOpen(false)
           setEditingTask(null)

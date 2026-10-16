@@ -94,6 +94,9 @@ export function useWeddingDetailAuthority(weddingId: string) {
     staleTime: 0,
     refetchOnMount: 'always',
     refetchOnWindowFocus: true,
+    // Bound private shared-data retention while Wedding Detail stays mounted.
+    refetchInterval: 30_000,
+    refetchIntervalInBackground: false,
     retry: false,
   })
 }
@@ -120,10 +123,16 @@ export function useEvictIncompatibleWeddingDetailCaches(
           && query.queryKey[0] === 'collaborative-contacts-v3'
           && query.queryKey[1] === userId && query.queryKey[2] === weddingId,
       })
+      queryClient.removeQueries({
+        predicate: (query) => Array.isArray(query.queryKey)
+          && query.queryKey[0] === 'collaborative-tasks-v3'
+          && query.queryKey[1] === userId && query.queryKey[2] === weddingId,
+      })
       return
     }
     if (authority.kind === 'unavailable') {
       queryClient.removeQueries({ queryKey: ['collaborative-contacts-v3', userId, weddingId] })
+      queryClient.removeQueries({ queryKey: ['collaborative-tasks-v3', userId, weddingId] })
     }
     removeQueriesWithKeys(queryClient, [
       ['weddings', userId, weddingId],
@@ -156,6 +165,12 @@ export function useEvictIncompatibleWeddingDetailCaches(
         exact: true,
       })
     } else if (authority.kind === 'shared') {
+      queryClient.removeQueries({
+        predicate: (query) => Array.isArray(query.queryKey)
+          && query.queryKey[0] === 'collaborative-tasks-v3'
+          && query.queryKey[1] === userId && query.queryKey[2] === weddingId
+          && (authority.effectiveAreas.tasks === 0 || query.queryKey[3] !== authority.accessVersion),
+      })
       queryClient.removeQueries({
         predicate: (query) => Array.isArray(query.queryKey)
           && query.queryKey[0] === 'collaborative-contacts-v3'

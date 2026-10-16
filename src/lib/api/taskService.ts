@@ -55,6 +55,11 @@ export interface StudioTask {
   createdAt: string
   completedAt: string | null
   completed: boolean
+  shared?: boolean
+  canEdit?: boolean
+  revision?: string
+  accessVersion?: string
+  weddingLabel?: string
 }
 
 export function mapTaskRowToStudioTask(row: TaskRow): StudioTask {

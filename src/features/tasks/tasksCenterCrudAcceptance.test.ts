@@ -59,6 +59,7 @@ const detailHost = read('src/features/weddings/detail/useWeddingDetailHost.ts')
 const persist = read('src/features/weddings/edit/persistWeddingEditDraft.ts')
 const nextAction = read('src/lib/workflow/resolveWeddingNextAction.ts')
 const dashboardTodo = read('src/features/dashboard/components/TodoTodayCard.tsx')
+const canonicalDetailTasks = read('src/features/tasks/CanonicalWeddingTasksCard.tsx')
 const gates = read('src/features/billing/proGateActions.ts')
 
 run('1–2. Add CTA + create modal', () => {
@@ -95,7 +96,8 @@ run('9–10. Invalidation + wedding domain', () => {
   assert(del.includes('invalidateTaskDomain'), 'delete invalidates')
   assert(del.includes('removeTaskFromWeddingCaches'), 'delete patches wedding')
   assert(center.includes('invalidateTaskDomain'), 'toggle invalidates')
-  assert(persist.includes('taskService.create'), 'wedding create still')
+  assert(!persist.includes('taskService.'), 'broad wedding save no longer persists tasks')
+  assert(form.includes('taskService.create'), 'owner task-specific create remains available')
 })
 
 run('11–19. Complete / reopen', () => {
@@ -145,11 +147,11 @@ run('20–28. Edit semantics', () => {
   assert(form.includes('weddingId: nextWeddingId'), 'reassignment')
   assert(!form.includes('label="Opis"'), 'no description field')
   assert(!form.includes('description:'), 'no description patch')
-  assert(!center.includes('Pilne') && !form.includes('priority'), 'no priority')
+  assert(!center.includes('Pilne') && !form.includes('label="Priorytet"'), 'no priority UX')
   assert(form.includes("showToast('Zadanie zostało dodane.')"), 'create toast')
   assert(form.includes("showToast('Zadanie zostało zapisane.')"), 'edit toast')
-  const createIdx = form.indexOf('taskService.create')
-  const createToastIdx = form.indexOf("showToast('Zadanie zostało dodane.')")
+  const createIdx = form.indexOf('saved = await taskService.create')
+  const createToastIdx = form.indexOf("showToast('Zadanie zostało dodane.')", createIdx)
   const createCall = form.slice(createIdx, createToastIdx)
   assert(createIdx >= 0 && createToastIdx > createIdx, 'create block')
   assert(!createCall.includes('status:'), 'create defaults status')
@@ -193,7 +195,8 @@ run('1D.3.1 cross-surface cache matrix', () => {
     form.includes('weddingIds: [previousWeddingId, nextWeddingId]'),
     'invalidates both weddings',
   )
-  assert(persist.includes('taskService.create'), 'wedding-created → same table')
+  assert(!persist.includes('taskService.'), 'broad wedding save has no task persistence')
+  assert(canonicalDetailTasks.includes('taskService.create'), 'canonical Wedding Detail task-specific create remains available')
   assert(
     service.includes("from('tasks')") || service.includes('from("tasks")'),
     'one table',

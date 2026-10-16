@@ -18,6 +18,7 @@ import { localCalendarDateKey } from '@/lib/utils/localCalendarDate'
 import { getWeddingDisplayName } from '@/features/weddings/presentation/getWeddingDisplayName'
 import type { Session } from '@/types/session'
 import type { Task, Wedding } from '@/types/wedding'
+import { collaborativeTasksService } from '@/features/collaboration/collaborativeTasksService'
 
 export interface DashboardData {
   todayTasks: Task[]
@@ -88,9 +89,23 @@ export const dashboardService = {
   async getDashboardData(endDate?: string): Promise<DashboardData> {
     return withDevPerf('dashboard.getDashboardData', async () => {
       const through = (endDate ?? localCalendarDateKey()).slice(0, 10)
-      const todayTasks = await taskService.listDueThrough(through)
+      const [owned, shared] = await Promise.all([this.getOwnedDueTasks(through), this.getSharedDueTasks(through)])
+      const todayTasks: Task[] = [...owned, ...shared]
       return { todayTasks }
     })
+  },
+
+  async getOwnedDueTasks(endDate: string): Promise<Task[]> {
+    return (await taskService.listDueThrough(endDate)).map((task) => ({ ...task, shared: false, canEdit: true }))
+  },
+
+  async getSharedDueTasks(endDate: string): Promise<Task[]> {
+    return (await collaborativeTasksService.listGlobal(endDate)).map((task) => ({
+      id: task.id, title: task.title, weddingId: task.weddingId, dueDate: task.dueDate,
+      completed: task.status === 'done', priority: 'medium' as const,
+      shared: true, canEdit: task.tasksLevel === 2, revision: task.revision,
+      accessVersion: task.accessVersion, weddingLabel: task.weddingLabel,
+    }))
   },
 
   /**

@@ -4,7 +4,6 @@ import { FinanceFields } from '@/features/weddings/detail/editing/fields/Finance
 import { LocationRoleFields } from '@/features/weddings/detail/editing/fields/LocationRoleFields'
 import { NoteFields } from '@/features/weddings/detail/editing/fields/NoteFields'
 import { PackageFields } from '@/features/weddings/detail/editing/fields/PackageFields'
-import { TaskFields } from '@/features/weddings/detail/editing/fields/TaskFields'
 import { WeddingDateFields } from '@/features/weddings/detail/editing/fields/WeddingDateFields'
 import {
   getEditorSectionMeta,
@@ -136,14 +135,6 @@ export function WeddingWorkspaceEditSurface({
             onChangeWedding={p.onChangeWedding}
             onChangePayments={p.onChangePayments}
             onChangePackageBasePrice={p.onChangePackageBasePrice}
-          />
-        ) : null}
-
-        {drawerSection === 'tasks' ? (
-          <TaskFields
-            tasks={p.tasks}
-            weddingId={p.wedding.id}
-            onChangeTasks={p.onChangeTasks}
           />
         ) : null}
 

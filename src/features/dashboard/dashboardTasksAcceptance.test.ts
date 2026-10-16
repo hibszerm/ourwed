@@ -38,13 +38,15 @@ function run(name: string, fn: () => void) {
 const service = read('src/lib/api/taskService.ts')
 const dashService = read('src/lib/api/dashboardService.ts')
 const card = read('src/features/dashboard/components/TodoTodayCard.tsx')
+const canonicalRow = read('src/features/tasks/CanonicalTaskRow.tsx')
 const css = read('src/features/dashboard/components/TodoTodayCard.module.css')
 const horizonMod = read('src/features/dashboard/dashboardTaskHorizon.ts')
 const hook = read('src/features/dashboard/hooks/useDashboard.ts')
 const keys = read('src/features/tasks/tasksQueryKeys.ts')
 const invalidate = read('src/features/tasks/invalidateTaskDomain.ts')
 const localDate = read('src/lib/utils/localCalendarDate.ts')
-const page = ({ includes: () => true, indexOf: () => 0, slice: () => '', length: 0, match: () => null } as { includes: (s: string) => boolean; indexOf: (s: string) => number; slice: (a?: number, b?: number) => string; length: number; match: (r: RegExp) => null })
+const page = read('src/pages/DashboardV3Page.tsx')
+const v3Today = read('src/features/dashboard-v3/DashboardV3TodayPanel.tsx')
 const nextAction = read('src/lib/workflow/resolveWeddingNextAction.ts')
 
 const listDueThrough = service.slice(
@@ -98,7 +100,8 @@ run('1D.4.1 query key + bounded fetch', () => {
   assert(keys.includes('endDate'), 'query key includes endDate')
   assert(hook.includes('dashboardDueTasksQueryKey(userId, resolvedEnd)'), 'hook key')
   assert(hook.includes('keepPreviousData'), 'calm horizon switch')
-  assert(dashService.includes('listDueThrough(through)'), 'bounded service')
+  assert(dashService.includes('listDueThrough(endDate)'), 'bounded owner service')
+  assert(dashService.includes('listGlobal(endDate)'), 'bounded shared service')
   assert(dashService.includes('getDashboardData(endDate'), 'endDate arg')
   assert(!dashService.includes('listAll'), 'no listAll')
   assert(!dashService.includes('listForStudio'), 'no listForStudio')
@@ -121,11 +124,12 @@ run('1D.4.1 dropdown UX', () => {
 })
 
 run('1D.4.1 presentation + empty', () => {
-  assert(card.includes('Zaległe'), 'overdue meta')
-  assert(card.includes('isFuture'), 'future due shown')
+  assert(v3Today.includes('CanonicalTaskRow'), 'production V3 panel reuses canonical task presentation row')
+  assert(canonicalRow.includes('Zaległe'), 'overdue meta')
+  assert(canonicalRow.includes('formatShortDate(due)'), 'future due shown')
   assert(card.includes('dashboardTaskHorizonEmptyCopy'), 'horizon empty')
-  assert(card.includes('Bez zlecenia'), 'unlinked')
-  assert(!card.includes('/sluby/null'), 'no null route')
+  assert(canonicalRow.includes('Bez zlecenia'), 'unlinked')
+  assert(!canonicalRow.includes('/sluby/null'), 'no null route')
   assert(!card.includes('Pilne'), 'no Pilne')
 })
 
@@ -145,7 +149,10 @@ run('28–30. Local calendar day', () => {
 })
 
 run('31. Dashboard wiring + performance freeze', () => {
-  assert(page.includes('TodoTodayCard'), 'card mounted')
+  assert(page.includes('DashboardV3TodayPanel'), 'canonical V3 task panel mounted')
+  assert(v3Today.includes('useDashboard(endDate)'), 'mounted V3 panel consumes merged task workload')
+  assert(v3Today.includes('CanonicalTaskRow'), 'V3 dashboard uses canonical task row')
+  assert(v3Today.includes('task.canEdit !== false'), 'Tasks 1 rows omit completion control')
   assert(!page.includes('useDashboard(') && !page.includes('useDashboard()'), 'page no task gate')
   assert(page.includes('useDashboardAssignments'), 'light assignments')
   assert(!page.includes('useWeddings'), 'no heavy useWeddings')

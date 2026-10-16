@@ -1,15 +1,68 @@
 import type { QueryClient } from '@tanstack/react-query'
 import { TASKS_QUERY_ROOT, type StudioTask } from '@/lib/api/taskService'
 import {
+  collaborativeStudioTasksQueryKey,
   dashboardDueTasksQueryKey,
+  dashboardSharedDueTasksQueryKey,
   studioTasksQueryKey,
   weddingTasksQueryKey,
 } from '@/features/tasks/tasksQueryKeys'
 import type { StudioTasksBundle } from '@/features/tasks/useStudioTasks'
 import type { Task } from '@/types/wedding'
 
-export interface DashboardDueTasksData {
-  todayTasks: Task[]
+export type DashboardDueTasksData = Task[]
+
+export type CollaborativeTaskErrorCode = 'CONFLICT' | 'FORBIDDEN' | 'UNAVAILABLE' | null
+
+/** collaborativeTasksService normalizes RPC errors to these exact Error messages. */
+export function collaborativeTaskErrorCode(error: unknown): CollaborativeTaskErrorCode {
+  if (!(error instanceof Error)) return null
+  return error.message === 'CONFLICT' || error.message === 'FORBIDDEN' || error.message === 'UNAVAILABLE'
+    ? error.message
+    : null
+}
+
+/** Reconcile only private collaborative task caches; owner task caches are untouched. */
+export async function reconcileSharedTaskCaches(
+  queryClient: QueryClient,
+  userId: string | undefined,
+  options: { weddingId?: string; outcome: 'CONFLICT' | 'FORBIDDEN' | 'UNAVAILABLE' },
+) {
+  const { weddingId, outcome } = options
+  if (outcome === 'UNAVAILABLE') {
+    await queryClient.cancelQueries({ queryKey: collaborativeStudioTasksQueryKey(userId) })
+    await queryClient.cancelQueries({ queryKey: ['tasks', 'dashboard-due-shared', userId] })
+    await queryClient.cancelQueries({ queryKey: ['collaborative-tasks-v3', userId] })
+    queryClient.setQueriesData<StudioTasksBundle>(
+      { queryKey: collaborativeStudioTasksQueryKey(userId) },
+      (current) => {
+        if (!current) return current
+        const tasks = weddingId ? current.tasks.filter((task) => task.weddingId !== weddingId) : []
+        const weddingById = new Map(current.weddingById)
+        if (weddingId) weddingById.delete(weddingId)
+        else weddingById.clear()
+        return { tasks, weddingById }
+      },
+    )
+    queryClient.setQueriesData<Task[]>(
+      { queryKey: ['tasks', 'dashboard-due-shared', userId] },
+      (current) => current ? (weddingId ? current.filter((task) => task.weddingId !== weddingId) : []) : current,
+    )
+    if (weddingId) {
+      queryClient.setQueriesData({ queryKey: ['collaborative-tasks-v3', userId, weddingId] }, null)
+    } else {
+      queryClient.setQueriesData({ queryKey: ['collaborative-tasks-v3', userId] }, null)
+    }
+  }
+
+  const sharedPredicates = [
+    (q: { queryKey: readonly unknown[] }) => q.queryKey[0] === 'tasks'
+      && (q.queryKey[1] === 'collaborative-global' || q.queryKey[1] === 'dashboard-due-shared')
+      && q.queryKey[2] === userId,
+    (q: { queryKey: readonly unknown[] }) => q.queryKey[0] === 'collaborative-tasks-v3'
+      && q.queryKey[1] === userId && (!weddingId || q.queryKey[2] === weddingId),
+  ]
+  await Promise.all(sharedPredicates.map((predicate) => queryClient.invalidateQueries({ predicate, refetchType: 'all' })))
 }
 
 /**
@@ -69,14 +122,12 @@ export function removeDashboardDueTask(
   userId: string | undefined,
   endDate: string,
   taskId: string,
+  shared = false,
 ): DashboardDueTasksData | undefined {
-  const key = dashboardDueTasksQueryKey(userId, endDate)
+  const key = shared ? dashboardSharedDueTasksQueryKey(userId, endDate) : dashboardDueTasksQueryKey(userId, endDate)
   const previous = queryClient.getQueryData<DashboardDueTasksData>(key)
   if (!previous) return undefined
-  queryClient.setQueryData<DashboardDueTasksData>(key, {
-    ...previous,
-    todayTasks: previous.todayTasks.filter((t) => t.id !== taskId),
-  })
+  queryClient.setQueryData<DashboardDueTasksData>(key, previous.filter((t) => t.id !== taskId))
   return previous
 }
 
@@ -85,9 +136,10 @@ export function restoreDashboardDueTasks(
   userId: string | undefined,
   endDate: string,
   previous: DashboardDueTasksData | undefined,
+  shared = false,
 ) {
   if (!previous) return
-  queryClient.setQueryData(dashboardDueTasksQueryKey(userId, endDate), previous)
+  queryClient.setQueryData(shared ? dashboardSharedDueTasksQueryKey(userId, endDate) : dashboardDueTasksQueryKey(userId, endDate), previous)
 }
 
 /** Patch studio bundle after local status change (optimistic complete/reopen). */
@@ -96,8 +148,9 @@ export function patchStudioTaskStatus(
   userId: string | undefined,
   taskId: string,
   next: Pick<StudioTask, 'status' | 'completed' | 'completedAt'>,
+  shared = false,
 ): StudioTasksBundle | undefined {
-  const key = studioTasksQueryKey(userId)
+  const key = shared ? collaborativeStudioTasksQueryKey(userId) : studioTasksQueryKey(userId)
   const previous = queryClient.getQueryData<StudioTasksBundle>(key)
   if (!previous) return undefined
 
@@ -121,9 +174,10 @@ export function restoreStudioTasksBundle(
   queryClient: QueryClient,
   userId: string | undefined,
   previous: StudioTasksBundle | undefined,
+  shared = false,
 ) {
   if (!previous) return
-  queryClient.setQueryData(studioTasksQueryKey(userId), previous)
+  queryClient.setQueryData(shared ? collaborativeStudioTasksQueryKey(userId) : studioTasksQueryKey(userId), previous)
 }
 
 function weddingTaskCacheKeys(

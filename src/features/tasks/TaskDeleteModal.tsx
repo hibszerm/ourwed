@@ -5,11 +5,14 @@ import { Modal } from '@/components/ui/Modal'
 import { useToast } from '@/components/ui/Toast'
 import { useCurrentStudioUser } from '@/features/auth/useCurrentStudioUser'
 import {
+  collaborativeTaskErrorCode,
   invalidateTaskDomain,
+  reconcileSharedTaskCaches,
   removeTaskFromWeddingCaches,
 } from '@/features/tasks/invalidateTaskDomain'
 import { taskService, type StudioTask } from '@/lib/api/taskService'
 import { getUserFacingErrorMessage } from '@/lib/errors/userFacingError'
+import { collaborativeTasksService } from '@/features/collaboration/collaborativeTasksService'
 
 export interface TaskDeleteModalProps {
   open: boolean
@@ -29,14 +32,23 @@ export function TaskDeleteModal({ open, onClose, task }: TaskDeleteModalProps) {
     setError(null)
     setBusy(true)
     try {
-      await taskService.delete(task.id)
-      removeTaskFromWeddingCaches(queryClient, studioUser?.id, task)
+      if (task.shared) {
+        if (!task.weddingId || !task.accessVersion || !task.revision) throw new Error('TASK_AUTHORITY_REQUIRED')
+        await collaborativeTasksService.mutate({ action: 'delete', weddingId: task.weddingId,
+          accessVersion: task.accessVersion, taskId: task.id, expectedRevision: task.revision })
+      } else await taskService.delete(task.id)
+      if (!task.shared) removeTaskFromWeddingCaches(queryClient, studioUser?.id, task)
       void invalidateTaskDomain(queryClient, {
         weddingIds: [task.weddingId],
       })
       showToast('Zadanie zostało usunięte.')
       onClose()
     } catch (err) {
+      const authorityError = task.shared ? collaborativeTaskErrorCode(err) : null
+      if (task.shared && authorityError && task.weddingId) {
+        await reconcileSharedTaskCaches(queryClient, studioUser?.id, { weddingId: task.weddingId, outcome: authorityError })
+        onClose()
+      }
       const message =
         getUserFacingErrorMessage(err, 'Nie udało się usunąć zadania.')
       setError(message)

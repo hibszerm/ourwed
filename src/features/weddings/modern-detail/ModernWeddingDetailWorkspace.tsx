@@ -29,6 +29,7 @@ import { ModernWeddingDetailHeader } from '@/features/weddings/modern-detail/Mod
 import { ModernWeddingDetailTabs } from '@/features/weddings/modern-detail/ModernWeddingDetailTabs'
 import { ModernWeddingLogisticsWorkspace } from '@/features/weddings/modern-detail/ModernWeddingLogisticsWorkspace'
 import { ModernWeddingOverview } from '@/features/weddings/modern-detail/ModernWeddingOverview'
+import { CanonicalWeddingTasksCard } from '@/features/tasks/CanonicalWeddingTasksCard'
 import { useModernWeddingDetailContext } from '@/features/weddings/modern-detail/useModernWeddingDetailContext'
 import type { CurrentStoryActionId } from '@/features/weddings/modern-detail/modernWeddingDetailModel'
 import type { Wedding } from '@/types/wedding'
@@ -227,6 +228,7 @@ export function ModernWeddingDetailWorkspace(props: WeddingDetailSharedProps) {
         aria-labelledby={`ws-tab-${tab}`}
       >
         {tab === 'overview' ? (
+          <>
           <ModernWeddingOverview
             wedding={wedding}
             places={ctx.places}
@@ -246,6 +248,8 @@ export function ModernWeddingDetailWorkspace(props: WeddingDetailSharedProps) {
               setTab('contract_finance')
             }}
           />
+          <CanonicalWeddingTasksCard weddingId={wedding.id} wedding={wedding} tasksLevel={2} />
+          </>
         ) : null}
 
         {tab === 'wedding_day' ? (
@@ -316,9 +320,7 @@ export function ModernWeddingDetailWorkspace(props: WeddingDetailSharedProps) {
         {tab === 'activity' ? (
           <ModernWeddingHistoriaWorkspace
             feed={feed}
-            onEditTasks={
-              onEditSection ? () => onEditSection('tasks') : undefined
-            }
+            onEditTasks={undefined}
             onEditNotes={
               onEditSection ? () => onEditSection('notes') : undefined
             }
