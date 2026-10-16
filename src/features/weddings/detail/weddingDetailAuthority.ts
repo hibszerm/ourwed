@@ -113,7 +113,18 @@ export function useEvictIncompatibleWeddingDetailCaches(
 ) {
   const queryClient = useQueryClient()
   useEffect(() => {
-    if (!userId || !weddingId || authority?.kind === 'owned' || !authority) return
+    if (!userId || !weddingId || !authority) return
+    if (authority.kind === 'owned') {
+      queryClient.removeQueries({
+        predicate: (query) => Array.isArray(query.queryKey)
+          && query.queryKey[0] === 'collaborative-contacts-v3'
+          && query.queryKey[1] === userId && query.queryKey[2] === weddingId,
+      })
+      return
+    }
+    if (authority.kind === 'unavailable') {
+      queryClient.removeQueries({ queryKey: ['collaborative-contacts-v3', userId, weddingId] })
+    }
     removeQueriesWithKeys(queryClient, [
       ['weddings', userId, weddingId],
       weddingTasksQueryKey(userId, weddingId),
@@ -130,6 +141,7 @@ export function useEvictIncompatibleWeddingDetailCaches(
       ['wedding-source-contracts', weddingId],
     ])
     if (authority.kind === 'unavailable') {
+      queryClient.removeQueries({ queryKey: ['collaborative-contacts-v3', userId, weddingId] })
       queryClient.removeQueries({ queryKey: ['collaborative-logistics-v3', userId, weddingId] })
       queryClient.removeQueries({
         queryKey: collaborativeWeddingIdentityQueryKey(userId, weddingId),
@@ -144,6 +156,12 @@ export function useEvictIncompatibleWeddingDetailCaches(
         exact: true,
       })
     } else if (authority.kind === 'shared') {
+      queryClient.removeQueries({
+        predicate: (query) => Array.isArray(query.queryKey)
+          && query.queryKey[0] === 'collaborative-contacts-v3'
+          && query.queryKey[1] === userId && query.queryKey[2] === weddingId
+          && (authority.effectiveAreas.contacts === 0 || query.queryKey[3] !== authority.accessVersion),
+      })
       queryClient.removeQueries({
         predicate: (query) => Array.isArray(query.queryKey)
           && query.queryKey[0] === 'collaborative-prewedding-v3'

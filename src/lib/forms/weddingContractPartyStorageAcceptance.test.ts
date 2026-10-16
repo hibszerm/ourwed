@@ -96,6 +96,7 @@ function baseRow(overrides: Partial<WeddingRow> = {}): WeddingRow {
 const persistSrc = read('src/lib/forms/persistWeddingContractAnswers.ts')
 const mapperSrc = read('src/lib/api/weddings/weddingMappers.ts')
 const serviceSrc = read('src/lib/api/weddingService.ts')
+const contactsServiceSrc = read('src/features/collaboration/collaborativeContactsService.ts')
 const draftSrc = read('src/features/weddings/edit/persistWeddingEditDraft.ts')
 const actionsSrc = read('src/lib/api/weddingActionsService.ts')
 const pageSrc = read('src/pages/NewWeddingPage.tsx')
@@ -207,7 +208,7 @@ run('E — existing submitted questionnaire: studio persist patches same documen
   assertNotIncludes(persistSrc, 'createFormInstance', 'no second instance')
 })
 
-run('F — hydrate without form: canonical party fields survive mapper', () => {
+run('F — hydrate without form: canonical party fields use the narrow Contacts path', () => {
   const model = mapWeddingRowToModel(baseRow())
   assertEq(model.couple.partner2Phone, '501222333', 'groom phone survives')
   assertEq(model.couple.partner1Address, 'ul. Kwiatowa 8', 'address survives')
@@ -215,11 +216,12 @@ run('F — hydrate without form: canonical party fields survive mapper', () => {
   assertEq(model.couple.partner1City, 'Warszawa', 'city survives')
   assertEq(model.questionnaires.contractData.status, 'not_sent', 'still not_sent')
   assertIncludes(mapperSrc, 'groom_phone', 'mapper reads column')
-  assertIncludes(serviceSrc, 'groom_phone: patch.groom_phone ?? null', 'update writes column')
+  assertNotIncludes(serviceSrc, 'groom_phone: patch.groom_phone', 'generic update does not write Contacts')
+  assertIncludes(contactsServiceSrc, 'update_my_wedding_contacts_v3', 'owner Contacts save uses narrow RPC')
 })
 
 void runAsync(
-  'G — hydrate submitted address as contract-level questionnaire data',
+  'G — submitted Contract answers do not override canonical operational Contacts',
   async () => {
     const wedding = mapWeddingRowToModel(baseRow()) as Wedding
     const merged = await mergeFormAnswersIntoWedding(
@@ -234,11 +236,11 @@ void runAsync(
       } as FormAnswerJson,
       { submittedAt: '2026-08-01' },
     )
-    assertEq(merged.couple.partner2Phone, '600700800', 'form phone wins')
+    assertEq(merged.couple.partner2Phone, '501222333', 'canonical groom phone remains authoritative')
     assertEq(merged.couple.partner1Address, 'ul. Kwiatowa 8', 'questionnaire contract address is not mapped as partner 1 personal address')
-    assertEq(merged.contractAddress, 'ul. Nowa 1, 30-001 Kraków', 'questionnaire contract address wins as wedding-level authority')
-    assertEq(merged.couple.partner1PostalCode, '30-001', 'form postal wins')
-    assertEq(merged.couple.partner1City, 'Kraków', 'form city wins')
+    assertEq(merged.contractAddress, 'ul. Kwiatowa 8, 00-001 Warszawa', 'canonical address components remain authoritative')
+    assertEq(merged.couple.partner1PostalCode, '00-001', 'canonical postal code remains authoritative')
+    assertEq(merged.couple.partner1City, 'Warszawa', 'canonical city remains authoritative')
     assertEq(merged.questionnaires.contractData.status, 'completed', 'hydrate completed')
 
     const blankForm = await mergeFormAnswersIntoWedding(
@@ -251,8 +253,8 @@ void runAsync(
       } as FormAnswerJson,
       { submittedAt: '2026-08-01' },
     )
-    assertEq(blankForm.couple.partner2Phone, '501222333', 'blank form keeps DB phone')
-    assertEq(blankForm.couple.partner1Address, 'ul. Kwiatowa 8', 'blank form keeps DB address')
+    assertEq(blankForm.couple.partner2Phone, '501222333', 'blank form keeps canonical phone')
+    assertEq(blankForm.couple.partner1Address, 'ul. Kwiatowa 8', 'blank form keeps canonical address')
   },
 )
 

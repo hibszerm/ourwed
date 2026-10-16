@@ -855,7 +855,7 @@ export type CorrespondenceOverviewRow = {
 }
 
 export function composeCorrespondenceOverview(
-  wedding: Wedding,
+  wedding: Pick<Wedding, 'correspondence'>,
 ): CorrespondenceOverviewRow[] {
   const rows: CorrespondenceOverviewRow[] = []
   for (const entry of wedding.correspondence ?? []) {

@@ -3,9 +3,6 @@ import { resolveHydratedWeddingPackageId } from '@/lib/api/weddings/weddingPacka
 import { CONTRACT_QUESTION_ID_TO_FIELD_KEY } from '@/lib/forms/contractQuestionnaireTemplate.ts'
 import { formatLocationAnswer, normalizeSelectedPackageIds } from '@/lib/forms/contractQuestionnaireAnswerValues.ts'
 import { packageSelectionNeedsReview } from '@/lib/forms/packageSelectionReview.ts'
-import { isAbsentPartnerName } from '@/features/weddings/presentation/getWeddingDisplayName.ts'
-import { resolveCoupleNamesFromFormParts } from '@/lib/forms/weddingCoupleNameFields.ts'
-import { resolveEffectiveContractAddress } from '@/lib/utils/contractAddress.ts'
 import type { FormAnswerJson } from '@/types/formEngine'
 import type { StudioPackage } from '@/types/package'
 import type { Couple, Wedding } from '@/types/wedding'
@@ -41,16 +38,6 @@ function fieldString(
     return formatLocationAnswer(value)
   }
   return ''
-}
-
-/** Name parts: blank and UI placeholders (—, -, brak) are not real values. */
-function nameFieldString(
-  fields: Record<string, unknown>,
-  key: string,
-): string {
-  const raw = fieldString(fields, key)
-  if (isAbsentPartnerName(raw)) return ''
-  return raw
 }
 
 function resolveQuestionFieldKey(questionId: string): string | undefined {
@@ -136,42 +123,8 @@ export async function mergeFormAnswersIntoWeddingCore(
     10,
   )
 
-  const brideFirst = nameFieldString(fields, 'partner1.firstName')
-  const brideLast = nameFieldString(fields, 'partner1.lastName')
-  const groomFirst = nameFieldString(fields, 'partner2.firstName')
-  const groomLast = nameFieldString(fields, 'partner2.lastName')
-  const bridePhone = fieldString(fields, 'partner1.phone')
-  const brideEmail = fieldString(fields, 'partner1.email')
-  const groomPhone = fieldString(fields, 'partner2.phone')
-  const groomEmail = fieldString(fields, 'partner2.email')
-  const brideAddressRaw = fields['partner1.address']
-  const brideAddress = fieldString(fields, 'partner1.address')
-  const groomAddress = fieldString(fields, 'partner2.address')
-  const structuredPostal =
-    brideAddressRaw &&
-    typeof brideAddressRaw === 'object' &&
-    typeof (brideAddressRaw as { postalCode?: unknown }).postalCode === 'string'
-      ? String((brideAddressRaw as { postalCode: string }).postalCode).trim()
-      : ''
-  const structuredCity =
-    brideAddressRaw &&
-    typeof brideAddressRaw === 'object' &&
-    typeof (brideAddressRaw as { city?: unknown }).city === 'string'
-      ? String((brideAddressRaw as { city: string }).city).trim()
-      : ''
-  const bridePostal =
-    fieldString(fields, 'partner1.postalCode') || structuredPostal
-  const city = fieldString(fields, 'partner1.city') || structuredCity
-  const contractAddressValue = brideAddress || groomAddress
-  const questionnairePostal = fieldString(fields, 'partner1.postalCode') || structuredPostal
-  const questionnaireCity = fieldString(fields, 'partner1.city') || structuredCity
-  const contractAddress = contractAddressValue
-    ? resolveEffectiveContractAddress({
-        address: contractAddressValue,
-        postalCode: questionnairePostal,
-        city: questionnaireCity,
-      })
-    : ''
+  // Contact answers remain part of the Contract snapshot. Operational Contacts
+  // are read only from the canonical wedding columns after the V3 cutover.
   const weddingDate = fieldString(fields, 'weddingDate')
   const ceremonyLocation = fieldString(fields, 'ceremonyLocation')
   const receptionLocation = fieldString(fields, 'receptionLocation')
@@ -205,35 +158,26 @@ export async function mergeFormAnswersIntoWeddingCore(
       ? await resolvePackage(requestedPrimary)
       : null
 
-  const resolvedNames = resolveCoupleNamesFromFormParts({
-    formBrideFirst: brideFirst,
-    formBrideLast: brideLast,
-    formGroomFirst: groomFirst,
-    formGroomLast: groomLast,
-    wedding,
-  })
-
   const couple: Couple = {
     ...wedding.couple,
-    partner1: resolvedNames.partner1,
-    partner2: resolvedNames.partner2,
-    partner1FirstName: resolvedNames.partner1FirstName,
-    partner1LastName: resolvedNames.partner1LastName,
-    partner2FirstName: resolvedNames.partner2FirstName,
-    partner2LastName: resolvedNames.partner2LastName,
-    partner1Phone: preferForm(bridePhone, wedding.couple.partner1Phone) || undefined,
-    partner2Phone: preferForm(groomPhone, wedding.couple.partner2Phone) || undefined,
-    partner1Email: preferForm(brideEmail, wedding.couple.partner1Email) || undefined,
-    partner2Email: preferForm(groomEmail, wedding.couple.partner2Email) || undefined,
+    partner1: wedding.couple.partner1,
+    partner2: wedding.couple.partner2,
+    partner1FirstName: wedding.couple.partner1FirstName,
+    partner1LastName: wedding.couple.partner1LastName,
+    partner2FirstName: wedding.couple.partner2FirstName,
+    partner2LastName: wedding.couple.partner2LastName,
+    partner1Phone: wedding.couple.partner1Phone,
+    partner2Phone: wedding.couple.partner2Phone,
+    partner1Email: wedding.couple.partner1Email,
+    partner2Email: wedding.couple.partner2Email,
     partner1Address:
       wedding.couple.partner1Address,
     partner2Address: wedding.couple.partner2Address,
-    partner1PostalCode:
-      preferForm(bridePostal, wedding.couple.partner1PostalCode) || undefined,
-    partner1City: preferForm(city, wedding.couple.partner1City) || undefined,
-    email: preferForm(brideEmail, wedding.couple.email),
-    phone: preferForm(bridePhone, wedding.couple.phone),
-    city: preferForm(city, wedding.couple.city),
+    partner1PostalCode: wedding.couple.partner1PostalCode,
+    partner1City: wedding.couple.partner1City,
+    email: wedding.couple.email,
+    phone: wedding.couple.phone,
+    city: wedding.couple.city,
     venue: preferForm(
       receptionLocation || ceremonyLocation,
       wedding.couple.venue,
@@ -270,7 +214,6 @@ export async function mergeFormAnswersIntoWeddingCore(
 
   return {
     ...wedding,
-    ...(contractAddress ? { contractAddress } : {}),
     couple,
     // Canonical DB wedding.date must win over older contract submissions.
     // The contract form is re-hydrated for display, but should never revert a

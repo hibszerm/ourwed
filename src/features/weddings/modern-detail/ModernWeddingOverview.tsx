@@ -116,7 +116,12 @@ export function ModernWeddingOverview({
         />
       </div>
       <div className={styles.stackRight}>
-        <Couple wedding={wedding} onEdit={onEditContacts} />
+        <CanonicalCoupleCard
+          couple={wedding.couple}
+          correspondence={wedding.correspondence}
+          contractAddress={wedding.contractAddress}
+          onEdit={onEditContacts}
+        />
         <CalendarsSection weddingId={wedding.id} />
       </div>
       {extras.length > 0 ? (
@@ -372,15 +377,19 @@ function Places({
   )
 }
 
-function Couple({
-  wedding,
+export function CanonicalCoupleCard({
+  couple,
+  correspondence,
+  contractAddress,
   onEdit,
 }: {
-  wedding: Wedding
+  couple: Wedding['couple']
+  correspondence: Wedding['correspondence']
+  contractAddress?: string
   onEdit?: () => void
 }) {
-  const partners = getContactSections(wedding.couple)
-  const channels = composeCorrespondenceOverview(wedding)
+  const partners = getContactSections(couple)
+  const channels = composeCorrespondenceOverview({ correspondence })
   return (
     <section
       className={`${styles.box} ${styles.couple}`}
@@ -423,6 +432,12 @@ function Couple({
           </div>
         ))}
       </div>
+      {contractAddress?.trim() ? (
+        <p className={styles.contactLine} data-testid="modern-couple-contract-address">
+          <span className={styles.factLabel}>Adres do umowy</span>{' '}
+          <span>{contractAddress}</span>
+        </p>
+      ) : null}
       {channels.length > 0 ? (
         <div
           className={styles.channelBlock}

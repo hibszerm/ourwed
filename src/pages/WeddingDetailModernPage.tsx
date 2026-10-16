@@ -1,6 +1,6 @@
-import { useEffect } from 'react'
+import { useEffect, useState } from 'react'
 import { Link, useParams, useSearchParams } from 'react-router-dom'
-import { useQueryClient } from '@tanstack/react-query'
+import { useQuery, useQueryClient } from '@tanstack/react-query'
 import { AppLayout } from '@/layouts/AppLayout'
 import { Button } from '@/components/ui/Button'
 import { PageContainer } from '@/components/ui/PageContainer'
@@ -14,6 +14,9 @@ import { ModernWeddingDetailWorkspace } from '@/features/weddings/modern-detail/
 import { ModernWeddingIdentityHero } from '@/features/weddings/modern-detail/ModernWeddingIdentityHero'
 import { SharedV3LogisticsWorkspace } from '@/features/weddings/modern-detail/SharedV3LogisticsWorkspace'
 import { SharedV3PreweddingWorkspace } from '@/features/weddings/modern-detail/SharedV3PreweddingWorkspace'
+import { CanonicalCoupleCard } from '@/features/weddings/modern-detail/ModernWeddingOverview'
+import { CanonicalCoupleContactsEditor } from '@/features/weddings/detail/CanonicalCoupleContactsEditor'
+import { collaborativeContactsService, contactsToCouple, type WeddingContactsAggregate } from '@/features/collaboration/collaborativeContactsService'
 import { getUserFacingErrorMessage } from '@/lib/errors/userFacingError'
 import type { CollaborativeWeddingIdentity } from '@/features/collaboration/collaborativeWeddingIdentityTypes'
 import type { Wedding } from '@/types/wedding'
@@ -47,9 +50,10 @@ export function WeddingDetailModernPage() {
   }
   if (branch === 'owned') return <OwnedWeddingDetail />
   if (branch === 'shared' && authority?.kind === 'shared') {
-    return <SharedWeddingDetail weddingId={authority.weddingId} userId={user?.id}
+    return <SharedWeddingDetail key={`${user?.id}:${authority.weddingId}:${authority.accessVersion}:${authority.effectiveAreas.contacts}`}
+      weddingId={authority.weddingId} userId={user?.id}
       accessVersion={authority.accessVersion} logisticsLevel={authority.effectiveAreas.logistics}
-      preweddingLevel={authority.effectiveAreas.prewedding} />
+      preweddingLevel={authority.effectiveAreas.prewedding} contactsLevel={authority.effectiveAreas.contacts} />
   }
   return <UnavailableDetail />
 }
@@ -79,12 +83,23 @@ function OwnedWeddingDetail() {
   )
 }
 
-function SharedWeddingDetail({ weddingId, userId, accessVersion, logisticsLevel, preweddingLevel }: {
-  weddingId: string; userId: string | undefined; accessVersion: string; logisticsLevel: 0 | 1 | 2; preweddingLevel: 0 | 1 | 2
+function SharedWeddingDetail({ weddingId, userId, accessVersion, logisticsLevel, preweddingLevel, contactsLevel }: {
+  weddingId: string; userId: string | undefined; accessVersion: string; logisticsLevel: 0 | 1 | 2; preweddingLevel: 0 | 1 | 2; contactsLevel: 0 | 1 | 2
 }) {
   const queryClient = useQueryClient()
   const [searchParams, setSearchParams] = useSearchParams()
+  const [contactsEditing, setContactsEditing] = useState(false)
+  const [contactsDraft, setContactsDraft] = useState<WeddingContactsAggregate | null>(null)
+  const [contactsSaving, setContactsSaving] = useState(false)
+  const [contactsSaveError, setContactsSaveError] = useState<string | null>(null)
   const detail = useCollaborativeWeddingIdentity(weddingId, userId)
+  const contactsKey = ['collaborative-contacts-v3', userId, weddingId, accessVersion] as const
+  const contactsQuery = useQuery({
+    queryKey: contactsKey,
+    queryFn: () => collaborativeContactsService.get(weddingId),
+    enabled: Boolean(userId) && contactsLevel > 0,
+    staleTime: 0,
+  })
 
   useEffect(() => {
     if (detail.isSuccess && detail.data === null) {
@@ -94,6 +109,15 @@ function SharedWeddingDetail({ weddingId, userId, accessVersion, logisticsLevel,
       })
     }
   }, [detail.data, detail.isSuccess, queryClient, userId, weddingId])
+
+  const revoked = detail.isSuccess && detail.data === null
+  useEffect(() => {
+    const contactsKeyPrefix = ['collaborative-contacts-v3', userId, weddingId]
+    if (contactsLevel === 0 || revoked) {
+      queryClient.removeQueries({ queryKey: contactsKeyPrefix })
+    }
+    return () => queryClient.removeQueries({ queryKey: contactsKeyPrefix })
+  }, [contactsLevel, queryClient, revoked, userId, weddingId])
 
   if (detail.isPending || detail.isFetching) return <DetailLoading />
   if (detail.isError) {
@@ -117,12 +141,46 @@ function SharedWeddingDetail({ weddingId, userId, accessVersion, logisticsLevel,
     next.set('tab', tab)
     setSearchParams(next, { replace: true })
   }
+  async function saveSharedContacts() {
+    if (!contactsDraft || contactsLevel !== 2) return
+    setContactsSaving(true)
+    setContactsSaveError(null)
+    try {
+      await collaborativeContactsService.saveShared({ weddingId, accessVersion, contacts: contactsDraft })
+      setContactsEditing(false)
+      setContactsDraft(null)
+      await Promise.all([
+        contactsQuery.refetch(),
+        queryClient.invalidateQueries({ queryKey: ['collaborative-wedding-identity', userId, weddingId], exact: true }),
+      ])
+    } catch (error) {
+      setContactsSaveError(error instanceof Error ? error.message : 'Nie udało się zapisać zmian.')
+      await queryClient.invalidateQueries({ queryKey: weddingDetailAuthorityQueryKey(userId, weddingId), exact: true })
+    } finally {
+      setContactsSaving(false)
+    }
+  }
   return (
     <AppLayout>
       <PageContainer width="full">
         <div className={styles.page} data-testid="wedding-detail-modern" data-authority="shared">
           <div className={workspaceStyles.workspace} data-testid="shared-canonical-wedding-detail">
             <ModernWeddingIdentityHero wedding={wedding} places={[]} testId="modern-wedding-detail-header" />
+            {contactsLevel > 0 && contactsQuery.data ? (
+              <CanonicalCoupleCard
+                couple={contactsToCouple(contactsQuery.data)}
+                correspondence={contactsQuery.data.correspondence}
+                contractAddress={contactsQuery.data.contract_address ?? undefined}
+                onEdit={contactsLevel === 2 ? () => {
+                  setContactsDraft({ ...contactsQuery.data! })
+                  setContactsSaveError(null)
+                  setContactsEditing(true)
+                } : undefined}
+              />
+            ) : null}
+            {contactsLevel > 0 && contactsQuery.isError ? (
+              <p role="alert">Nie udało się załadować danych kontaktowych.</p>
+            ) : null}
             {visible.length ? <nav className={workspaceStyles.sharedNavigation} role="tablist" aria-label="Sekcje zlecenia">
               {visible.map((item) => <button key={item.id} type="button" role="tab"
                 aria-selected={activeTab === item.id} onClick={() => selectTab(item.id)}>{item.label}</button>)}
@@ -134,6 +192,16 @@ function SharedWeddingDetail({ weddingId, userId, accessVersion, logisticsLevel,
           </div>
         </div>
       </PageContainer>
+      {contactsEditing && contactsLevel === 2 && contactsDraft ? (
+        <CanonicalCoupleContactsEditor
+          contacts={contactsDraft}
+          onChange={setContactsDraft}
+          busy={contactsSaving}
+          error={contactsSaveError}
+          onSave={() => void saveSharedContacts()}
+          onCancel={() => { setContactsEditing(false); setContactsDraft(null) }}
+        />
+      ) : null}
     </AppLayout>
   )
 }

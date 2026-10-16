@@ -27,9 +27,8 @@ export const DEFAULT_WEDDING_CURRENCY = 'PLN'
 
 /**
  * Columns that exist on `public.weddings`.
- * Partner first/last split still hydrates from contract `form_answers`
- * when a submitted questionnaire exists. Contract address is exposed as
- * wedding-level data; split columns remain solely for legacy compatibility.
+ * V3 Contacts are stored canonically on the wedding row. Contract form answers
+ * remain Contract-domain snapshots and do not override operational Contacts.
  */
 export interface WeddingRow {
   id: string
@@ -41,6 +40,11 @@ export interface WeddingRow {
   email: string | null
   phone: string | null
   groom_phone?: string | null
+  bride_first_name?: string | null
+  bride_last_name?: string | null
+  groom_first_name?: string | null
+  groom_last_name?: string | null
+  groom_email?: string | null
   contract_address?: string | null
   contract_postal_code?: string | null
   contract_city?: string | null
@@ -208,16 +212,17 @@ export function mapWeddingRowToModel(row: WeddingRow): Wedding {
     couple: {
       partner1: row.bride_name,
       partner2: row.groom_name,
-      partner1FirstName: brideSplit.first || undefined,
-      partner1LastName: brideSplit.last || undefined,
-      partner2FirstName: groomSplit.first || undefined,
-      partner2LastName: groomSplit.last || undefined,
+      partner1FirstName: (row.bride_first_name ?? brideSplit.first) || undefined,
+      partner1LastName: (row.bride_last_name ?? brideSplit.last) || undefined,
+      partner2FirstName: (row.groom_first_name ?? groomSplit.first) || undefined,
+      partner2LastName: (row.groom_last_name ?? groomSplit.last) || undefined,
       partner1Phone: phone || undefined,
       partner1Email: email || undefined,
       partner1Address: contractAddress || undefined,
       partner1PostalCode: contractPostal || undefined,
       partner1City: contractCity || undefined,
       partner2Phone: groomPhone || undefined,
+      partner2Email: row.groom_email?.trim() || undefined,
       email,
       phone,
       venue,
@@ -328,6 +333,11 @@ export function mapWeddingModelToRow(
     email,
     phone,
     groom_phone: groomPhone,
+    bride_first_name: c.partner1FirstName?.trim() || null,
+    bride_last_name: c.partner1LastName?.trim() || null,
+    groom_first_name: c.partner2FirstName?.trim() || null,
+    groom_last_name: c.partner2LastName?.trim() || null,
+    groom_email: c.partner2Email?.trim() || null,
     contract_address: contractAddress,
     contract_postal_code: contractPostal,
     contract_city: contractCity,

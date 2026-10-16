@@ -1,6 +1,6 @@
 import { useCallback, useMemo, useState } from 'react'
 import { useNavigate, useSearchParams } from 'react-router-dom'
-import { useQueryClient } from '@tanstack/react-query'
+import { useQuery, useQueryClient } from '@tanstack/react-query'
 import { useStudioAuthId } from '@/features/auth/useStudioAuthId'
 import { calendarIntegrationQueryKeys } from '@/features/calendar-integrations/queryKeys'
 import { invalidateFinanceQueries } from '@/features/finance/invalidateFinanceQueries'
@@ -9,6 +9,8 @@ import { ModernWeddingContractFinanceWorkspace } from '@/features/weddings/moder
 import { ModernWeddingHistoriaWorkspace } from '@/features/weddings/modern-detail/ModernWeddingHistoriaWorkspace'
 import { DeliveryDeadlineModal } from '@/features/weddings/detail/v2/DeliveryDeadlineModal'
 import { WeddingWorkspaceEditSurface } from '@/features/weddings/detail/v2/WeddingWorkspaceEditSurface'
+import { CanonicalCoupleContactsEditor } from '@/features/weddings/detail/CanonicalCoupleContactsEditor'
+import { collaborativeContactsService, contactsToWeddingPatch, type WeddingContactsAggregate } from '@/features/collaboration/collaborativeContactsService'
 import { TravelFeeResolveModal } from '@/features/weddings/detail/travel-fee/TravelFeeResolveModal'
 import {
   dispatchWeddingNextAction,
@@ -74,6 +76,39 @@ export function ModernWeddingDetailWorkspace(props: WeddingDetailSharedProps) {
   const [packageFocus, setPackageFocus] = useState(false)
   const [travelFeeOpen, setTravelFeeOpen] = useState(false)
   const [deliveryDeadlineOpen, setDeliveryDeadlineOpen] = useState(false)
+  const isContactsEditor = editing && (editorSection === 'contacts' || editorSection === 'couple')
+  const [ownerContactsDraft, setOwnerContactsDraft] = useState<WeddingContactsAggregate | null>(null)
+  const [ownerContactsSaving, setOwnerContactsSaving] = useState(false)
+  const [ownerContactsError, setOwnerContactsError] = useState<string | null>(null)
+  const ownerContactsQuery = useQuery({
+    queryKey: ['owner-wedding-contacts-v3', userId, wedding.id],
+    queryFn: () => collaborativeContactsService.getOwner(wedding.id),
+    enabled: Boolean(userId && isContactsEditor),
+    staleTime: 0,
+    refetchOnWindowFocus: false,
+    refetchOnMount: 'always',
+  })
+  const displayedOwnerContacts = ownerContactsDraft ?? ownerContactsQuery.data ?? null
+  async function saveOwnerContacts() {
+    if (!displayedOwnerContacts) return
+    setOwnerContactsSaving(true)
+    setOwnerContactsError(null)
+    try {
+      const revision = await collaborativeContactsService.saveOwner(displayedOwnerContacts)
+      const next = { ...wedding, ...contactsToWeddingPatch({ ...displayedOwnerContacts, contacts_revision: revision }) }
+      await Promise.all([
+        queryClient.invalidateQueries({ queryKey: ['weddings'] }),
+        queryClient.invalidateQueries({ queryKey: ['dashboard'] }),
+      ])
+      onWeddingRefreshed?.(next)
+      setOwnerContactsDraft(null)
+      onCancelEdit?.()
+    } catch {
+      setOwnerContactsError('Nie udało się zapisać danych kontaktowych. Odśwież dane i spróbuj ponownie.')
+    } finally {
+      setOwnerContactsSaving(false)
+    }
+  }
   const ctx = useModernWeddingDetailContext(wedding)
 
   const setTab = useCallback((next: WeddingWorkspaceTab) => {
@@ -291,7 +326,21 @@ export function ModernWeddingDetailWorkspace(props: WeddingDetailSharedProps) {
         ) : null}
       </div>
 
-      {editing ? (
+      {editing && (editorSection === 'contacts' || editorSection === 'couple') ? (
+        ownerContactsQuery.isError ? <p role="alert">Nie udało się załadować danych kontaktowych.</p>
+          : ownerContactsQuery.isFetching || !displayedOwnerContacts ? <p role="status">Ładowanie danych kontaktowych…</p>
+            : <CanonicalCoupleContactsEditor
+            contacts={displayedOwnerContacts}
+            onChange={(next) => {
+              setOwnerContactsDraft(next)
+              setOwnerContactsError(null)
+            }}
+            busy={ownerContactsSaving}
+            error={ownerContactsError}
+            onSave={() => void saveOwnerContacts()}
+            onCancel={() => { setOwnerContactsDraft(null); setOwnerContactsError(null); onCancelEdit?.() }}
+          />
+      ) : editing ? (
         <WeddingWorkspaceEditSurface
           props={props}
           focusSection={editorSection}

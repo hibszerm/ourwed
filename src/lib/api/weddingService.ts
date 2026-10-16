@@ -469,15 +469,7 @@ export const weddingService = {
     const { data, error } = await supabase
       .from('weddings')
       .update({
-        bride_name: patch.bride_name,
-        groom_name: patch.groom_name,
         display_name: patch.display_name ?? null,
-        correspondence: patch.correspondence ?? [],
-        correspondence_channel: patch.correspondence_channel ?? null,
-        correspondence_value: patch.correspondence_value ?? null,
-        email: patch.email,
-        phone: patch.phone,
-        groom_phone: patch.groom_phone ?? null,
         ...(options?.preserveContractAddress === false ? {
           contract_address: patch.contract_address ?? null,
           contract_postal_code: patch.contract_postal_code ?? null,
