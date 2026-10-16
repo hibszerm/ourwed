@@ -28,11 +28,14 @@ const EDIT_PLACE_KEYS = [
   'address_version',
   'effective_operational_time',
   'formatted_address',
+  'name',
+  'name_version',
   'operational_time_override',
   'role',
   'time_source',
   'time_version',
 ]
+const LEGACY_EDIT_PLACE_KEYS = EDIT_PLACE_KEYS.filter((key) => key !== 'name' && key !== 'name_version')
 
 function exactKeys(value: Record<string, unknown>, expected: string[]): boolean {
   const actual = Object.keys(value).sort()
@@ -48,9 +51,12 @@ function mapEditPlace(value: unknown): CollaborativeWeddingOperationalEditPlace 
   if (!value || typeof value !== 'object' || Array.isArray(value)) return null
   const row = value as Record<string, unknown>
   const source = row.time_source
+  const hasCurrentNameFields = Object.hasOwn(row, 'name') && Object.hasOwn(row, 'name_version')
   if (
-    !exactKeys(row, EDIT_PLACE_KEYS)
+    !(exactKeys(row, EDIT_PLACE_KEYS) || exactKeys(row, LEGACY_EDIT_PLACE_KEYS))
     || !isCollaborativePlaceRole(row.role)
+    || (hasCurrentNameFields && row.name !== null && typeof row.name !== 'string')
+    || (hasCurrentNameFields && !validVersion(row.name_version))
     || typeof row.formatted_address !== 'string'
     || !validVersion(row.address_version)
     || !validVersion(row.time_version)
@@ -61,6 +67,8 @@ function mapEditPlace(value: unknown): CollaborativeWeddingOperationalEditPlace 
 
   return {
     role: row.role,
+    name: hasCurrentNameFields ? row.name as string | null : null,
+    name_version: hasCurrentNameFields ? row.name_version as CollaborationVersion : null,
     formatted_address: row.formatted_address,
     address_version: row.address_version,
     operational_time_override: row.operational_time_override as string | null,

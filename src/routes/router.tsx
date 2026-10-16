@@ -4,6 +4,7 @@ import { ProtectedRoute } from '@/features/auth/ProtectedRoute'
 import { DashboardRoutePage } from '@/pages/DashboardRoutePage'
 import { WeddingsRoutePage } from '@/pages/WeddingsRoutePage'
 import { WeddingDetailRoutePage } from '@/pages/WeddingDetailRoutePage'
+import { WeddingOwnerRouteGuard } from '@/features/weddings/detail/WeddingOwnerRouteGuard'
 import { WeddingDayCockpitPage } from '@/pages/WeddingDayCockpitPage'
 import { WeddingContractGenerationPage } from '@/pages/WeddingContractGenerationPage'
 import { WeddingContractPreviewPage } from '@/pages/WeddingContractPreviewPage'
@@ -174,19 +175,19 @@ export const router = createBrowserRouter([
           { path: '/sluby/import', element: <WeddingImportPage /> },
           {
             path: '/sluby/:weddingId/uzupelnij-z-umowy',
-            element: <WeddingContractRecoveryPage />,
+            element: <WeddingOwnerRouteGuard><WeddingContractRecoveryPage /></WeddingOwnerRouteGuard>,
           },
           {
             path: '/sluby/:weddingId/umowy/nowa',
-            element: <WeddingContractGenerationPage />,
+            element: <WeddingOwnerRouteGuard><WeddingContractGenerationPage /></WeddingOwnerRouteGuard>,
           },
           {
             path: '/sluby/:weddingId/umowy/:contractId',
-            element: <WeddingContractPreviewPage />,
+            element: <WeddingOwnerRouteGuard><WeddingContractPreviewPage /></WeddingOwnerRouteGuard>,
           },
           {
             path: '/sluby/:weddingId/dzien-slubu',
-            element: <WeddingDayCockpitPage />,
+            element: <WeddingOwnerRouteGuard><WeddingDayCockpitPage /></WeddingOwnerRouteGuard>,
           },
           { path: '/sluby/:id', element: <WeddingDetailRoutePage /> },
           { path: '/sesje', element: <SessionsRoutePage /> },

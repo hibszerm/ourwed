@@ -31,6 +31,8 @@ export type CollaborativeOperationalTimeSource = 'override' | 'ceremony_fallback
 
 export interface CollaborativeWeddingOperationalEditPlace {
   role: CollaborativeWeddingPlaceRole
+  name: string | null
+  name_version: CollaborationVersion
   formatted_address: string
   address_version: CollaborationVersion
   operational_time_override: string | null

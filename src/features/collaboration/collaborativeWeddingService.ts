@@ -34,11 +34,17 @@ function mapDetail(value: unknown): CollaborativeWeddingDetail | null {
   const row = value as Record<string, unknown>
   if (
     typeof row.wedding_id !== 'string'
-    || typeof row.couple_first_name !== 'string'
-    || typeof row.couple_second_name !== 'string'
     || (row.wedding_date !== null && typeof row.wedding_date !== 'string')
     || !Array.isArray(row.places)
   ) throw new CollaborativeReadError('UNKNOWN')
+
+  // The curated RPC returns identity fields as null when identity authority
+  // has been removed between the route-authority and detail reads. Treat that
+  // state as unavailable instead of attempting to render a partial wedding.
+  if (row.couple_first_name === null || row.couple_second_name === null) return null
+  if (typeof row.couple_first_name !== 'string' || typeof row.couple_second_name !== 'string') {
+    throw new CollaborativeReadError('UNKNOWN')
+  }
 
   const places: CollaborativeWeddingPlace[] = []
   for (const rawPlace of row.places) {
