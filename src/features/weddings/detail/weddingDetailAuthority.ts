@@ -8,16 +8,22 @@ import { operationalTimesQueryKey } from '@/features/wedding-day/queryKeys'
 import { travelPlanQueryKey, weddingPlacesQueryKey } from '@/features/wedding-day/travelPlanPlaces'
 import { supabase } from '@/lib/supabase'
 import { isUuid } from '@/features/collaboration/collaborativeWeddingTypes'
+import { parseAreaAccess, type CollaborationAccessMode, type CollaborationAreaAccess } from '@/features/collaboration/areaAccessV3'
 
 export type WeddingDetailAuthority =
-  | { kind: 'owned'; weddingId: string }
+  | { kind: 'owned'; weddingId: string; mappingVersion: '3'; accessMode: 'editor';
+      configuredAreas: CollaborationAreaAccess; effectiveAreas: CollaborationAreaAccess }
   | {
       kind: 'shared'
       weddingId: string
       membershipId: string
       accessVersion: string
-      mappingVersion: '1' | '2'
-      effectiveCapabilities: Record<string, 0 | 1 | 2>
+      mappingVersion: '3'
+      roleKey: string
+      customRoleLabel: string | null
+      accessMode: CollaborationAccessMode
+      configuredAreas: CollaborationAreaAccess
+      effectiveAreas: CollaborationAreaAccess
     }
   | { kind: 'unavailable' }
 
@@ -26,7 +32,7 @@ export const weddingDetailAuthorityQueryKey = (
   weddingId: string,
 ) => ['wedding-detail-authority', userId, weddingId] as const
 
-function parseAuthority(value: unknown, requestedWeddingId: string): WeddingDetailAuthority {
+export function parseWeddingDetailAuthorityV3(value: unknown, requestedWeddingId: string): WeddingDetailAuthority {
   if (Array.isArray(value)) {
     if (value.length !== 1) throw new Error('AUTHORITY_RESPONSE_INVALID')
     value = value[0]
@@ -40,39 +46,42 @@ function parseAuthority(value: unknown, requestedWeddingId: string): WeddingDeta
     || row.wedding_id.toLowerCase() !== requestedWeddingId.toLowerCase()) {
     throw new Error('AUTHORITY_RESPONSE_INVALID')
   }
-  if (row.kind === 'owned') return { kind: 'owned', weddingId: requestedWeddingId }
+  if (row.kind === 'owned') {
+    if (row.mapping_version !== '3') throw new Error('AUTHORITY_RESPONSE_INVALID')
+    if (row.access_mode !== 'editor') throw new Error('AUTHORITY_RESPONSE_INVALID')
+    return { kind: 'owned', weddingId: requestedWeddingId, mappingVersion: '3', accessMode: 'editor',
+      configuredAreas: parseAreaAccess(row.configured_areas), effectiveAreas: parseAreaAccess(row.effective_areas) }
+  }
   if (row.kind !== 'shared' || typeof row.membership_id !== 'string'
-    || typeof row.access_version !== 'string' || typeof row.mapping_version !== 'string'
-    || (row.mapping_version !== '1' && row.mapping_version !== '2')
-    || !row.effective_capabilities || typeof row.effective_capabilities !== 'object'
-    || Array.isArray(row.effective_capabilities)) {
+    || typeof row.access_version !== 'string' || row.access_version.length > 19 || !/^[1-9][0-9]*$/.test(row.access_version)
+    || row.mapping_version !== '3' || typeof row.role_key !== 'string'
+    || (row.custom_role_label !== null && typeof row.custom_role_label !== 'string')
+    || (row.access_mode !== 'viewer' && row.access_mode !== 'editor' && row.access_mode !== 'custom')) {
     throw new Error('AUTHORITY_RESPONSE_INVALID')
   }
-  const effectiveCapabilities: Record<string, 0 | 1 | 2> = {}
-  for (const [key, level] of Object.entries(row.effective_capabilities as Record<string, unknown>)) {
-    if (level !== 0 && level !== 1 && level !== 2) throw new Error('AUTHORITY_RESPONSE_INVALID')
-    effectiveCapabilities[key] = level
-  }
-  if ((effectiveCapabilities['wedding.identity'] ?? 0) < 1) {
-    return { kind: 'unavailable' }
-  }
+  const configuredAreas = parseAreaAccess(row.configured_areas)
+  const effectiveAreas = parseAreaAccess(row.effective_areas)
   return {
     kind: 'shared',
     weddingId: requestedWeddingId,
     membershipId: row.membership_id,
     accessVersion: row.access_version,
-    mappingVersion: row.mapping_version,
-    effectiveCapabilities,
+    mappingVersion: '3',
+    roleKey: row.role_key,
+    customRoleLabel: row.custom_role_label,
+    accessMode: row.access_mode,
+    configuredAreas,
+    effectiveAreas,
   }
 }
 
 export async function resolveWeddingDetailAuthority(weddingId: string): Promise<WeddingDetailAuthority> {
   if (!isUuid(weddingId)) return { kind: 'unavailable' }
-  const { data, error } = await supabase.rpc('resolve_my_wedding_detail_authority', {
+  const { data, error } = await supabase.rpc('resolve_my_wedding_detail_authority_v3', {
     p_wedding_id: weddingId,
   })
   if (error) throw error
-  return parseAuthority(data, weddingId)
+  return parseWeddingDetailAuthorityV3(data, weddingId)
 }
 
 export function useWeddingDetailAuthority(weddingId: string) {

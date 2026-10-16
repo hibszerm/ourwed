@@ -1,13 +1,14 @@
 begin;
 select no_plan();
 
+-- V3 adds two separate six-area system snapshots; keep this frozen G regression scoped to its version-1 presets.
 select is((select count(*)::int from collaboration_private.permission_presets
-  where scope='system' and archived_at is null),2,'exactly two active system presets are seeded');
+  where scope='system' and permission_group_mapping_version='1' and archived_at is null),2,'exactly two active version-1 system presets are seeded');
 select is((select count(*)::int from collaboration_private.permission_preset_grants g
   join collaboration_private.permission_presets p on p.id=g.preset_id where p.scope='system'),6,
   'system presets contain exactly six normalized grants');
 select is((select string_agg(system_key||':'||name||':'||version::text,',' order by system_key)
-  from collaboration_private.permission_presets where scope='system'),
+  from collaboration_private.permission_presets where scope='system' and permission_group_mapping_version='1'),
   'operational_full:Pełny dostęp operacyjny:1,read_only:Podgląd podstawowy:1','system key, Polish name and version are exact');
 select is((select string_agg(p.system_key||':'||g.capability_key||'='||g.level,',' order by p.system_key,g.capability_key)
   from collaboration_private.permission_preset_grants g join collaboration_private.permission_presets p on p.id=g.preset_id

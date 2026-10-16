@@ -1,10 +1,10 @@
 import { useRef, useState } from 'react'
 import { CollaborationAccessManagementSheet } from '@/features/collaboration/CollaborationAccessManagementSheet'
-import { CollaborationPermissionMatrix } from '@/features/collaboration/CollaborationPermissionMatrix'
+import { CollaborationAreaMatrixV3 } from '@/features/collaboration/CollaborationAreaMatrixV3'
 import { CollaborationPermissionPresetPicker } from '@/features/collaboration/CollaborationPermissionPresetPicker'
-import { COLLABORATION_ROLE_CATALOG_V1, type CollaborationAccessModeV1, type CollaborationRoleKeyV1 } from '@/features/collaboration/roleCatalog.v1'
-import type { CustomCapabilityGrant } from '@/features/collaboration/accessManagementTypes'
-import { useActiveWeddingCollaborators, useCreateWeddingInvitation, useWeddingCollaborationState, useWeddingAccessPreviews, useWeddingInvitationCommand, useWeddingMembershipCommand } from '@/features/collaboration/useWeddingCollaboration'
+import { COLLABORATION_ROLE_CATALOG_V1, type CollaborationRoleKeyV1 } from '@/features/collaboration/roleCatalog.v1'
+import { areaDefaultsForMode, VIEWER_AREA_DEFAULTS, type CollaborationAccessMode, type CollaborationAreaAccess } from '@/features/collaboration/areaAccessV3'
+import { useActiveWeddingCollaborators, useCreateWeddingInvitation, useWeddingCollaborationState, useWeddingInvitationCommand, useWeddingMembershipCommand } from '@/features/collaboration/useWeddingCollaboration'
 import type { WeddingInvitationStatus } from '@/features/collaboration/weddingCollaborationService'
 import type { Wedding } from '@/types/wedding'
 import styles from './WeddingCollaboration.module.css'
@@ -41,12 +41,11 @@ export function WeddingCollaborationOwnerPanel({ wedding }: { wedding: Wedding }
   const [review, setReview] = useState(false)
   const [roleKey, setRoleKey] = useState<CollaborationRoleKeyV1>('unspecified')
   const [customRoleLabel, setCustomRoleLabel] = useState('')
-  const [accessMode, setAccessMode] = useState<CollaborationAccessModeV1 | null>(null)
-  const [customGrants, setCustomGrants] = useState<CustomCapabilityGrant[]>([])
+  const [accessMode, setAccessMode] = useState<CollaborationAccessMode | null>(null)
+  const [customAreas, setCustomAreas] = useState<CollaborationAreaAccess>({ ...VIEWER_AREA_DEFAULTS })
   const [managementTarget, setManagementTarget] = useState<{ membershipId?: string; invitationId?: string } | null>(null)
   const managementTriggerRef = useRef<HTMLButtonElement | null>(null)
   const state = useWeddingCollaborationState(wedding.id)
-  const accessPreviews = useWeddingAccessPreviews(wedding.id, open)
   const collaborators = useActiveWeddingCollaborators()
   const create = useCreateWeddingInvitation(wedding.id)
   const cancel = useWeddingInvitationCommand(wedding.id)
@@ -70,7 +69,7 @@ export function WeddingCollaborationOwnerPanel({ wedding }: { wedding: Wedding }
     if (!accessMode) return
     await create.mutateAsync({ connectionId: selected.id, amount, configuration: {
       roleKey, customRoleLabel: roleKey === 'custom' ? customRoleLabel : null, accessMode,
-      customGrants: accessMode === 'custom' ? customGrants : null,
+      customAreas: accessMode === 'custom' ? customAreas : areaDefaultsForMode(accessMode) ?? customAreas,
     } })
     setSelectedConnectionId('')
     setAmountInput('')
@@ -173,16 +172,14 @@ export function WeddingCollaborationOwnerPanel({ wedding }: { wedding: Wedding }
           </label> : null}
           <fieldset className={styles.accessChoice}><legend>Zakres dostępu</legend>
             {([
-              ['viewer', 'Tylko podgląd', 'Może przeglądać udostępnione obszary.'],
-              ['editor', 'Pełna edycja', 'Może edytować obecnie dostępne obszary. Nie obejmuje ustawień właściciela.'],
-              ['custom', 'Niestandardowe', ''],
+              ['viewer', 'Podgląd', ''],
+              ['editor', 'Edycja', ''],
+              ['custom', 'Własny', ''],
             ] as const).map(([mode, label, description]) => <label key={mode}>
                 <input type="radio" name={`invite-access-${wedding.id}`} checked={accessMode === mode}
-                  disabled={mode === 'custom' && !accessPreviews.data}
                   onChange={() => {
-                if (mode === 'custom' && accessMode !== 'custom' && accessPreviews.data) {
-                  const source = accessMode === 'editor' ? accessPreviews.data.editor_preview : accessPreviews.data.viewer_preview
-                  setCustomGrants(source.map((grant) => ({ ...grant })))
+                if (mode === 'custom' && accessMode !== 'custom') {
+                  setCustomAreas(areaDefaultsForMode(accessMode ?? 'viewer') ?? { ...VIEWER_AREA_DEFAULTS })
                 }
                 setAccessMode(mode)
                 setReview(false)
@@ -190,13 +187,9 @@ export function WeddingCollaborationOwnerPanel({ wedding }: { wedding: Wedding }
               <span><strong>{label}</strong>{description ? <small>{description}</small> : null}</span>
             </label>)}
           </fieldset>
-          {accessPreviews.isLoading ? <p className={styles.muted} role="status" aria-live="polite">Ładowanie bezpiecznych ustawień dostępu…</p> : null}
-          {accessPreviews.isError ? <p className={styles.error} role="alert">Nie udało się pobrać podglądu uprawnień dla ustawienia niestandardowego.
-            <button type="button" className={styles.textButton} onClick={() => void accessPreviews.refetch()}>Spróbuj ponownie</button>
-          </p> : null}
           {accessMode === 'custom' ? <>
-            <CollaborationPermissionPresetPicker onApply={(grants) => { setCustomGrants(grants); setReview(false) }} />
-            <CollaborationPermissionMatrix grants={customGrants} onChange={(grants) => { setCustomGrants(grants); setReview(false) }} />
+            <CollaborationPermissionPresetPicker onApply={(areas) => { setCustomAreas(areas); setReview(false) }} />
+            <CollaborationAreaMatrixV3 areas={customAreas} onChange={(areas) => { setCustomAreas(areas); setReview(false) }} />
           </> : null}
           <label className={styles.field}>
             <span>Proponowana kwota dla współpracownika</span>
@@ -219,7 +212,7 @@ export function WeddingCollaborationOwnerPanel({ wedding }: { wedding: Wedding }
             <div className={styles.review} aria-live="polite">
               <p>Zaproszenie dla <strong>{selected?.display_name}</strong></p>
               <p>Rola: <strong>{roleKey === 'custom' ? customRoleLabel : COLLABORATION_ROLE_CATALOG_V1.find((role) => role.key === roleKey)?.label}</strong></p>
-              <p>Dostęp: <strong>{accessMode === 'viewer' ? 'Tylko podgląd' : accessMode === 'editor' ? 'Pełna edycja' : 'Niestandardowe'}</strong></p>
+              <p>Dostęp: <strong>{accessMode === 'viewer' ? 'Podgląd' : accessMode === 'editor' ? 'Edycja' : 'Własny'}</strong></p>
               <p>Proponowana kwota: <strong>{amountLabel(amount, currency)}</strong></p>
               <p>Wartość zlecenia: {amountLabel(wedding.price, currency)}</p>
             </div>

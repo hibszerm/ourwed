@@ -1,13 +1,13 @@
 import { useState } from 'react'
 import { Modal } from '@/components/ui/Modal'
-import type { CustomCapabilityGrant } from './accessManagementTypes'
+import type { CollaborationAreaAccess } from './areaAccessV3'
 import { useCreateCollaborationPermissionPreset } from './useCollaborationPermissionPresets'
 import styles from './CollaborationPermissionPresetManager.module.css'
 import { presetDescriptionError, presetNameError } from './permissionPresetValidation'
 
-export function SaveAccessAsPresetDialog({ open, grants, onClose }: {
+export function SaveAccessAsPresetDialog({ open, areas, onClose }: {
   open: boolean
-  grants: CustomCapabilityGrant[]
+  areas: CollaborationAreaAccess
   onClose: () => void
 }) {
   const [name, setName] = useState('')
@@ -21,7 +21,7 @@ export function SaveAccessAsPresetDialog({ open, grants, onClose }: {
       : error ? 'Nie udało się zapisać zestawu. Twoje dane pozostały w formularzu.' : ''
   async function save() {
     if (nameError || descriptionError) return
-    await create.mutateAsync({ name, description: description.trim() || null, grants: grants.map((grant) => ({ ...grant })) })
+    await create.mutateAsync({ name, description: description.trim() || null, areas: { ...areas } })
     setName(''); setDescription(''); onClose()
   }
   return <Modal open={open} title="Zapisz jako zestaw" description="Zapisz ten zakres do ponownego użycia. Dostęp do zlecenia pozostanie bez zmian."

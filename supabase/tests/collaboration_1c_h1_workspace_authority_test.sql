@@ -21,13 +21,15 @@ select ok(not has_table_privilege('authenticated','collaboration_private.permiss
   and not has_table_privilege('authenticated','collaboration_private.capability_dependencies','select')
   and not has_table_privilege('authenticated','collaboration_private.capability_dependencies','insert'),
   'mapping and dependency metadata are private');
-select is((select count(*)::int from collaboration_private.permission_presets where scope='system'),2,
+select is((select count(*)::int from collaboration_private.permission_presets
+  where scope='system' and permission_group_mapping_version='1'),2,
   'both historical system presets remain intact');
 select is((select count(*)::int from collaboration_private.permission_preset_grants g
-  join collaboration_private.permission_presets p on p.id=g.preset_id where p.scope='system'),6,
+  join collaboration_private.permission_presets p on p.id=g.preset_id
+  where p.scope='system' and p.permission_group_mapping_version='1'),6,
   'historical system preset grant snapshots are unchanged');
 select ok((select bool_and(permission_group_mapping_version='1') from collaboration_private.permission_presets
-  where scope='system'),'historical preset mapping versions remain v1');
+  where scope='system' and permission_group_mapping_version='1'),'historical preset mapping versions remain v1');
 select ok(has_function_privilege('authenticated','public.list_my_workspace_weddings(date,uuid,integer,text)','execute')
   and not has_function_privilege('anon','public.list_my_workspace_weddings(date,uuid,integer,text)','execute')
   and has_function_privilege('authenticated','public.get_wedding_collaboration_invitation_decision(uuid)','execute')

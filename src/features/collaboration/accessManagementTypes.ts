@@ -1,5 +1,7 @@
-import type { CollaborationAccessModeV1, CollaborationRoleKeyV1 } from './roleCatalog.v1'
+import type { CollaborationAccessMode, CollaborationAreaAccess } from './areaAccessV3'
+import type { CollaborationRoleKeyV1 } from './roleCatalog.v1'
 
+/** Legacy v1 type retained only by historical acceptance fixtures. */
 export interface CustomCapabilityGrant {
   capability_key: 'wedding.identity' | 'places.address' | 'schedule.operational_time'
   level: 1 | 2
@@ -10,18 +12,12 @@ export interface CollaborationAccessManagementDto {
   membership_id?: string
   invitation_id?: string
   status: 'active' | 'pending'
-  collaborator_display_name?: string
-  invitee_display_name?: string
   role_key: CollaborationRoleKeyV1
   custom_role_label: string | null
-  access_mode: CollaborationAccessModeV1
+  access_mode: CollaborationAccessMode
   access_version?: string
   configuration_revision?: string
-  access_configuration_version?: 0 | 1
-  effective_permissions?: CustomCapabilityGrant[]
-  effective_preview?: CustomCapabilityGrant[]
-  custom_grants: CustomCapabilityGrant[]
-  viewer_preview: CustomCapabilityGrant[]
-  editor_preview: CustomCapabilityGrant[]
-  permission_group_mapping_version: '1'
+  mapping_version: '3'
+  configured_areas: CollaborationAreaAccess
+  effective_areas: CollaborationAreaAccess
 }

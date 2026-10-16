@@ -1,7 +1,7 @@
 import { useRef, useState } from 'react'
 import { Modal } from '@/components/ui/Modal'
-import type { CustomCapabilityGrant } from './accessManagementTypes'
-import { CollaborationPermissionMatrix } from './CollaborationPermissionMatrix'
+import { CollaborationAreaMatrixV3 } from './CollaborationAreaMatrixV3'
+import { VIEWER_AREA_DEFAULTS, type CollaborationAreaAccess } from './areaAccessV3'
 import { permissionPresetService, isPresetError } from './permissionPresetService'
 import type { CollaborationPermissionPreset } from './permissionPresetTypes'
 import {
@@ -19,7 +19,7 @@ type Editor = {
   preset: CollaborationPermissionPreset | null
   name: string
   description: string
-  grants: CustomCapabilityGrant[]
+  areas: CollaborationAreaAccess
   latest?: CollaborationPermissionPreset
 }
 
@@ -46,7 +46,7 @@ export function CollaborationPermissionPresetManager() {
   function newPreset(trigger: HTMLButtonElement) {
     editorReturnFocus.current = trigger
     setSavingError('')
-    setEditor({ kind: 'create', preset: null, name: '', description: '', grants: [] })
+    setEditor({ kind: 'create', preset: null, name: '', description: '', areas: { ...VIEWER_AREA_DEFAULTS } })
   }
 
   async function openPreset(presetId: string, kind: 'view' | 'edit' | 'duplicate', trigger?: HTMLButtonElement) {
@@ -56,7 +56,7 @@ export function CollaborationPermissionPresetManager() {
       const preset = await permissionPresetService.get(presetId)
       const copiedName = `Kopia ${preset.name}`
       setEditor({ kind, preset, name: kind === 'duplicate' ? Array.from(copiedName).slice(0, 80).join('') : preset.name,
-        description: preset.description ?? '', grants: preset.grants.map((grant) => ({ ...grant })) })
+        description: preset.description ?? '', areas: { ...preset.areas } })
     } catch {
       setLoadError(true)
       void presets.refetch()
@@ -67,7 +67,7 @@ export function CollaborationPermissionPresetManager() {
     if (!editor || nameError || descriptionError) return
     setSavingError('')
     const input = { name: editor.name, description: editor.description.trim() || null,
-      grants: editor.grants.map((grant) => ({ ...grant })) }
+      areas: { ...editor.areas } }
     try {
       if (editor.kind === 'create') await create.mutateAsync(input)
       else if (editor.kind === 'duplicate' && editor.preset) {
@@ -170,8 +170,8 @@ export function CollaborationPermissionPresetManager() {
         {editor.kind === 'duplicate' ? <p className={styles.hint}>
           Uprawnienia zostaną skopiowane dokładnie z wybranego zestawu. Po utworzeniu kopii możesz je edytować.
         </p> : null}
-        <CollaborationPermissionMatrix grants={editor.grants} disabled={editor.kind === 'view' || editor.kind === 'duplicate'}
-          onChange={(grants) => setEditor({ ...editor, grants })} />
+        <CollaborationAreaMatrixV3 areas={editor.areas} disabled={editor.kind === 'view' || editor.kind === 'duplicate'}
+          onChange={(areas) => setEditor({ ...editor, areas })} />
         {savingError ? <p className={styles.error} role="alert">{savingError}</p> : null}
         {editor.latest ? <button type="button" onClick={refreshVersionPreservingDraft}>Wczytaj aktualną wersję, zachowując moje zmiany</button> : null}
         <div className={styles.actions}>

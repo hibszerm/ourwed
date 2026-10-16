@@ -1,12 +1,12 @@
 import { useState } from 'react'
 import { useQueryClient } from '@tanstack/react-query'
 import { useStudioAuthId } from '@/features/auth/useStudioAuthId'
-import type { CustomCapabilityGrant } from './accessManagementTypes'
+import type { CollaborationAreaAccess } from './areaAccessV3'
 import { useCollaborationPermissionPresets, collaborationPermissionPresetKeys } from './useCollaborationPermissionPresets'
 import { permissionPresetService } from './permissionPresetService'
 import styles from './CollaborationPermissionPresetPicker.module.css'
 
-export function CollaborationPermissionPresetPicker({ onApply }: { onApply: (grants: CustomCapabilityGrant[]) => void }) {
+export function CollaborationPermissionPresetPicker({ onApply }: { onApply: (areas: CollaborationAreaAccess) => void }) {
   const userId = useStudioAuthId()
   const client = useQueryClient()
   const presets = useCollaborationPermissionPresets()
@@ -23,7 +23,7 @@ export function CollaborationPermissionPresetPicker({ onApply }: { onApply: (gra
         queryKey: collaborationPermissionPresetKeys.detail(userId, presetId),
         queryFn: () => permissionPresetService.get(presetId),
       })
-      onApply(detail.grants.map((grant) => ({ ...grant })))
+      onApply({ ...detail.areas })
       setNotice(`Zastosowano zestaw „${name}”. Możesz zmienić zakres przed zapisaniem.`)
     } catch {
       setError(true)

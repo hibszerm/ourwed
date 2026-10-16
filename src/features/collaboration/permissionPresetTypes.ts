@@ -1,4 +1,4 @@
-import type { CustomCapabilityGrant } from './accessManagementTypes'
+import type { CollaborationAreaAccess } from './areaAccessV3'
 
 export type CollaborationPermissionPresetScope = 'system' | 'user'
 
@@ -12,13 +12,13 @@ export interface CollaborationPermissionPresetListItem {
 }
 
 export interface CollaborationPermissionPreset extends CollaborationPermissionPresetListItem {
-  permission_group_mapping_version: '1'
-  grants: CustomCapabilityGrant[]
+  mapping_version: '3'
+  areas: CollaborationAreaAccess
   created_at: string
 }
 
 export interface PermissionPresetInput {
   name: string
   description: string | null
-  grants: CustomCapabilityGrant[]
+  areas: CollaborationAreaAccess
 }

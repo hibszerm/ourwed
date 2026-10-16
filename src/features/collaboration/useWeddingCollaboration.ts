@@ -3,6 +3,7 @@ import { useStudioAuthId } from '@/features/auth/useStudioAuthId'
 import { invalidateNotificationQueries } from '@/features/notifications/useNotifications'
 import { weddingCollaborationService } from '@/features/collaboration/weddingCollaborationService'
 import type { AccessConfigurationInput } from '@/features/collaboration/weddingCollaborationService'
+import { weddingDetailAuthorityQueryKey } from '@/features/weddings/detail/weddingDetailAuthority'
 
 export const weddingCollaborationQueryKeys = {
   ownerState: (userId: string | undefined, weddingId: string) =>
@@ -11,8 +12,6 @@ export const weddingCollaborationQueryKeys = {
   preview: (userId: string | undefined, invitationId: string) =>
     ['wedding-invitation-preview', userId, invitationId] as const,
   collaborators: (userId: string | undefined) => ['wedding-collaborators', userId] as const,
-  accessPreviews: (userId: string | undefined, weddingId: string) =>
-    ['wedding-collaboration', 'access-previews', userId, weddingId] as const,
   membershipAccess: (userId: string | undefined, weddingId: string, membershipId: string) =>
     ['wedding-collaboration', 'membership-access', userId, weddingId, membershipId] as const,
   invitationAccess: (userId: string | undefined, weddingId: string, invitationId: string) =>
@@ -84,16 +83,6 @@ async function invalidateCollaboration(
   invalidateNotificationQueries(queryClient)
 }
 
-export function useWeddingAccessPreviews(weddingId: string, enabled: boolean) {
-  const userId = useStudioAuthId()
-  return useQuery({
-    queryKey: weddingCollaborationQueryKeys.accessPreviews(userId, weddingId),
-    queryFn: () => weddingCollaborationService.getAccessPreviews(weddingId),
-    enabled: Boolean(userId && weddingId && enabled),
-    ...freshness,
-  })
-}
-
 export function useCreateWeddingInvitation(weddingId: string) {
   const userId = useStudioAuthId()
   const queryClient = useQueryClient()
@@ -144,6 +133,9 @@ export function useUpdateCollaborationAccess(weddingId: string, target: { member
         ? weddingCollaborationQueryKeys.membershipAccess(userId, weddingId, target.membershipId)
         : weddingCollaborationQueryKeys.invitationAccess(userId, weddingId, target.invitationId!)
       await queryClient.invalidateQueries({ queryKey: key })
+      if (target.membershipId) {
+        await queryClient.invalidateQueries({ queryKey: weddingDetailAuthorityQueryKey(userId, weddingId) })
+      }
     },
   })
 }

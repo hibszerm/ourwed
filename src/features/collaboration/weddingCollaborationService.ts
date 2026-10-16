@@ -1,7 +1,9 @@
 import { supabase } from '@/lib/supabase'
 import { collaborationService } from '@/features/collaboration/collaborationService'
-import type { CollaborationAccessModeV1, CollaborationRoleKeyV1 } from './roleCatalog.v1'
-import type { CollaborationAccessManagementDto, CustomCapabilityGrant } from './accessManagementTypes'
+import type { CollaborationAccessMode, CollaborationAreaAccess, CollaborationAreaLevel } from './areaAccessV3'
+import { parseAreaAccess } from './areaAccessV3'
+import type { CollaborationRoleKeyV1 } from './roleCatalog.v1'
+import type { CollaborationAccessManagementDto } from './accessManagementTypes'
 
 export type WeddingInvitationStatus =
   | 'pending'
@@ -54,17 +56,31 @@ export interface WeddingCollaborationState {
   active_memberships: WeddingCollaborationMembership[]
 }
 
-export interface WeddingCollaborationAccessPreviews {
-  viewer_preview: CustomCapabilityGrant[]
-  editor_preview: CustomCapabilityGrant[]
-  permission_group_mapping_version: '1'
-}
-
 export interface AccessConfigurationInput {
   roleKey: CollaborationRoleKeyV1
   customRoleLabel: string | null
-  accessMode: CollaborationAccessModeV1
-  customGrants: CustomCapabilityGrant[] | null
+  accessMode: CollaborationAccessMode
+  customAreas: CollaborationAreaAccess
+}
+
+function parseAccessManagementDto(value: unknown): CollaborationAccessManagementDto {
+  if (!value || typeof value !== 'object' || Array.isArray(value)) throw new Error('unknown')
+  const row = value as Record<string, unknown>
+  if (typeof row.wedding_id !== 'string' || (row.status !== 'active' && row.status !== 'pending')
+    || typeof row.role_key !== 'string' || (row.custom_role_label !== null && typeof row.custom_role_label !== 'string')
+    || (row.access_mode !== 'viewer' && row.access_mode !== 'editor' && row.access_mode !== 'custom')
+    || row.mapping_version !== '3'
+    || (row.access_version !== undefined && (typeof row.access_version !== 'string' || !/^[1-9][0-9]*$/.test(row.access_version)))
+    || (row.configuration_revision !== undefined && (typeof row.configuration_revision !== 'string' || !/^[1-9][0-9]*$/.test(row.configuration_revision)))) {
+    throw new Error('unknown')
+  }
+  const configured = parseAreaAccess(row.configured_areas)
+  const effective = parseAreaAccess(row.effective_areas)
+  return { ...row, configured_areas: configured, effective_areas: effective } as CollaborationAccessManagementDto
+}
+
+function serializeAreas(areas: CollaborationAreaAccess) {
+  return Object.fromEntries(Object.entries(areas).map(([key, level]) => [key, level as CollaborationAreaLevel]))
 }
 
 function newIdempotencyKey(): string {
@@ -144,14 +160,6 @@ export const weddingCollaborationService = {
     return (await collaborationService.getState()).connections
   },
 
-  async getAccessPreviews(weddingId: string): Promise<WeddingCollaborationAccessPreviews> {
-    const { data, error } = await supabase.rpc('get_wedding_collaboration_access_previews', {
-      p_wedding_id: weddingId,
-    })
-    if (error) throw rpcError(error)
-    return data as WeddingCollaborationAccessPreviews
-  },
-
   async createConfiguredInvitation(
     weddingId: string,
     connectionId: string,
@@ -159,7 +167,7 @@ export const weddingCollaborationService = {
     configuration: AccessConfigurationInput,
     idempotencyKey = newIdempotencyKey(),
   ) {
-    const { data, error } = await supabase.rpc('create_wedding_collaboration_invitation_configured', {
+    const { data, error } = await supabase.rpc('create_wedding_collaboration_invitation_v3', {
       p_wedding_id: weddingId,
       p_connection_id: connectionId,
       p_proposed_share_amount: proposedShareAmount,
@@ -167,50 +175,56 @@ export const weddingCollaborationService = {
       p_role_key: configuration.roleKey,
       p_custom_role_label: configuration.customRoleLabel,
       p_access_mode: configuration.accessMode,
-      p_custom_grants: configuration.customGrants,
+      p_custom_areas: serializeAreas(configuration.customAreas),
     })
     if (error) throw rpcError(error)
     return data as { status: string; invitation_id?: string; duplicate?: boolean }
   },
 
   async getMembershipAccessManagement(weddingId: string, membershipId: string) {
-    const { data, error } = await supabase.rpc('get_wedding_collaboration_membership_access_management', {
+    const { data, error } = await supabase.rpc('get_wedding_collaboration_membership_access_management_v3', {
       p_wedding_id: weddingId, p_membership_id: membershipId,
     })
     if (error) throw rpcError(error)
-    return data as CollaborationAccessManagementDto
+    return parseAccessManagementDto(data)
   },
 
   async getInvitationAccessManagement(weddingId: string, invitationId: string) {
-    const { data, error } = await supabase.rpc('get_wedding_collaboration_invitation_access_management', {
+    const { data, error } = await supabase.rpc('get_wedding_collaboration_invitation_access_management_v3', {
       p_wedding_id: weddingId, p_invitation_id: invitationId,
     })
     if (error) throw rpcError(error)
-    return data as CollaborationAccessManagementDto
+    return parseAccessManagementDto(data)
   },
 
   async updateMembershipAccess(weddingId: string, membershipId: string, expectedAccessVersion: string,
     configuration: AccessConfigurationInput) {
-    const { data, error } = await supabase.rpc('update_wedding_collaboration_membership_access', {
+    const { data, error } = await supabase.rpc('update_wedding_collaboration_membership_access_v3', {
       p_wedding_id: weddingId, p_membership_id: membershipId,
       p_expected_access_version: expectedAccessVersion, p_role_key: configuration.roleKey,
       p_custom_role_label: configuration.customRoleLabel, p_access_mode: configuration.accessMode,
-      p_custom_grants: configuration.customGrants,
+      p_custom_areas: serializeAreas(configuration.customAreas),
     })
     if (error) throw rpcError(error)
-    return data as { changed: boolean; access_version: string; configuration: CollaborationAccessManagementDto }
+    const result = data as Record<string, unknown>
+    if (typeof result.access_version !== 'string' || !/^[1-9][0-9]*$/.test(result.access_version)) throw new Error('unknown')
+    return { changed: result.changed === true, access_version: result.access_version,
+      configuration: parseAccessManagementDto(result.configuration) }
   },
 
   async updateInvitationAccess(weddingId: string, invitationId: string, expectedRevision: string,
     configuration: AccessConfigurationInput) {
-    const { data, error } = await supabase.rpc('update_wedding_collaboration_invitation_access', {
+    const { data, error } = await supabase.rpc('update_wedding_collaboration_invitation_access_v3', {
       p_wedding_id: weddingId, p_invitation_id: invitationId,
       p_expected_configuration_revision: expectedRevision, p_role_key: configuration.roleKey,
       p_custom_role_label: configuration.customRoleLabel, p_access_mode: configuration.accessMode,
-      p_custom_grants: configuration.customGrants,
+      p_custom_areas: serializeAreas(configuration.customAreas),
     })
     if (error) throw rpcError(error)
-    return data as { changed: boolean; configuration_revision: string; configuration: CollaborationAccessManagementDto }
+    const result = data as Record<string, unknown>
+    if (typeof result.configuration_revision !== 'string' || !/^[1-9][0-9]*$/.test(result.configuration_revision)) throw new Error('unknown')
+    return { changed: result.changed === true, configuration_revision: result.configuration_revision,
+      configuration: parseAccessManagementDto(result.configuration) }
   },
 
   async acceptInvitation(id: string) {
