@@ -4,10 +4,11 @@ import styles from './CollaborationPermissionMatrix.module.css'
 
 const LABELS = ['Brak', 'Podgląd', 'Edycja'] as const
 
-export function CollaborationAreaMatrixV3({ areas, onChange, disabled = false }: {
+export function CollaborationAreaMatrixV3({ areas, onChange, disabled = false, variant = 'default' }: {
   areas: CollaborationAreaAccess
   onChange: (next: CollaborationAreaAccess) => void
   disabled?: boolean
+  variant?: 'default' | 'premium'
 }) {
   function onKey(event: KeyboardEvent<HTMLButtonElement>, level: CollaborationAreaLevel) {
     const next = event.key === 'ArrowRight' || event.key === 'ArrowDown' ? Math.min(level + 1, 2)
@@ -21,7 +22,8 @@ export function CollaborationAreaMatrixV3({ areas, onChange, disabled = false }:
     event.currentTarget.parentElement?.querySelectorAll<HTMLButtonElement>('[role="radio"]')[next]?.focus()
   }
 
-  return <div className={styles.matrix} data-testid="collaboration-area-matrix-v3">
+  return <div className={`${styles.matrix} ${variant === 'premium' ? styles.premium : ''}`}
+    data-testid="collaboration-area-matrix-v3" data-variant={variant}>
     {COLLABORATION_AREA_OPTIONS.map(({ key, label }) => <div className={styles.row} key={key}>
       <span className={styles.label}>{label}</span>
       <div className={styles.controls} role="radiogroup" aria-label={label}>

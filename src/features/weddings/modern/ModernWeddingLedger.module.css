@@ -152,7 +152,7 @@
   min-width: 0;
 }
 
-.sharedNameRow > :global(button) {
+.sharedNameRow > :global([role='img']) {
   pointer-events: auto;
 }
 

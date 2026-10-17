@@ -26,6 +26,7 @@ import { getUserFacingErrorMessage } from '@/lib/errors/userFacingError'
 export function useWeddingBriefAction(
   weddingId: string,
   variant: 'default' | 'cockpit' = 'default',
+  enabled = true,
 ) {
   const queryClient = useQueryClient()
   const inFlightRef = useRef(false)
@@ -36,7 +37,7 @@ export function useWeddingBriefAction(
   const metadataQuery = useQuery({
     queryKey: weddingBriefQueryKey(weddingId),
     queryFn: () => weddingBriefService.getCurrent(weddingId),
-    enabled: Boolean(weddingId),
+    enabled: enabled && Boolean(weddingId),
   })
 
   const sourceQuery = useQuery({
@@ -45,7 +46,7 @@ export function useWeddingBriefAction(
       const snapshot = await loadWeddingBriefSourceSnapshot(weddingId)
       return hashCanonicalBriefSource(buildCanonicalBriefSource(snapshot))
     },
-    enabled: Boolean(weddingId),
+    enabled: enabled && Boolean(weddingId),
     staleTime: 0,
   })
 

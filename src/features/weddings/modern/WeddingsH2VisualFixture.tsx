@@ -37,18 +37,14 @@ function ownedWedding(
 
 const fixtureRows: WorkspaceWeddingDisplayItem[] = [
   { ownershipKind: 'owned', id: 'fixture-owned-a', date: '2026-05-14', wedding: ownedWedding('fixture-owned-a', '2026-05-14', 'Anna Kowalska', 'Jan Nowak') },
-  { ownershipKind: 'shared', id: 'fixture-shared-a', date: '2026-08-22', coupleFirstName: 'Maria', coupleSecondName: 'Piotr', ownerDisplayName: 'North Studio' },
+  { ownershipKind: 'shared', id: '09270d9d-b8c0-4944-9e3b-b382a8875dbd', date: '2027-06-21', coupleFirstName: 'QA Final A', coupleSecondName: 'Collaboration Test', ownerDisplayName: 'QA Final A Studio', ownerCanonicalDisplayName: 'Joanna Testowa i Maciej Testowy', effectiveDisplayName: 'Joanna Testowa i Maciej Testowy', hasPersonalDisplayNameOverride: false },
   { ownershipKind: 'owned', id: 'fixture-owned-b', date: '2026-11-03', wedding: ownedWedding('fixture-owned-b', '2026-11-03', 'Kasia Wiśniewska', 'Tomasz Krawczyk') },
-  { ownershipKind: 'shared', id: 'fixture-shared-b', date: '2027-06-18', coupleFirstName: 'Ola', coupleSecondName: 'Marek', ownerDisplayName: 'Studio Południe' },
+  { ownershipKind: 'owned', id: 'fixture-owned-c', date: '2027-08-18', wedding: ownedWedding('fixture-owned-c', '2027-08-18', 'Ola Nowak', 'Marek Nowak') },
 ]
 
 export function WeddingsH2VisualFixture() {
   const [scope, setScope] = useState<WorkspaceScopeFilter>('all')
   const [viewMode, setViewMode] = useState<WeddingsViewMode>('grid')
-  const [sharedOnly, setSharedOnly] = useState(false)
-  const visibleFixtureRows = sharedOnly
-    ? fixtureRows.filter((item) => item.ownershipKind === 'shared')
-    : fixtureRows
 
   return (
     <PageContainer width="wide">
@@ -60,16 +56,8 @@ export function WeddingsH2VisualFixture() {
             <Button variant="primary">Nowy ślub</Button>
           </div>
         </header>
-        <Button
-          type="button"
-          variant="secondary"
-          aria-pressed={sharedOnly}
-          onClick={() => setSharedOnly((value) => !value)}
-        >
-          Tylko współdzielone — podgląd
-        </Button>
         <ModernWeddingsWorkspace
-          weddings={visibleFixtureRows}
+          weddings={fixtureRows}
           scope={scope}
           onScopeChange={setScope}
           viewMode={viewMode}

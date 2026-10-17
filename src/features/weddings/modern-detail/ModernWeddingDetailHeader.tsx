@@ -31,8 +31,16 @@ interface Props {
   wedding: Wedding
   places: WeddingPlace[]
   onWeddingUpdated: (wedding: Wedding) => void
-  onArchive: () => Promise<void>
-  onDelete: () => Promise<void>
+  onArchive?: () => Promise<void>
+  onDelete?: () => Promise<void>
+  mode?: 'owner' | 'shared'
+  ownerCanonicalDisplayName?: string
+  hasPersonalDisplayNameOverride?: boolean
+  onSaveSharedDisplayName?: (displayName: string) => Promise<string>
+  onRestoreOwnerDisplayName?: () => Promise<string>
+  onOwnerSave?: (wedding: Wedding) => Promise<Wedding>
+  enableBriefAction?: boolean
+  requireProForOwnerEdit?: boolean
 }
 
 export function ModernWeddingDetailHeader({
@@ -41,6 +49,14 @@ export function ModernWeddingDetailHeader({
   onWeddingUpdated,
   onArchive,
   onDelete,
+  mode = 'owner',
+  ownerCanonicalDisplayName,
+  hasPersonalDisplayNameOverride = false,
+  onSaveSharedDisplayName,
+  onRestoreOwnerDisplayName,
+  onOwnerSave,
+  enableBriefAction = true,
+  requireProForOwnerEdit = true,
 }: Props) {
   const delivered = Boolean(wedding.deliveryCompletedAt?.trim())
   const prominence = resolveDayModeProminence({
@@ -60,6 +76,14 @@ export function ModernWeddingDetailHeader({
           onWeddingUpdated={onWeddingUpdated}
           onArchive={onArchive}
           onDelete={onDelete}
+          mode={mode}
+          ownerCanonicalDisplayName={ownerCanonicalDisplayName}
+          hasPersonalDisplayNameOverride={hasPersonalDisplayNameOverride}
+          onSaveSharedDisplayName={onSaveSharedDisplayName}
+          onRestoreOwnerDisplayName={onRestoreOwnerDisplayName}
+          onOwnerSave={onOwnerSave}
+          enableBriefAction={enableBriefAction}
+          requireProForOwnerEdit={requireProForOwnerEdit}
         />
       }
     />
@@ -72,12 +96,28 @@ function HeaderUtilities({
   onWeddingUpdated,
   onArchive,
   onDelete,
+  mode,
+  ownerCanonicalDisplayName,
+  hasPersonalDisplayNameOverride,
+  onSaveSharedDisplayName,
+  onRestoreOwnerDisplayName,
+  onOwnerSave,
+  enableBriefAction,
+  requireProForOwnerEdit,
 }: {
   wedding: Wedding
   prominence: DayModeProminence
   onWeddingUpdated: (wedding: Wedding) => void
-  onArchive: () => Promise<void>
-  onDelete: () => Promise<void>
+  onArchive?: () => Promise<void>
+  onDelete?: () => Promise<void>
+  mode: 'owner' | 'shared'
+  ownerCanonicalDisplayName?: string
+  hasPersonalDisplayNameOverride: boolean
+  onSaveSharedDisplayName?: (displayName: string) => Promise<string>
+  onRestoreOwnerDisplayName?: () => Promise<string>
+  onOwnerSave?: (wedding: Wedding) => Promise<Wedding>
+  enableBriefAction: boolean
+  requireProForOwnerEdit: boolean
 }) {
   const { requirePro } = useProAccessGate()
   const menuId = useId()
@@ -90,7 +130,7 @@ function HeaderUtilities({
   const [deleteOpen, setDeleteOpen] = useState(false)
   const [confirmText, setConfirmText] = useState('')
   const [busy, setBusy] = useState(false)
-  const brief = useWeddingBriefAction(wedding.id)
+  const brief = useWeddingBriefAction(wedding.id, 'default', enableBriefAction)
 
   useEffect(() => {
     if (!menuOpen) return
@@ -160,15 +200,17 @@ function HeaderUtilities({
                 role="menuitem"
                 data-testid="modern-wedding-header-edit"
                 onClick={() => {
-                  requirePro(() => {
+                  const openEditor = () => {
                     setMenuOpen(false)
                     setIdentityOpen(true)
-                  })
+                  }
+                  if (mode === 'shared' || !requireProForOwnerEdit) openEditor()
+                  else requirePro(openEditor)
                 }}
               >
                 Edytuj
               </button>
-              <Link
+              {mode === 'owner' ? <Link
                 role="menuitem"
                 to={dayModeHref}
                 className={styles.menuLink}
@@ -177,7 +219,8 @@ function HeaderUtilities({
                 onClick={() => setMenuOpen(false)}
               >
                 Tryb dnia ślubu
-              </Link>
+              </Link> : null}
+              {mode === 'owner' ? <>
               <button
                 type="button"
                 role="menuitem"
@@ -213,6 +256,7 @@ function HeaderUtilities({
               >
                 Usuń zlecenie
               </button>
+              </> : null}
             </div>
           )}
         </FloatingPortal>
@@ -227,6 +271,12 @@ function HeaderUtilities({
         wedding={wedding}
         onClose={() => setIdentityOpen(false)}
         onSaved={onWeddingUpdated}
+        mode={mode}
+        ownerCanonicalDisplayName={ownerCanonicalDisplayName}
+        hasPersonalDisplayNameOverride={hasPersonalDisplayNameOverride}
+        onSharedSave={onSaveSharedDisplayName}
+        onSharedRestore={onRestoreOwnerDisplayName}
+        onOwnerSave={onOwnerSave}
       />
       <Modal
         open={archiveOpen}
@@ -242,7 +292,7 @@ function HeaderUtilities({
             disabled={busy}
             onClick={() => {
               setBusy(true)
-              void onArchive().finally(() => {
+              void (onArchive?.() ?? Promise.resolve()).finally(() => {
                 setBusy(false)
                 setArchiveOpen(false)
               })
@@ -268,7 +318,7 @@ function HeaderUtilities({
             disabled={busy || confirmText !== 'USUŃ'}
             onClick={() => {
               setBusy(true)
-              void onDelete().finally(() => setBusy(false))
+              void (onDelete?.() ?? Promise.resolve()).finally(() => setBusy(false))
             }}
           >
             {busy ? 'Usuwanie…' : 'Usuń na zawsze'}

@@ -6,13 +6,15 @@ import { Button } from '@/components/ui/Button'
 import { PageContainer } from '@/components/ui/PageContainer'
 import { useAuth } from '@/features/auth/AuthProvider'
 import { useCollaborativeWeddingIdentity } from '@/features/collaboration/useCollaborativeWeddingIdentity'
+import { useWorkspaceWeddingDisplayNames, updateWorkspaceWeddingDisplayNameCaches, workspaceWeddingDisplayNamesQueryPrefix } from '@/features/collaboration/useWorkspaceWeddingDisplayNames'
+import { workspaceService } from '@/features/collaboration/workspaceService'
 import { CollaborativeCompensationCard } from '@/features/collaboration/CollaborativeCompensationCard'
 import { useWeddingDetailAuthority, useEvictIncompatibleWeddingDetailCaches, weddingDetailAuthorityQueryKey } from '@/features/weddings/detail/weddingDetailAuthority'
 import { resolveWeddingDetailHostBranch } from '@/features/weddings/detail/weddingDetailHostBranch'
 import { WeddingDetailHostModals } from '@/features/weddings/detail/WeddingDetailHostModals'
 import { useWeddingDetailHost } from '@/features/weddings/detail/useWeddingDetailHost'
 import { ModernWeddingDetailWorkspace } from '@/features/weddings/modern-detail/ModernWeddingDetailWorkspace'
-import { ModernWeddingIdentityHero } from '@/features/weddings/modern-detail/ModernWeddingIdentityHero'
+import { ModernWeddingDetailHeader } from '@/features/weddings/modern-detail/ModernWeddingDetailHeader'
 import { SharedV3LogisticsWorkspace } from '@/features/weddings/modern-detail/SharedV3LogisticsWorkspace'
 import { SharedV3PreweddingWorkspace } from '@/features/weddings/modern-detail/SharedV3PreweddingWorkspace'
 import { CanonicalCoupleCard } from '@/features/weddings/modern-detail/ModernWeddingOverview'
@@ -104,6 +106,8 @@ function SharedWeddingDetail({ weddingId, userId, accessVersion, logisticsLevel,
   const [notesEditing, setNotesEditing] = useState(false)
   const [notesAdding, setNotesAdding] = useState(false)
   const detail = useCollaborativeWeddingIdentity(weddingId, userId)
+  const displayNames = useWorkspaceWeddingDisplayNames([weddingId], userId)
+  const displayName = displayNames.data?.find((item) => item.wedding_id === weddingId)
   const contactsKey = ['collaborative-contacts-v3', userId, weddingId, accessVersion] as const
   const contactsQuery = useQuery({
     queryKey: contactsKey,
@@ -122,15 +126,17 @@ function SharedWeddingDetail({ weddingId, userId, accessVersion, logisticsLevel,
   })
 
   useEffect(() => {
-    if (detail.isSuccess && detail.data === null) {
+    if ((detail.isSuccess && detail.data === null)
+      || (displayNames.isSuccess && !displayName)) {
       void queryClient.invalidateQueries({
         queryKey: weddingDetailAuthorityQueryKey(userId, weddingId),
         exact: true,
       })
     }
-  }, [detail.data, detail.isSuccess, queryClient, userId, weddingId])
+  }, [detail.data, detail.isSuccess, displayName, displayNames.isSuccess, queryClient, userId, weddingId])
 
-  const revoked = detail.isSuccess && detail.data === null
+  const revoked = (detail.isSuccess && detail.data === null)
+    || (displayNames.isSuccess && !displayName)
   useEffect(() => {
     const contactsKeyPrefix = ['collaborative-contacts-v3', userId, weddingId]
     if (contactsLevel === 0 || revoked) {
@@ -145,17 +151,17 @@ function SharedWeddingDetail({ weddingId, userId, accessVersion, logisticsLevel,
     }
     return () => queryClient.removeQueries({ queryKey: notesKey, exact: true })
   }, [notesKey, notesLevel, queryClient, revoked, userId, weddingId])
-  if (detail.isPending || detail.isFetching) return <DetailLoading />
-  if (detail.isError) {
+  if (detail.isPending || detail.isFetching || displayNames.isPending || displayNames.isFetching) return <DetailLoading />
+  if (detail.isError || displayNames.isError) {
     return <DetailProblem
       title="Nie udało się odświeżyć danych"
       description="Spróbuj ponownie za chwilę."
       onRetry={() => void detail.refetch()}
     />
   }
-  if (!detail.data) return <UnavailableDetail />
+  if (!detail.data || !displayName) return <UnavailableDetail />
 
-  const wedding = toSharedIdentityWedding(detail.data)
+  const wedding = toSharedIdentityWedding(detail.data, displayName.effective_display_name)
   wedding.notes = notesQuery.data?.notes ?? []
   const visible = [
     ...(logisticsLevel > 0 ? [{ id: 'wedding_day', label: 'Logistyka' }] : []),
@@ -188,12 +194,33 @@ function SharedWeddingDetail({ weddingId, userId, accessVersion, logisticsLevel,
       setContactsSaving(false)
     }
   }
+  async function saveSharedDisplayName(nextName: string) {
+    const result = await workspaceService.setMyDisplayNameOverride({ weddingId, displayName: nextName })
+    updateWorkspaceWeddingDisplayNameCaches(queryClient, userId, result)
+    await queryClient.invalidateQueries({ queryKey: workspaceWeddingDisplayNamesQueryPrefix(userId) })
+    return result.effective_display_name
+  }
+  async function restoreOwnerDisplayName() {
+    const result = await workspaceService.clearMyDisplayNameOverride(weddingId)
+    updateWorkspaceWeddingDisplayNameCaches(queryClient, userId, result)
+    await queryClient.invalidateQueries({ queryKey: workspaceWeddingDisplayNamesQueryPrefix(userId) })
+    return result.effective_display_name
+  }
   return (
     <AppLayout>
       <PageContainer width="full">
         <div className={styles.page} data-testid="wedding-detail-modern" data-authority="shared">
           <div className={workspaceStyles.workspace} data-testid="shared-canonical-wedding-detail">
-            <ModernWeddingIdentityHero wedding={wedding} places={[]} testId="modern-wedding-detail-header" />
+            <ModernWeddingDetailHeader
+              wedding={wedding}
+              places={[]}
+              mode="shared"
+              ownerCanonicalDisplayName={displayName.owner_canonical_display_name}
+              hasPersonalDisplayNameOverride={displayName.has_personal_override}
+              onWeddingUpdated={() => undefined}
+              onSaveSharedDisplayName={saveSharedDisplayName}
+              onRestoreOwnerDisplayName={restoreOwnerDisplayName}
+            />
             {userId ? <CollaborativeCompensationCard key={`${userId}:${weddingId}:${accessVersion}:${compensationLevel}`} weddingId={weddingId} userId={userId}
               accessVersion={accessVersion} compensationLevel={compensationLevel} /> : null}
             {contactsLevel > 0 && contactsQuery.data ? (
@@ -278,12 +305,13 @@ function SharedWeddingDetail({ weddingId, userId, accessVersion, logisticsLevel,
   )
 }
 
-function toSharedIdentityWedding(detail: CollaborativeWeddingIdentity): Wedding {
+function toSharedIdentityWedding(detail: CollaborativeWeddingIdentity, effectiveDisplayName: string): Wedding {
   const partner1 = detail.couple_first_name
   const partner2 = detail.couple_second_name
   return {
     id: detail.wedding_id,
     couple: { partner1, partner2, email: '', phone: '', venue: '', city: '' },
+    displayName: effectiveDisplayName,
     date: detail.wedding_date ?? '',
     status: 'active',
     workflowStage: 'reservation',

@@ -1,6 +1,6 @@
 import { getWeddingDisplayName } from '@/features/weddings/presentation/getWeddingDisplayName'
 import { matchesModernWeddingSearch } from '@/features/weddings/modern/modernWeddingsModel'
-import type { WorkspaceWedding } from '@/features/collaboration/workspaceTypes'
+import type { WorkspaceWedding, WorkspaceWeddingDisplayName } from '@/features/collaboration/workspaceTypes'
 import type { Wedding } from '@/types/wedding'
 
 export type WorkspaceWeddingDisplayItem =
@@ -17,11 +17,21 @@ export type WorkspaceWeddingDisplayItem =
       coupleFirstName: string | null
       coupleSecondName: string | null
       ownerDisplayName: string | null
+      ownerCanonicalDisplayName: string
+      effectiveDisplayName: string
+      hasPersonalDisplayNameOverride: boolean
     }
 
 export type WorkspaceScopeFilter = 'all' | 'mine' | 'shared'
 
 export const WORKSPACE_SCOPE_QUERY_PARAM = 'scope'
+
+export function getPrimaryWorkspaceYears(
+  seasonYears: readonly number[],
+  referenceYear: number,
+): number[] {
+  return seasonYears.filter((year) => year >= referenceYear)
+}
 
 export function workspaceVisibleQueryKey(userId: string | undefined) {
   return ['workspace', 'sluby', userId ?? null] as const
@@ -45,8 +55,8 @@ export function matchesWorkspaceWeddingYear(
   return item.date?.slice(0, 4) === String(year)
 }
 
-/** Keep a search-year selection only while the current scope contains that year. */
-export function resolveWorkspaceSearchYear(
+/** Keep the selected year while it exists in the safe canonical catalog. */
+export function resolveWorkspaceSelectedYear(
   selectedYear: number | null,
   scopedRows: readonly WorkspaceWeddingDisplayItem[],
 ): number | null {
@@ -58,9 +68,7 @@ export function resolveWorkspaceSearchYear(
 
 export function getWorkspaceWeddingName(item: WorkspaceWeddingDisplayItem): string {
   if (item.ownershipKind === 'owned') return getWeddingDisplayName(item.wedding)
-  const first = item.coupleFirstName?.trim() ?? ''
-  const second = item.coupleSecondName?.trim() ?? ''
-  return [first, second].filter(Boolean).join(' i ') || 'Bez tytułu'
+  return item.effectiveDisplayName
 }
 
 export function matchesWorkspaceWeddingSearch(
@@ -73,8 +81,7 @@ export function matchesWorkspaceWeddingSearch(
   const normalized = query.trim().toLocaleLowerCase('pl-PL')
   if (!normalized) return true
   const authorizedText = [
-    item.coupleFirstName,
-    item.coupleSecondName,
+    item.effectiveDisplayName,
     item.date,
   ].filter(Boolean).join(' ').toLocaleLowerCase('pl-PL')
   return authorizedText.includes(normalized)
@@ -88,19 +95,31 @@ export function matchesWorkspaceWeddingSearch(
 export function composeWorkspaceWeddingRows(
   workspaceRows: readonly WorkspaceWedding[],
   ownerRows: readonly Wedding[],
+  displayNames: readonly WorkspaceWeddingDisplayName[],
 ): WorkspaceWeddingDisplayItem[] {
   const ownersById = new Map(ownerRows.map((wedding) => [wedding.id, wedding]))
+  const displayNamesById = new Map(displayNames.map((displayName) => [displayName.wedding_id, displayName]))
   const workspaceOwnedIds = new Set<string>()
   const seenIds = new Set<string>()
+  const rowsById = new Map<string, WorkspaceWedding>()
   const result: WorkspaceWeddingDisplayItem[] = []
 
   for (const row of workspaceRows) {
-    if (seenIds.has(row.wedding_id)) {
-      throw new Error('Workspace data could not be reconciled.')
+    const previous = rowsById.get(row.wedding_id)
+    if (previous) {
+      if (previous.ownership_kind !== row.ownership_kind) {
+        throw new Error('Workspace data could not be reconciled.')
+      }
+      continue
     }
+    rowsById.set(row.wedding_id, row)
     seenIds.add(row.wedding_id)
 
     if (row.ownership_kind === 'shared') {
+      const displayName = displayNamesById.get(row.wedding_id)
+      // The display-name resolver is the current authorization check for the
+      // shared title. Missing rows can indicate revoked identity access.
+      if (!displayName) continue
       result.push({
         ownershipKind: 'shared',
         id: row.wedding_id,
@@ -108,6 +127,9 @@ export function composeWorkspaceWeddingRows(
         coupleFirstName: row.couple_first_name,
         coupleSecondName: row.couple_second_name,
         ownerDisplayName: row.owner_display_name,
+        ownerCanonicalDisplayName: displayName.owner_canonical_display_name,
+        effectiveDisplayName: displayName.effective_display_name,
+        hasPersonalDisplayNameOverride: displayName.has_personal_override,
       })
       continue
     }
@@ -150,4 +172,18 @@ export function filterWorkspaceWeddingRows(
   if (scope === 'mine') return rows.filter((row) => row.ownershipKind === 'owned')
   if (scope === 'shared') return rows.filter((row) => row.ownershipKind === 'shared')
   return [...rows]
+}
+
+export function filterWorkspaceWeddingRowsForList(
+  rows: readonly WorkspaceWeddingDisplayItem[],
+  options: {
+    scope: WorkspaceScopeFilter
+    year: number | null
+    query: string
+  },
+): WorkspaceWeddingDisplayItem[] {
+  return filterWorkspaceWeddingRows(rows, options.scope).filter((row) => {
+    if (options.year != null && !matchesWorkspaceWeddingYear(row, options.year)) return false
+    return matchesWorkspaceWeddingSearch(row, options.query)
+  })
 }

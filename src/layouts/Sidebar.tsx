@@ -16,6 +16,7 @@ import {
   IconSessions,
   IconSettings,
   IconTasks,
+  IconUsers,
   IconWeddings,
 } from '@/components/icons'
 import { useAuth } from '@/features/auth/AuthProvider'
@@ -61,6 +62,7 @@ const questionnaireItems = [
 ]
 
 const companyItems = [
+  { to: '/wspolpraca', label: 'Współpraca', icon: IconUsers },
   { to: '/studio/pakiety', label: 'Pakiety', icon: IconSettings },
   {
     to: '/studio/uslugi',
@@ -378,7 +380,7 @@ export function Sidebar({
 
         <div className={catalogStyles.navGroup}>
           <p className={styles.studioGroupLabel}>Firma</p>
-          {companyItems.map(({ to, label }) => (
+          {companyItems.map(({ to, label, icon: Icon }) => (
             <NavLink
               key={to}
               to={to}
@@ -387,7 +389,7 @@ export function Sidebar({
                 `${styles.navItem} ${isActive ? styles.active : ''}`
               }
             >
-              <IconSettings className={styles.navIcon} />
+              <Icon className={styles.navIcon} />
               <span>{label}</span>
             </NavLink>
           ))}

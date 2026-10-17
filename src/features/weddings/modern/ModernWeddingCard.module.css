@@ -145,7 +145,7 @@
   min-height: 0;
 }
 
-.sharedCouple > :global(button) {
+.sharedCouple > :global([role='img']) {
   pointer-events: auto;
 }
 

@@ -27,7 +27,7 @@ import { AppearanceSettingsPage } from '@/pages/AppearanceSettingsPage'
 import { AccountSettingsPage } from '@/pages/AccountSettingsPage'
 import { SubscriptionSettingsPage } from '@/pages/SubscriptionSettingsPage'
 import { NotificationSettingsPage } from '@/pages/NotificationSettingsPage'
-import { CollaborationSettingsPage } from '@/pages/CollaborationSettingsPage'
+import { CollaborationPage } from '@/pages/CollaborationPage'
 import { NotificationsPage } from '@/pages/NotificationsPage'
 import { WeddingInvitationListPage, WeddingInvitationPreviewPage } from '@/features/collaboration/WeddingInvitationPages'
 import { CollaborativeWeddingDetailPage } from '@/features/collaboration/CollaborativeWeddingPages'
@@ -123,6 +123,33 @@ const h2VisualFixtureRoute = import.meta.env.DEV
     }]
   : []
 
+// Local-only static UI fixture; it stays outside ProtectedRoute so visual
+// review never needs an authenticated Supabase session.
+const collaborationStage1AVisualFixtureRoute = import.meta.env.DEV
+  ? [{
+      path: '/dev/collaboration-stage-1a',
+      lazy: async () => {
+        const { CollaborationStage1AVisualFixture } = await import(
+          '@/features/collaboration/CollaborationStage1AVisualFixture'
+        )
+        return { Component: CollaborationStage1AVisualFixture }
+      },
+    }]
+  : []
+
+const displayNameVisualFixtureRoute = import.meta.env.DEV
+  ? [{
+      path: '/dev/collaboration-display-name',
+      lazy: async () => {
+        const { CollaborationDisplayNameVisualFixture } = await import(
+          '@/features/weddings/modern-detail/CollaborationDisplayNameVisualFixture'
+        )
+        return { Component: CollaborationDisplayNameVisualFixture }
+      },
+    }]
+  : []
+
+
 export const router = createBrowserRouter([
   {
     element: <AuthCallbackGate />,
@@ -152,6 +179,8 @@ export const router = createBrowserRouter([
       { path: '/form/:token', element: <PublicFormTokenPage /> },
       { path: '/ankieta/:token', element: <PublicPreWeddingQuestionnairePage /> },
       ...h2VisualFixtureRoute,
+      ...collaborationStage1AVisualFixtureRoute,
+      ...displayNameVisualFixtureRoute,
       {
         element: <ProtectedRoute />,
         children: [
@@ -161,6 +190,7 @@ export const router = createBrowserRouter([
             element: <Navigate to="/dashboard" replace />,
           },
           { path: '/powiadomienia', element: <NotificationsPage /> },
+          { path: '/wspolpraca', element: <CollaborationPage /> },
           { path: '/wspolpraca/zaproszenia', element: <WeddingInvitationListPage /> },
           { path: '/wspolpraca/zaproszenie/:invitationId', element: <WeddingInvitationPreviewPage /> },
           { path: '/wspolpraca/sluby', element: <RedirectLegacyCollaborativeWeddingList /> },
@@ -265,7 +295,7 @@ export const router = createBrowserRouter([
         path: '/ustawienia/powiadomienia',
         element: <NotificationSettingsPage />,
       },
-      { path: '/ustawienia/wspolpraca', element: <CollaborationSettingsPage /> },
+      { path: '/ustawienia/wspolpraca', element: <Navigate to="/wspolpraca#zestawy-dostepu" replace /> },
       { path: '/ustawienia/wyglad', element: <AppearanceSettingsPage /> },
       { path: '/ustawienia/integracje', element: <CalendarIntegrationsPage /> },
       { path: '/ustawienia/firma', element: <CompanyDetailsPage /> },

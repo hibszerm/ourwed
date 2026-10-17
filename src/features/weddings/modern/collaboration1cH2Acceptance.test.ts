@@ -1,14 +1,14 @@
 import assert from 'node:assert/strict'
 import { readFileSync } from 'node:fs'
 import { resolve } from 'node:path'
-import type { WorkspaceWedding } from '@/features/collaboration/workspaceTypes'
+import type { WorkspaceWedding, WorkspaceWeddingDisplayName } from '@/features/collaboration/workspaceTypes'
 import {
   composeWorkspaceWeddingRows,
   filterWorkspaceWeddingRows,
   matchesWorkspaceWeddingYear,
   matchesWorkspaceWeddingSearch,
   parseWorkspaceScope,
-  resolveWorkspaceSearchYear,
+  resolveWorkspaceSelectedYear,
   workspaceVisibleQueryKey,
 } from '@/features/weddings/modern/workspaceWeddings'
 import { listAllVisibleWorkspaceRows } from '@/features/weddings/modern/useUnifiedWeddingsWorkspace'
@@ -39,6 +39,19 @@ function workspaceRow(
       : [],
     ...overrides,
   }
+}
+
+function displayNamesFor(rows: readonly WorkspaceWedding[]): WorkspaceWeddingDisplayName[] {
+  return rows.filter((row) => row.ownership_kind === 'shared').map((row) => {
+    const title = [row.couple_first_name, row.couple_second_name]
+      .map((part) => part?.trim() ?? '').filter(Boolean).join(' i ') || 'Bez tytułu'
+    return {
+      wedding_id: row.wedding_id,
+      owner_canonical_display_name: title,
+      effective_display_name: title,
+      has_personal_override: false,
+    }
+  })
 }
 
 function ownerWedding(
@@ -93,6 +106,7 @@ const mixed = composeWorkspaceWeddingRows(
     workspaceRow('owner-b', 'owned', ownerB.date),
   ],
   [ownerA, ownerB],
+  displayNamesFor([shared2027]),
 )
 
 assert.deepEqual(mixed.map((item) => item.id), ['owner-a', 'shared-2027', 'owner-b'])
@@ -106,6 +120,7 @@ assert.notDeepEqual(workspaceVisibleQueryKey('actor-a'), workspaceVisibleQueryKe
 const ownerOnly = composeWorkspaceWeddingRows(
   [workspaceRow('owner-a', 'owned', ownerA.date), workspaceRow('owner-b', 'owned', ownerB.date)],
   [ownerA, ownerB],
+  [],
 )
 assert.deepEqual(ownerOnly.map((item) => item.id), ['owner-a', 'owner-b'])
 assert.equal(ownerOnly[0]?.ownershipKind, 'owned')
@@ -116,7 +131,7 @@ if (ownerOnly[0]?.ownershipKind === 'owned') {
   assert.equal(ownerOnly[0].wedding.primaryLocation?.displayText, 'Private Venue, Kraków')
 }
 
-const sharedOnly = composeWorkspaceWeddingRows([shared2026, shared2027], [])
+const sharedOnly = composeWorkspaceWeddingRows([shared2026, shared2027], [], displayNamesFor([shared2026, shared2027]))
 assert.deepEqual(filterWorkspaceWeddingRows(sharedOnly, 'all').map((item) => item.id), ['shared-2026', 'shared-2027'])
 assert.deepEqual(filterWorkspaceWeddingRows(sharedOnly, 'mine'), [], 'collaborative-only workspace has a quiet empty Mine scope')
 assert.deepEqual(filterWorkspaceWeddingRows(sharedOnly, 'shared').map((item) => item.id), ['shared-2026', 'shared-2027'])
@@ -145,30 +160,31 @@ const ownedItem = mixed.find((item) => item.ownershipKind === 'owned')!
 assert.equal(matchesWorkspaceWeddingSearch(ownedItem, 'Private Package'), true)
 
 const allScopeRows = sharedOnly
-const mineWithout2027 = [sharedOnly[0]!]
+const only2026Canonical = [sharedOnly[0]!]
 const sharedWith2027 = [sharedOnly[1]!]
-assert.equal(resolveWorkspaceSearchYear(2027, mineWithout2027), null, 'an unavailable year clears when scope changes')
-assert.equal(resolveWorkspaceSearchYear(2027, sharedWith2027), 2027, 'a year present in the new scope survives')
-assert.equal(resolveWorkspaceSearchYear(2027, allScopeRows), 2027, 'scope availability is checked before text search')
+assert.equal(resolveWorkspaceSelectedYear(2027, only2026Canonical), null, 'a year absent from the canonical catalog clears')
+assert.equal(resolveWorkspaceSelectedYear(2027, sharedWith2027), 2027, 'a year present in the new scope survives')
+assert.equal(resolveWorkspaceSelectedYear(2027, allScopeRows), 2027, 'scope availability is checked before text search')
 assert.equal(
   allScopeRows
-    .filter((item) => matchesWorkspaceWeddingYear(item, resolveWorkspaceSearchYear(2027, allScopeRows)!))
+    .filter((item) => matchesWorkspaceWeddingYear(item, resolveWorkspaceSelectedYear(2027, allScopeRows)!))
     .filter((item) => matchesWorkspaceWeddingSearch(item, 'XYZ')).length,
   0,
   'zero search matches do not clear a valid year selection',
 )
-const clearedYear = resolveWorkspaceSearchYear(2027, mineWithout2027)
-assert.equal(clearedYear, null, 'invalid scope transition selects All years')
-assert.equal(resolveWorkspaceSearchYear(clearedYear, allScopeRows), null, 'a cleared year does not reappear when returning to its former scope')
-assert.equal(resolveWorkspaceSearchYear(2027, sharedWith2027), 2027, 'a valid selection remains the concrete visible year')
+const clearedYear = resolveWorkspaceSelectedYear(2027, only2026Canonical)
+assert.equal(clearedYear, null, 'invalid canonical year selection selects All years')
+assert.equal(resolveWorkspaceSelectedYear(clearedYear, allScopeRows), null, 'a cleared year does not reappear when returning to its former scope')
+assert.equal(resolveWorkspaceSelectedYear(2027, sharedWith2027), 2027, 'a valid selection remains the concrete visible year')
 assert.equal(
-  resolveWorkspaceSearchYear(2027, mineWithout2027) == null,
+  resolveWorkspaceSelectedYear(2027, only2026Canonical) == null,
   true,
   'no concrete year filter is active when no matching year control can be selected',
 )
 const withArchive = composeWorkspaceWeddingRows(
   [workspaceRow('owner-a', 'owned', ownerA.date), shared2027],
   [ownerA, ownerWedding('archived-a', '2024-04-05', 'Archived A', 'archived')],
+  displayNamesFor([shared2027]),
 )
 assert.equal(withArchive.find((item) => item.id === 'archived-a')?.ownershipKind, 'owned')
 assert.equal(filterWorkspaceWeddingRows(withArchive, 'shared').length, 1)
@@ -208,7 +224,7 @@ const loadedRows = await listAllVisibleWorkspaceRows(async ({ after, limit, scop
 })
 assert.equal(loadedRows.length, 70)
 assert.equal(fetchCount, 2)
-const pagedDisplayRows = composeWorkspaceWeddingRows(loadedRows, pagedOwnerRows)
+const pagedDisplayRows = composeWorkspaceWeddingRows(loadedRows, pagedOwnerRows, displayNamesFor(loadedRows))
 const lateShared = pagedDisplayRows.find((item) => item.id === 'w-60')!
 assert.equal(lateShared.ownershipKind, 'shared')
 assert.equal(filterWorkspaceWeddingRows(pagedDisplayRows, 'shared').some((item) => item.id === 'w-60'), true, 'a shared target after row 50 appears in Shared')
@@ -272,19 +288,18 @@ const h1WorkspaceDbTest = read('supabase/tests/collaboration_1c_h1_workspace_aut
 
 assert(page.includes('useUnifiedWeddingsWorkspace'), '/sluby uses the unified projection-backed hook')
 assert(page.includes('useSearchParams') && page.includes('WORKSPACE_SCOPE_QUERY_PARAM'), 'scope is URL state')
-assert(workspace.includes('resolveWorkspaceSearchYear(searchYear, catalog)'), 'year validity is derived from the full current-scope catalog before search')
-assert(workspace.includes('const explicitSearchYear = searching ? activeSearchYear : null'), 'only a valid, visible year selection is applied to search results')
-assert(workspace.includes('const showChips = chipYears.length > 1 || searching'), 'search keeps the year control visible even when its scope has a single year')
-assert(workspace.includes('const storedCurrentFuture = invalidSearchYear'), 'an invalid scope year immediately presents All years before state cleanup')
-const yearReconciliationStart = workspace.indexOf('useEffect(() => {', workspace.indexOf('const storedCurrentFuture'))
-const yearReconciliationEffect = workspace.slice(yearReconciliationStart, workspace.indexOf('const displayedCurrentFuture'))
-assert(yearReconciliationEffect.includes('setSearchYear(null)'), 'scope changes clear a year that is unavailable in the new scope')
-assert(yearReconciliationEffect.includes('setCurrentFutureExpanded(expandAllCurrentFutureYears(chipYears))'), 'clearing an unavailable year restores the all-years presentation')
+assert(workspace.includes('resolveWorkspaceSelectedYear(selectedYear, allCatalog)'), 'year validity comes from the full safe canonical catalog before ownership filtering')
+assert(workspace.includes('year: activeSelectedYear'), 'the selected year filters rows, including without an active search')
+assert(workspace.includes('() => invalidSelectedYear ? new Set(chipYears)'), 'an invalid canonical year immediately presents All years before state cleanup')
+const yearReconciliationStart = workspace.indexOf('useEffect(() => {', workspace.indexOf('const storedExpandedYears'))
+const yearReconciliationEffect = workspace.slice(yearReconciliationStart, workspace.indexOf('const displayedYears'))
+assert(yearReconciliationEffect.includes('setSelectedYear(null)'), 'a year unavailable in the canonical catalog is cleared')
+assert(yearReconciliationEffect.includes('setExpandedYears(new Set(chipYears))'), 'clearing an unavailable year restores the all-years presentation')
 assert(!/setQuery|setViewMode|onViewChange/.test(yearReconciliationEffect), 'year reconciliation preserves search and view state')
 const scopeTransitionHandler = page.slice(page.indexOf('function handleScopeChange'), page.indexOf('return ('))
 assert(!/setViewMode|setQuery/.test(scopeTransitionHandler), 'scope URL transitions preserve text search and view preference')
-assert(read('src/features/weddings/modern/ModernWeddingsWorkspace.tsx').includes('matchesWorkspaceWeddingYear'), 'explicit year selection composes with text search')
-assert(workspace.includes('const explicitSearchYear = searching ? activeSearchYear : null'), 'default season expansion is not mistaken for an active search-year filter')
+assert(model.includes('filterWorkspaceWeddingRowsForList'), 'year, scope, and authorized search compose through one canonical filter')
+assert(workspace.includes("['shared', 'Udostępnione']"), 'shared ownership filter uses user-facing wording')
 assert(hook.includes('workspaceVisibleQueryKey(userId)'), 'visible workspace query is actor-scoped')
 assert(hook.includes('workspaceService.listWeddings') && hook.includes("scope: 'all'"), 'H1 projection is paged as the canonical row source')
 assert(model.includes("row.ownership_kind === 'shared'") && model.includes('ownerDisplayName: row.owner_display_name'), 'shared display data comes only from the safe workspace DTO')
@@ -294,14 +309,12 @@ const sharedCardBranch = card.slice(card.indexOf("if ('ownershipKind' in wedding
 assert(!/packageName|price|primaryLocation|payments|contact/i.test(sharedCardBranch), 'shared card markup never reads owner-private card fields')
 assert(!sharedCardBranch.includes('Brak dostępu') && !sharedCardBranch.includes('WARTOŚĆ'), 'shared card omits fake unavailable fields')
 assert(!card.slice(card.indexOf('const ownedWedding')).includes('<SharedWeddingAttribution'), 'owner cards do not show shared attribution')
-assert(card.includes('/wspolpraca/sluby/${wedding.id}') && ledger.includes('/wspolpraca/sluby/${wedding.id}'), 'shared items retain the safe legacy detail route pending H3')
+assert(card.includes('/sluby/${wedding.id}') && ledger.includes('/sluby/${wedding.id}'), 'shared items open through canonical wedding detail')
 assert(card.includes('<SharedWeddingAttribution') && ledger.includes('<SharedWeddingAttribution'), 'shared attribution is adjacent to the couple name in both views')
 const attributionMessage = attribution.slice(attribution.indexOf('const displayName'), attribution.indexOf('return ('))
 assert(attributionMessage.includes('ownerDisplayName') && !/email|phone|package|price|permissions/i.test(attributionMessage), 'attribution displays only the safe H1 owner name')
-assert(attribution.includes('FloatingPortal'), 'desktop attribution tooltip portals outside clipped list rows')
-assert(attribution.includes('mobilePresentation="center"'), 'mobile attribution uses the centered modal pattern')
-assert(attribution.includes('onFocus={() => setTooltipOpen(true)}'), 'desktop tooltip is keyboard accessible')
-assert(attribution.includes('onClick={() => setOpen(true)}'), 'attribution affordance is touch/click accessible')
+assert(attribution.includes('title={message}') && attribution.includes('aria-label={message}'), 'shared marker has a safe native tooltip and accessible label')
+assert(!attribution.includes('<button') && !attribution.includes('<Modal'), 'shared marker does not add an unnecessary tab stop or dialog')
 assert(ownerListService.includes(".eq('user_id', userId)"), 'owner enrichment remains current-user scoped')
 assert(ownerListService.includes('enrichWeddingList(light)'), 'only owner-list rows receive package/payment/place enrichment')
 assert(hook.includes('workspaceOwnedIds') || model.includes('workspaceOwnedIds'), 'owner enrichment joins only owned IDs from H1')
@@ -313,7 +326,7 @@ assert(h1WorkspaceDbTest.includes('ending the global connection does not remove 
 assert(router.includes('RedirectLegacyCollaborativeWeddingList') && router.includes("search: '?scope=shared'"), 'old shared list redirects to canonical shared scope')
 assert(settings.includes('to="/sluby?scope=shared"'), 'settings link targets canonical shared scope')
 assert(router.includes('const h2VisualFixtureRoute = import.meta.env.DEV'), 'visual fixture route is development-only')
-assert(visualFixture.includes("fixtureRows.filter((item) => item.ownershipKind === 'shared')"), 'visual fixture can test collaborative-only and Mine-empty states')
+assert(visualFixture.includes('09270d9d-b8c0-4944-9e3b-b382a8875dbd') && visualFixture.includes('scope={scope}'), 'visual fixture includes the exact shared regression wedding and real ownership filters')
 assert(page.includes("scope === 'all'"), 'global first-wedding onboarding appears only for truly empty All scope')
 assert(read('src/features/weddings/modern/ModernWeddingsWorkspace.tsx').includes('role="group" aria-label="Zakres ślubów"'), 'scope filters are grouped and accessible')
 assert(read('src/features/weddings/modern/ModernWeddingsWorkspace.tsx').includes('aria-pressed={scope === value}'), 'scope selected state is exposed accessibly')

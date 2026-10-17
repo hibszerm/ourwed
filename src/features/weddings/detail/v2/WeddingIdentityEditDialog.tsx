@@ -14,7 +14,13 @@ interface Props {
   open: boolean
   wedding: Wedding
   onClose: () => void
-  onSaved: (wedding: Wedding) => void
+  onSaved?: (wedding: Wedding) => void
+  mode?: 'owner' | 'shared'
+  ownerCanonicalDisplayName?: string
+  hasPersonalDisplayNameOverride?: boolean
+  onSharedSave?: (displayName: string) => Promise<string>
+  onSharedRestore?: () => Promise<string>
+  onOwnerSave?: (wedding: Wedding) => Promise<Wedding>
 }
 
 /**
@@ -26,6 +32,12 @@ export function WeddingIdentityEditDialog({
   wedding,
   onClose,
   onSaved,
+  mode = 'owner',
+  ownerCanonicalDisplayName,
+  hasPersonalDisplayNameOverride = false,
+  onSharedSave,
+  onSharedRestore,
+  onOwnerSave,
 }: Props) {
   const [busy, setBusy] = useState(false)
 
@@ -33,7 +45,9 @@ export function WeddingIdentityEditDialog({
     <Modal
       open={open}
       title="Edytuj zlecenie"
-      description="Zmień nazwę wyświetlaną i datę ślubu. Dane pary i pakiet edytujesz osobno."
+      description={mode === 'shared'
+        ? 'Zmień nazwę wyświetlaną. Datę ślubu i dane pary zmienia właściciel.'
+        : 'Zmień nazwę wyświetlaną i datę ślubu. Dane pary i pakiet edytujesz osobno.'}
       onClose={onClose}
       showClose
       busy={busy}
@@ -59,6 +73,12 @@ export function WeddingIdentityEditDialog({
           setBusy={setBusy}
           onClose={onClose}
           onSaved={onSaved}
+          mode={mode}
+          ownerCanonicalDisplayName={ownerCanonicalDisplayName}
+          hasPersonalDisplayNameOverride={hasPersonalDisplayNameOverride}
+          onSharedSave={onSharedSave}
+          onSharedRestore={onSharedRestore}
+          onOwnerSave={onOwnerSave}
         />
       ) : null}
     </Modal>
@@ -71,12 +91,24 @@ function IdentityForm({
   setBusy,
   onClose,
   onSaved,
+  mode,
+  ownerCanonicalDisplayName,
+  hasPersonalDisplayNameOverride,
+  onSharedSave,
+  onSharedRestore,
+  onOwnerSave,
 }: {
   wedding: Wedding
   busy: boolean
   setBusy: (v: boolean) => void
   onClose: () => void
-  onSaved: (wedding: Wedding) => void
+  onSaved?: (wedding: Wedding) => void
+  mode: 'owner' | 'shared'
+  ownerCanonicalDisplayName?: string
+  hasPersonalDisplayNameOverride: boolean
+  onSharedSave?: (displayName: string) => Promise<string>
+  onSharedRestore?: () => Promise<string>
+  onOwnerSave?: (wedding: Wedding) => Promise<Wedding>
 }) {
   const { requirePro } = useProAccessGate()
   const [displayName, setDisplayName] = useState(
@@ -92,28 +124,52 @@ function IdentityForm({
 
   async function handleSave(event: FormEvent) {
     event.preventDefault()
-    if (!requirePro()) return
+    if (mode === 'owner' && !requirePro()) return
     const nextDate = date.trim()
-    if (!/^\d{4}-\d{2}-\d{2}$/.test(nextDate)) {
+    if (mode === 'owner' && !/^\d{4}-\d{2}-\d{2}$/.test(nextDate)) {
       setError('Podaj prawidłową datę ślubu.')
       return
     }
     setBusy(true)
     setError(null)
     try {
-      const updated = await weddingService.update(
-        withReconciledDeliveryDeadline(wedding, {
+      if (mode === 'shared') {
+        if (!onSharedSave) throw new Error('Nie udało się zapisać zmian.')
+        const requestedName = displayName.trim() || derivedPreview
+        const effectiveName = await onSharedSave(requestedName)
+        onSaved?.({ ...wedding, displayName: effectiveName })
+        onClose()
+        return
+      }
+      const update = withReconciledDeliveryDeadline(wedding, {
           ...wedding,
           displayName: displayName.trim() || null,
           date: nextDate,
-        }),
-      )
-      onSaved(updated)
+        })
+      const updated = onOwnerSave
+        ? await onOwnerSave(update)
+        : await weddingService.update(update)
+      onSaved?.(updated)
       onClose()
     } catch (e) {
       setError(
         getUserFacingErrorMessage(e, 'Nie udało się zapisać zmian.'),
       )
+    } finally {
+      setBusy(false)
+    }
+  }
+
+  async function handleRestoreOwnerName() {
+    if (!onSharedRestore) return
+    setBusy(true)
+    setError(null)
+    try {
+      const effectiveName = await onSharedRestore()
+      onSaved?.({ ...wedding, displayName: effectiveName })
+      onClose()
+    } catch (e) {
+      setError(getUserFacingErrorMessage(e, 'Nie udało się przywrócić nazwy właściciela.'))
     } finally {
       setBusy(false)
     }
@@ -142,8 +198,9 @@ function IdentityForm({
           lineHeight: 1.45,
         }}
       >
-        Nazwa wyświetlana jest opcjonalna. Gdy pozostawisz ją pustą, OurWed
-        użyje imion i nazwisk pary.
+        {mode === 'shared'
+          ? 'Ta nazwa będzie widoczna tylko dla Ciebie.'
+          : 'Nazwa wyświetlana jest opcjonalna. Gdy pozostawisz ją pustą, OurWed użyje imion i nazwisk pary.'}
       </p>
       <Input
         label="Data ślubu"
@@ -152,8 +209,27 @@ function IdentityForm({
         value={date}
         onChange={(e) => setDate(e.target.value)}
         disabled={busy}
+        readOnly={mode === 'shared'}
+        aria-readonly={mode === 'shared'}
         data-testid="wedding-identity-date"
       />
+      {mode === 'shared' && hasPersonalDisplayNameOverride ? (
+        <div>
+          <Button
+            type="button"
+            variant="ghost"
+            size="sm"
+            disabled={busy}
+            onClick={() => void handleRestoreOwnerName()}
+            data-testid="wedding-identity-restore-owner-name"
+            aria-label={ownerCanonicalDisplayName
+              ? `Przywróć nazwę właściciela: ${ownerCanonicalDisplayName}`
+              : undefined}
+          >
+            Przywróć nazwę właściciela
+          </Button>
+        </div>
+      ) : null}
       {error ? (
         <p role="alert" style={{ margin: 0, color: 'var(--status-error-text)' }}>
           {error}

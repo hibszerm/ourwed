@@ -44,9 +44,17 @@
 }
 
 @media (max-width: 767px) {
+  .wrap {
+    padding: 2px;
+    border-radius: 10px;
+  }
+
   .tab,
   .active {
     min-height: var(--touch-target);
+    min-width: 3.6rem;
+    padding-inline: 8px;
+    font-size: var(--text-2xs);
   }
 }
 

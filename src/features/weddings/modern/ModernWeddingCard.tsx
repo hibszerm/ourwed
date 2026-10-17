@@ -26,7 +26,7 @@ export function ModernWeddingCard({ wedding }: ModernWeddingCardProps) {
     return (
       <article className={`${styles.card} ${styles.sharedCard} v3MaterialSecondaryCard`} data-ownership-kind="shared">
         <Link
-          to={`/wspolpraca/sluby/${wedding.id}`}
+          to={`/sluby/${wedding.id}`}
           className={styles.sharedHitArea}
           aria-label={`Otwórz ślub współdzielony: ${name}`}
         >

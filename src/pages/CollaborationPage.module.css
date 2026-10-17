@@ -1,0 +1,15 @@
+.page { width: 100%; min-width: 0; }
+.workspace { display: flex; width: 100%; min-width: 0; flex-direction: column; gap: clamp(20px, 2.2vw, 28px); padding-bottom: var(--space-8); }
+.collaborationHeader :global(h1) { font-size: clamp(1.65rem, 1.4rem + .6vw, 2rem); font-weight: 650; letter-spacing: -.03em; }
+.presetsSection { min-width: 0; scroll-margin-top: 24px; }
+.presetsHeader { display: flex; align-items: flex-end; justify-content: space-between; gap: 16px; margin-bottom: 13px; }
+.presetsHeader h2 { margin: 0; color: var(--color-text-primary); font-size: clamp(1.12rem, 1rem + .2vw, 1.25rem); font-weight: 650; letter-spacing: var(--tracking-snug); line-height: var(--leading-snug); }
+.presetsHeader p { max-width: 66ch; margin: 6px 0 0; color: var(--color-text-secondary); font-size: var(--text-sm); line-height: 1.5; }
+.presetCard { min-width: 0; padding: 0; }
+.confirmName { margin: 0; color: var(--color-text-primary); font-weight: 600; overflow-wrap: anywhere; }
+
+@media (max-width: 680px) {
+  .workspace { gap: 18px; }
+  .presetsHeader { margin-bottom: 10px; }
+  .presetsHeader p { max-width: none; }
+}

@@ -347,8 +347,8 @@ function wedding(partial: Partial<Wedding> = {}): Wedding {
 
   assert(workspace.includes('splitModernWeddingsSeasons'), 'uses year split')
   assert(workspace.includes('Poprzednie sezony'), 'previous seasons section copy')
-  assert(workspace.includes('const [previousOpen, setPreviousOpen] = useState(false)'), 'previous seasons start collapsed')
-  assert(workspace.includes('layers.previous.length > 0'), 'search reveals history only when matches exist')
+  assert(workspace.includes('const [previousOpen, setPreviousOpen] = useState(true)'), 'all-years view opens historical seasons')
+  assert(workspace.includes('layers.previous.length > 0'), 'history only renders when filtered matches exist')
   assert(workspace.includes('onToggleYear'), 'previous years are expandable')
   assert(!workspace.includes('Wcześniejsze'), 'no internal earlier divider')
   assert(!workspaceCss.includes('earlierLabel'), 'earlier divider styles removed')
@@ -359,8 +359,7 @@ function wedding(partial: Partial<Wedding> = {}): Wedding {
   assert(!workspace.includes('quiet'), 'historical ledger is not a faded variant')
   assert(!workspaceCss.includes('ledgerQuiet'), 'no transparent historical surface')
   assert(!workspace.includes('opacity'), 'historical rows are not dimmed in source')
-  const ledgerSurfaceUses = workspace.split('ledgerSurface').length - 1
-  assert(ledgerSurfaceUses >= 1, 'shared ledger surface class exists')
+  assert(!workspace.includes('ledgerSurface'), 'ledger is contained by the one canonical list surface')
   assert(
     !workspace.includes('styles.ledgerQuiet'),
     'previous years do not use a second ledger skin',
@@ -374,8 +373,8 @@ function wedding(partial: Partial<Wedding> = {}): Wedding {
     workspace.indexOf('export function ModernWeddingsWorkspace'),
   )
   assert(
-    collectionFn.includes('v3MaterialSatinFlat'),
-    'lista seasons share the satin ledger surface',
+    collectionFn.includes('<ModernWeddingLedger weddings={weddings} />'),
+    'list rows render directly inside the canonical surface',
   )
   assert(
     !collectionFn.includes('quiet'),
@@ -383,26 +382,24 @@ function wedding(partial: Partial<Wedding> = {}): Wedding {
   )
   assert(workspace.includes("viewMode === 'list'"), 'lista and kafelki share season layers')
   assert(workspace.includes('ModernWeddingCard'), 'kafelki uses the same year groups')
-  assert(workspace.includes('chipYears'), 'top selector uses current/future years only')
-  assert(workspace.includes('listCurrentAndFutureYears'), 'past years filtered from chips')
-  assert(workspace.includes('chipYears.map((year)'), 'chips render current/future years')
-  assert(!workspace.includes('groups.map((g)'), 'chips are not built from all season groups')
-  assert(workspace.includes('selectExclusiveCurrentFutureYear'), 'year chip collapses other current/future years')
-  assert(workspace.includes('expandAllCurrentFutureYears'), 'Wszystkie expands current/future')
+  assert(workspace.includes('chipYears'), 'year selector uses the visible canonical catalog')
+  assert(workspace.includes('catalogGroups.map((group) => group.season)'), 'past, current, and future year filters are available')
+  assert(workspace.includes('chipYears.map((year)'), 'year chips render canonical years')
+  assert(workspace.includes('year: activeSelectedYear'), 'year chips filter the canonical collection')
   assert(workspace.includes('showAllCurrentFuture'), 'Wszystkie handler is isolated')
   const wszystkieHandler = workspace.slice(
     workspace.indexOf('function showAllCurrentFuture'),
     workspace.indexOf('function toggleCurrentFuture'),
   )
-  assert(!wszystkieHandler.includes('setPreviousOpen'), 'Wszystkie does not open history')
+  assert(wszystkieHandler.includes('setPreviousOpen(true)'), 'Wszystkie lata exposes all year groups')
   assert(workspace.includes('selectYear'), 'year chip selects exclusive season')
   const selectYearFn = workspace.slice(
     workspace.indexOf('function selectYear'),
     workspace.indexOf('function showAllCurrentFuture'),
   )
-  assert(selectYearFn.includes('selectExclusiveCurrentFutureYear'), 'year click is exclusive')
+  assert(selectYearFn.includes('setSelectedYear(season)'), 'year click selects a single year filter')
   assert(selectYearFn.includes('setPendingScroll'), 'year click scrolls to section')
-  assert(!selectYearFn.includes('setPreviousOpen'), 'year click does not open history')
+  assert(selectYearFn.includes('setExpandedYears(new Set([season]))'), 'year selection expands the selected year')
   assert(workspace.includes('scrollIntoView'), 'native section scroll')
   assert(workspace.includes("block: 'start'"), 'scroll aligns section start')
   assert(workspaceCss.includes('scroll-margin-top'), 'shell breathing room via scroll-margin')
@@ -411,10 +408,10 @@ function wedding(partial: Partial<Wedding> = {}): Wedding {
   assert(!workspace.includes('.scrollTo('), 'no container scrollTo offsets')
   assert(!workspace.includes('setTimeout'), 'no timeout scroll hacks')
   assert(!workspace.includes('toggleable={false}'), 'current year is collapsible')
-  assert(workspace.includes('toggleCurrentFuture'), 'headers toggle accordion')
+  assert(workspace.includes('toggleYear'), 'headers toggle accordion')
   assert(workspace.includes('historyYearsExpanded'), 'history accordion is independent')
-  assert(workspace.includes('storedCurrentFuture'), 'search does not persist over accordion')
-  assert(workspace.includes('displayedCurrentFuture'), 'search temporarily expands matching years')
+  assert(workspace.includes('storedExpandedYears'), 'year collapse state persists across filtering')
+  assert(workspace.includes('displayedYears'), 'selected year expands its matching group')
   assert(workspace.includes('aria-expanded'), 'season headers expose expanded state')
   assert(workspace.includes('aria-controls'), 'season headers control panels')
   assert(workspace.includes('aria-pressed'), 'chips expose pressed state')
@@ -586,24 +583,24 @@ function wedding(partial: Partial<Wedding> = {}): Wedding {
   const wsMobile = workspaceCss.slice(
     workspaceCss.indexOf('@media (max-width: 767px)'),
   )
-  assert(wsMobile.includes('display: contents'), 'controls flatten into compact grid')
-  assert(wsMobile.includes('grid-row: 2'), 'year chips and view switch share a row')
+  assert(wsMobile.includes('flex-direction: column'), 'mobile toolbar stacks its primary controls')
+  assert(wsMobile.includes('grid-template-columns: minmax(0, 1fr) auto'), 'years and the compact view switch share a secondary row')
   assert(wsMobile.includes('font-size: 16px'), 'search is 16px on mobile')
-  assert(wsMobile.includes('min-height: var(--touch-target)'), 'search/chip targets are 44px')
+  assert(wsMobile.includes('min-height: var(--touch-target)'), 'search and ownership targets are 44px')
   assert(wsMobile.includes('overflow-x: auto'), 'year chips scroll horizontally')
-  assert(wsMobile.includes('position: static'), 'year chips are not a second sticky bar')
+  assert(wsMobile.includes('.surface'), 'the complete mobile list stays inside the common surface')
   assert(wsMobile.includes('.seasonHeading'), 'season heading stays, compacted')
-  assert(wsMobile.includes('grid-column: 1 / -1'), 'list follows chrome at full width')
+  assert(wsMobile.includes('.listBody'), 'list body remains in the common surface')
 
   const desktopWs = workspaceCss.slice(
     0,
     workspaceCss.indexOf('@media (max-width: 767px)'),
   )
-  assert(desktopWs.includes('max-width: 28rem'), 'desktop search max-width frozen')
+  assert(desktopWs.includes('grid-template-columns: minmax(15rem, 1fr) auto auto'), 'desktop toolbar uses a balanced search/filter/view grid')
   assert(desktopWs.includes('min-height: 40px'), 'desktop search height frozen')
-  assert(desktopWs.includes('position: sticky'), 'desktop year nav stays sticky')
-  assert(desktopWs.includes('min-height: 32px'), 'desktop chips stay 32px')
-  assert(desktopWs.includes('gap: var(--space-5)'), 'desktop workspace gap frozen')
+  assert(desktopWs.includes('border-top: 1px solid'), 'secondary years are quietly separated within the surface')
+  assert(desktopWs.includes('min-height: 30px'), 'desktop year filters remain compact')
+  assert(desktopWs.includes('.surface'), 'desktop toolbar and rows share one surface')
   assert(desktopWs.includes('font-size: var(--text-xl)'), 'desktop season year size frozen')
 
   assert(switchCss.includes('@media (max-width: 767px)'), 'view switch mobile is 767')

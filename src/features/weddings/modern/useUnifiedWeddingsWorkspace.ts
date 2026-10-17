@@ -3,6 +3,7 @@ import { useQuery } from '@tanstack/react-query'
 import { useAuth } from '@/features/auth/AuthProvider'
 import { useWeddings } from '@/features/weddings/hooks/useWeddings'
 import { workspaceService } from '@/features/collaboration/workspaceService'
+import { useWorkspaceWeddingDisplayNames } from '@/features/collaboration/useWorkspaceWeddingDisplayNames'
 import type { WorkspaceCursor, WorkspaceWedding } from '@/features/collaboration/workspaceTypes'
 import {
   composeWorkspaceWeddingRows,
@@ -58,20 +59,38 @@ export function useUnifiedWeddingsWorkspace() {
   // This existing path is owner-scoped by auth.uid(). Its returned rows are
   // joined only to IDs that H1 identifies as owned; shared IDs never enter it.
   const ownerQuery = useWeddings()
+  const sharedWeddingIds = useMemo(
+    () => [...new Set((workspaceQuery.data ?? [])
+      .filter((row) => row.ownership_kind === 'shared')
+      .map((row) => row.wedding_id))].sort(),
+    [workspaceQuery.data],
+  )
+  const displayNameQuery = useWorkspaceWeddingDisplayNames(sharedWeddingIds, userId)
+  const hasSharedRows = sharedWeddingIds.length > 0
   const composition = useMemo(() => {
     if (!workspaceQuery.data || !ownerQuery.data) return null
+    if (hasSharedRows && !displayNameQuery.isSuccess) return null
     try {
-      return { data: composeWorkspaceWeddingRows(workspaceQuery.data, ownerQuery.data), error: null }
+      return {
+        data: composeWorkspaceWeddingRows(
+          workspaceQuery.data,
+          ownerQuery.data,
+          displayNameQuery.data ?? [],
+        ),
+        error: null,
+      }
     } catch (error) {
       return { data: null, error }
     }
-  }, [workspaceQuery.data, ownerQuery.data])
+  }, [displayNameQuery.data, displayNameQuery.isSuccess, hasSharedRows, ownerQuery.data, workspaceQuery.data])
 
   return {
     data: composition?.data ?? undefined,
-    isLoading: workspaceQuery.isPending || ownerQuery.isPending,
-    isError: workspaceQuery.isError || ownerQuery.isError || Boolean(composition?.error),
-    error: workspaceQuery.error ?? ownerQuery.error ?? composition?.error ?? null,
-    refetch: async () => Promise.all([workspaceQuery.refetch(), ownerQuery.refetch()]),
+    isLoading: workspaceQuery.isPending || ownerQuery.isPending || (hasSharedRows && displayNameQuery.isPending),
+    isError: workspaceQuery.isError || ownerQuery.isError || displayNameQuery.isError || Boolean(composition?.error),
+    error: workspaceQuery.error ?? ownerQuery.error ?? displayNameQuery.error ?? composition?.error ?? null,
+    refetch: async () => Promise.all([
+      workspaceQuery.refetch(), ownerQuery.refetch(), displayNameQuery.refetch(),
+    ]),
   }
 }

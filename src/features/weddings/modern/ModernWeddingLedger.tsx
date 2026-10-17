@@ -90,7 +90,7 @@ function SharedWeddingLedgerRow({
     <li className={styles.item} data-ownership-kind="shared">
       <div className={`${styles.row} ${styles.sharedRow}`}>
         <Link
-          to={`/wspolpraca/sluby/${wedding.id}`}
+          to={`/sluby/${wedding.id}`}
           className={styles.sharedHitArea}
           aria-label={`Otwórz ślub współdzielony: ${name}`}
         >

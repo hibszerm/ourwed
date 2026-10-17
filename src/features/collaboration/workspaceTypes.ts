@@ -18,8 +18,15 @@ export interface WorkspaceWedding {
   membership_id: string | null
   /** PostgreSQL bigint values are represented as strings to preserve precision. */
   access_version: string | null
-  permission_group_mapping_version: '1' | '2' | null
+  permission_group_mapping_version: '1' | '2' | '3' | null
   effective_capabilities: WorkspaceCapability[]
+}
+
+export interface WorkspaceWeddingDisplayName {
+  wedding_id: string
+  owner_canonical_display_name: string
+  effective_display_name: string
+  has_personal_override: boolean
 }
 
 export interface WorkspaceCursor {
