@@ -16,14 +16,28 @@ import styles from './CanonicalWeddingTasksCard.module.css'
 import dashboardRowStyles from '@/features/dashboard-v3/DashboardV3TodayPanel.module.css'
 
 type SelectedTask = Task & { revision?: string }
+type CanonicalWeddingTasksCardProps = {
+  weddingId: string
+  wedding: Wedding
+  accessVersion?: string
+  tasksLevel: 0 | 1 | 2
+}
+
 function taskFromShared(task: CollaborativeTask): SelectedTask {
   return { id: task.id, title: task.title, weddingId: task.weddingId, dueDate: task.dueDate,
     completed: task.status === 'done', priority: 'medium', revision: task.revision }
 }
 
-export function CanonicalWeddingTasksCard({ weddingId, wedding, accessVersion, tasksLevel }: {
-  weddingId: string; wedding: Wedding; accessVersion?: string; tasksLevel: 0 | 1 | 2
-}) {
+export function CanonicalWeddingTasksCard(props: CanonicalWeddingTasksCardProps) {
+  const { weddingId, accessVersion, tasksLevel } = props
+  const editorScope = accessVersion
+    ? `${weddingId}:shared:${tasksLevel === 2 ? 'editable' : 'read-only'}`
+    : `${weddingId}:owner`
+
+  return <CanonicalWeddingTasksCardContent key={editorScope} {...props} />
+}
+
+function CanonicalWeddingTasksCardContent({ weddingId, wedding, accessVersion, tasksLevel }: CanonicalWeddingTasksCardProps) {
   const { user } = useAuth()
   const { canUsePro } = useProAccessGate()
   const queryClient = useQueryClient()
@@ -59,12 +73,6 @@ export function CanonicalWeddingTasksCard({ weddingId, wedding, accessVersion, t
     if (shared && tasksLevel === 0) queryClient.removeQueries({ queryKey: ['collaborative-tasks-v3', user?.id, weddingId] })
     return () => { if (shared) queryClient.removeQueries({ queryKey: ['collaborative-tasks-v3', user?.id, weddingId] }) }
   }, [queryClient, shared, tasksLevel, user?.id, weddingId])
-
-  useEffect(() => {
-    if (shared && tasksLevel !== 2) {
-      setFormOpen(false); setEdit(null); setRemove(null)
-    }
-  }, [shared, tasksLevel, accessVersion])
 
   async function reconcileFailure(cause: unknown) {
     const outcome = collaborativeTaskErrorCode(cause)

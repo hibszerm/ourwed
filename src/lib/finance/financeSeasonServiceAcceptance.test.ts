@@ -5,6 +5,8 @@
 
 import { readFileSync } from 'node:fs'
 import { resolve } from 'node:path'
+import { QueryClient } from '@tanstack/react-query'
+import { invalidateCompensationPaymentMutation } from '@/features/collaboration/compensationV3Cache'
 
 function read(rel: string): string {
   return readFileSync(resolve(process.cwd(), rel), 'utf8')
@@ -26,6 +28,7 @@ const service = read('src/lib/api/financeSeasonService.ts')
 const page = read('src/pages/FinancePage.tsx')
 const hooks = read('src/features/finance/useFinanceSeason.ts')
 const invalidate = read('src/features/finance/invalidateFinanceQueries.ts')
+const compensationCache = read('src/features/collaboration/compensationV3Cache.ts')
 const weddingInvalidate = read(
   'src/features/weddings/hooks/useInvalidateWedding.ts',
 )
@@ -164,11 +167,9 @@ const sessionInvalidate = read(
 
 {
   assertIncludes(invalidate, 'FINANCE_QUERY_ROOT', 'invalidate helper')
-  assertIncludes(
-    weddingInvalidate,
-    'invalidateFinanceQueries',
-    'wedding invalidate wires finance',
-  )
+  assertIncludes(weddingInvalidate, 'invalidateCompensationPaymentMutation(queryClient)', 'wedding invalidation delegates through Compensation')
+  assertIncludes(compensationCache, 'invalidateFinanceQueries(queryClient)', 'Compensation invalidation delegates to Finance')
+  assertIncludes(compensationCache, "queryKey: ['collaboration-compensation-v3']", 'Compensation invalidation covers Compensation caches')
   assertIncludes(hooks, 'staleTime: FINANCE_STALE_MS', 'staleTime')
   assertIncludes(hooks, '30_000', '30s stale')
   console.log('PASS  RQ invalidation + staleTime')
@@ -242,12 +243,25 @@ const sessionInvalidate = read(
     "queryKey: ['weddings']",
     'canonical wedding invalidate covers weddings family',
   )
-  assertIncludes(
-    weddingInvalidate,
-    'invalidateFinanceQueries',
-    'canonical wedding invalidate reaches Finance',
-  )
+  assertIncludes(weddingInvalidate, 'invalidateCompensationPaymentMutation(queryClient)', 'canonical wedding invalidation reaches Finance through Compensation')
   console.log('PASS  commercial mutations invalidate finance')
+}
+
+{
+  const queryClient = new QueryClient({ defaultOptions: { queries: { retry: false } } })
+  const weddingKey = ['weddings', 'owner-a', 'wedding-a'] as const
+  const compensationKey = ['collaboration-compensation-v3', 'owner', 'owner-a', 'wedding-a'] as const
+  const financeKey = ['finance', 'season', 'owner-a', 2027] as const
+  queryClient.setQueryData(weddingKey, { id: 'wedding-a' })
+  queryClient.setQueryData(compensationKey, { amount: '5000.00' })
+  queryClient.setQueryData(financeKey, { personalValue: '5000.00' })
+
+  await invalidateCompensationPaymentMutation(queryClient)
+  assert(queryClient.getQueryState(weddingKey)?.isInvalidated, 'payment invalidation refreshes wedding data')
+  assert(queryClient.getQueryState(compensationKey)?.isInvalidated, 'payment invalidation refreshes Compensation data')
+  assert(queryClient.getQueryState(financeKey)?.isInvalidated, 'payment invalidation refreshes Finance data through the real QueryClient')
+  queryClient.clear()
+  console.log('PASS  Compensation payment invalidation reaches Finance and Compensation caches')
 }
 
 console.log('\nAll finance data-access guards passed.')
