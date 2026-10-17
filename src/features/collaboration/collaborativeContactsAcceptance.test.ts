@@ -17,7 +17,7 @@ const sharedPage = page.slice(page.indexOf('function SharedWeddingDetail'), page
 assert.match(page, /enabled: Boolean\(userId\) && contactsLevel > 0/, 'Contacts 0 does not mount the private Contacts query')
 assert.match(page, /contactsLevel === 0 \|\| revoked/, 'Contacts 0 and revoked membership enter the private-data cleanup path')
 assert.match(page, /const contactsKeyPrefix = \['collaborative-contacts-v3', userId, weddingId\][\s\S]*queryClient\.removeQueries\(\{ queryKey: contactsKeyPrefix \}\)/, 'private Contacts cache is evicted when authority is lost')
-assert.match(page, /key=\{`\$\{user\?\.id\}:\$\{authority\.weddingId\}:\$\{authority\.accessVersion\}:\$\{authority\.effectiveAreas\.contacts\}`\}/, 'authority changes remount the shared detail and discard unsaved private Contacts drafts')
+assert.match(page, /key=\{`\$\{user\?\.id\}:\$\{authority\.weddingId\}:\$\{authority\.accessVersion\}:\$\{authority\.effectiveAreas\.contacts\}:\$\{authority\.effectiveAreas\.notes\}`\}/, 'Contacts and Notes authority changes remount the shared detail and discard private drafts')
 assert.match(page, /contactsLevel > 0 && contactsQuery\.data/, 'the private canonical card is omitted at Contacts 0')
 assert.match(page, /contactsLevel === 2 \? \(\) =>/, 'Edit is exposed only at Contacts level 2')
 assert.match(page, /contactsLevel === 2 && contactsDraft/, 'shared editor is available only at Contacts level 2')

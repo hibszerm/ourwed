@@ -456,6 +456,7 @@ export function buildActivityFeed(input: {
       body: note.content,
       date: note.createdAt,
       badge: note.badge || 'Notatka',
+      pinned: Boolean(note.pinned),
     })
   }
 

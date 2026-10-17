@@ -164,6 +164,8 @@ export interface WeddingNote {
   content: string
   createdAt: string
   author: string
+  /** Exact database revision. Kept as a decimal string to avoid JS precision loss. */
+  revision?: string
   /** System origin — optional for manually created notes. */
   source?:
     | 'contract_questionnaire'

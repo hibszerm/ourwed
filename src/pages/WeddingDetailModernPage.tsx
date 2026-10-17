@@ -1,4 +1,4 @@
-import { useEffect, useState } from 'react'
+import { useEffect, useMemo, useState } from 'react'
 import { Link, useParams, useSearchParams } from 'react-router-dom'
 import { useQuery, useQueryClient } from '@tanstack/react-query'
 import { AppLayout } from '@/layouts/AppLayout'
@@ -17,10 +17,15 @@ import { SharedV3PreweddingWorkspace } from '@/features/weddings/modern-detail/S
 import { CanonicalCoupleCard } from '@/features/weddings/modern-detail/ModernWeddingOverview'
 import { CanonicalCoupleContactsEditor } from '@/features/weddings/detail/CanonicalCoupleContactsEditor'
 import { CanonicalWeddingTasksCard } from '@/features/tasks/CanonicalWeddingTasksCard'
+import { ModernWeddingHistoriaWorkspace } from '@/features/weddings/modern-detail/ModernWeddingHistoriaWorkspace'
+import { ManageWeddingNotesModal } from '@/features/weddings/modern-detail/ManageWeddingNotesModal'
+import { AddNoteModal } from '@/features/weddings/actions/AddNoteModal'
 import { collaborativeContactsService, contactsToCouple, type WeddingContactsAggregate } from '@/features/collaboration/collaborativeContactsService'
+import { collaborativeNotesQueryKey, collaborativeNotesService } from '@/features/collaboration/collaborativeNotesService'
 import { getUserFacingErrorMessage } from '@/lib/errors/userFacingError'
 import type { CollaborativeWeddingIdentity } from '@/features/collaboration/collaborativeWeddingIdentityTypes'
 import type { Wedding } from '@/types/wedding'
+import type { ActivityFeedItem } from '@/features/weddings/detail/v2/weddingDetailV2Types'
 import { isUuid } from '@/features/collaboration/collaborativeWeddingTypes'
 import styles from './WeddingDetailModernPage.module.css'
 import workspaceStyles from '@/features/weddings/modern-detail/ModernWeddingDetailWorkspace.module.css'
@@ -51,11 +56,11 @@ export function WeddingDetailModernPage() {
   }
   if (branch === 'owned') return <OwnedWeddingDetail />
   if (branch === 'shared' && authority?.kind === 'shared') {
-    return <SharedWeddingDetail key={`${user?.id}:${authority.weddingId}:${authority.accessVersion}:${authority.effectiveAreas.contacts}`}
+    return <SharedWeddingDetail key={`${user?.id}:${authority.weddingId}:${authority.accessVersion}:${authority.effectiveAreas.contacts}:${authority.effectiveAreas.notes}`}
       weddingId={authority.weddingId} userId={user?.id}
       accessVersion={authority.accessVersion} logisticsLevel={authority.effectiveAreas.logistics}
       preweddingLevel={authority.effectiveAreas.prewedding} contactsLevel={authority.effectiveAreas.contacts}
-      tasksLevel={authority.effectiveAreas.tasks} />
+      tasksLevel={authority.effectiveAreas.tasks} notesLevel={authority.effectiveAreas.notes} />
   }
   return <UnavailableDetail />
 }
@@ -85,8 +90,8 @@ function OwnedWeddingDetail() {
   )
 }
 
-function SharedWeddingDetail({ weddingId, userId, accessVersion, logisticsLevel, preweddingLevel, contactsLevel, tasksLevel }: {
-  weddingId: string; userId: string | undefined; accessVersion: string; logisticsLevel: 0 | 1 | 2; preweddingLevel: 0 | 1 | 2; contactsLevel: 0 | 1 | 2; tasksLevel: 0 | 1 | 2
+function SharedWeddingDetail({ weddingId, userId, accessVersion, logisticsLevel, preweddingLevel, contactsLevel, tasksLevel, notesLevel }: {
+  weddingId: string; userId: string | undefined; accessVersion: string; logisticsLevel: 0 | 1 | 2; preweddingLevel: 0 | 1 | 2; contactsLevel: 0 | 1 | 2; tasksLevel: 0 | 1 | 2; notesLevel: 0 | 1 | 2
 }) {
   const queryClient = useQueryClient()
   const [searchParams, setSearchParams] = useSearchParams()
@@ -94,6 +99,8 @@ function SharedWeddingDetail({ weddingId, userId, accessVersion, logisticsLevel,
   const [contactsDraft, setContactsDraft] = useState<WeddingContactsAggregate | null>(null)
   const [contactsSaving, setContactsSaving] = useState(false)
   const [contactsSaveError, setContactsSaveError] = useState<string | null>(null)
+  const [notesEditing, setNotesEditing] = useState(false)
+  const [notesAdding, setNotesAdding] = useState(false)
   const detail = useCollaborativeWeddingIdentity(weddingId, userId)
   const contactsKey = ['collaborative-contacts-v3', userId, weddingId, accessVersion] as const
   const contactsQuery = useQuery({
@@ -101,6 +108,15 @@ function SharedWeddingDetail({ weddingId, userId, accessVersion, logisticsLevel,
     queryFn: () => collaborativeContactsService.get(weddingId),
     enabled: Boolean(userId) && contactsLevel > 0,
     staleTime: 0,
+  })
+  const notesKey = useMemo(() => collaborativeNotesQueryKey(userId, weddingId, accessVersion),
+    [accessVersion, userId, weddingId])
+  const notesQuery = useQuery({
+    queryKey: notesKey,
+    queryFn: () => collaborativeNotesService.get(weddingId, accessVersion),
+    enabled: Boolean(userId) && notesLevel > 0,
+    staleTime: 0,
+    refetchOnWindowFocus: false,
   })
 
   useEffect(() => {
@@ -120,7 +136,13 @@ function SharedWeddingDetail({ weddingId, userId, accessVersion, logisticsLevel,
     }
     return () => queryClient.removeQueries({ queryKey: contactsKeyPrefix })
   }, [contactsLevel, queryClient, revoked, userId, weddingId])
-
+  useEffect(() => {
+    const notesKeyPrefix = ['collaborative-wedding-notes-v3', userId, weddingId]
+    if (notesLevel === 0 || revoked) {
+      queryClient.removeQueries({ queryKey: notesKeyPrefix })
+    }
+    return () => queryClient.removeQueries({ queryKey: notesKey, exact: true })
+  }, [notesKey, notesLevel, queryClient, revoked, userId, weddingId])
   if (detail.isPending || detail.isFetching) return <DetailLoading />
   if (detail.isError) {
     return <DetailProblem
@@ -132,9 +154,11 @@ function SharedWeddingDetail({ weddingId, userId, accessVersion, logisticsLevel,
   if (!detail.data) return <UnavailableDetail />
 
   const wedding = toSharedIdentityWedding(detail.data)
+  wedding.notes = notesQuery.data?.notes ?? []
   const visible = [
     ...(logisticsLevel > 0 ? [{ id: 'wedding_day', label: 'Logistyka' }] : []),
     ...(preweddingLevel > 0 ? [{ id: 'pre_wedding_questionnaire', label: 'Ankieta przedślubna' }] : []),
+    ...(notesLevel > 0 ? [{ id: 'activity', label: 'Historia' }] : []),
   ]
   const requestedTab = searchParams.get('tab')
   const activeTab = visible.some((item) => item.id === requestedTab) ? requestedTab : visible[0]?.id
@@ -191,6 +215,17 @@ function SharedWeddingDetail({ weddingId, userId, accessVersion, logisticsLevel,
               accessVersion={accessVersion} level={logisticsLevel} embedded /> : null}
             {userId && activeTab === 'pre_wedding_questionnaire' ? <SharedV3PreweddingWorkspace weddingId={weddingId}
               userId={userId} accessVersion={accessVersion} level={preweddingLevel} /> : null}
+            {activeTab === 'activity' && notesLevel > 0 ? (notesQuery.isError
+              ? <p role="alert">Nie udało się załadować notatek. Sprawdź dostęp i spróbuj ponownie.</p>
+              : notesQuery.isPending ? <p role="status">Ładowanie notatek…</p>
+                : <ModernWeddingHistoriaWorkspace
+                    feed={wedding.notes.map((note): ActivityFeedItem => ({
+                      id: `note-${note.id}`, source: 'note', filter: 'notes', title: note.author || 'Notatka',
+                      body: note.content, date: note.createdAt, badge: note.badge || 'Notatka', pinned: Boolean(note.pinned),
+                    }))}
+                    onEditNotes={notesLevel === 2 ? () => setNotesEditing(true) : undefined}
+                    onAddNote={notesLevel === 2 ? () => setNotesAdding(true) : undefined}
+                  />) : null}
             {userId && tasksLevel > 0 ? <CanonicalWeddingTasksCard weddingId={weddingId} wedding={wedding}
               accessVersion={accessVersion} tasksLevel={tasksLevel} /> : null}
           </div>
@@ -206,6 +241,35 @@ function SharedWeddingDetail({ weddingId, userId, accessVersion, logisticsLevel,
           onCancel={() => { setContactsEditing(false); setContactsDraft(null) }}
         />
       ) : null}
+      <ManageWeddingNotesModal
+        key={`shared-notes:${userId}:${weddingId}:${accessVersion}:${notesLevel}`}
+        open={notesEditing && notesLevel === 2 && Boolean(notesQuery.data)}
+        weddingId={weddingId}
+        notes={notesQuery.data?.notes ?? []}
+        mode="shared"
+        accessVersion={accessVersion}
+        onClose={() => setNotesEditing(false)}
+        onSaved={async () => (await notesQuery.refetch()).data?.notes}
+        onAuthorityLost={(kind) => {
+          if (kind === 'UNAVAILABLE') {
+            queryClient.removeQueries({ queryKey: ['collaborative-wedding-notes-v3', userId, weddingId] })
+          }
+          void queryClient.invalidateQueries({ queryKey: weddingDetailAuthorityQueryKey(userId, weddingId), exact: true })
+        }}
+      />
+      <AddNoteModal
+        key={`shared-add-note:${userId}:${weddingId}:${accessVersion}`}
+        open={notesAdding && notesLevel === 2 && notesQuery.isSuccess}
+        onClose={() => setNotesAdding(false)}
+        wedding={wedding}
+        mode="shared"
+        accessVersion={accessVersion}
+        onCreated={() => notesQuery.refetch()}
+        onAuthorityLost={(kind) => {
+          if (kind === 'UNAVAILABLE') queryClient.removeQueries({ queryKey: ['collaborative-wedding-notes-v3', userId, weddingId] })
+          void queryClient.invalidateQueries({ queryKey: weddingDetailAuthorityQueryKey(userId, weddingId), exact: true })
+        }}
+      />
     </AppLayout>
   )
 }

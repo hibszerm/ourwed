@@ -111,6 +111,7 @@ export interface ActivityFeedItem {
   body?: string
   date: string
   badge?: string
+  pinned?: boolean
 }
 
 export type { Couple, Wedding, WeddingPlace, WeddingNote, Task }

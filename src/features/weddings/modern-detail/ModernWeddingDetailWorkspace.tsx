@@ -27,6 +27,7 @@ import {
 } from '@/features/weddings/detail/v2/weddingWorkspaceSelectors'
 import { ModernWeddingDetailHeader } from '@/features/weddings/modern-detail/ModernWeddingDetailHeader'
 import { ModernWeddingDetailTabs } from '@/features/weddings/modern-detail/ModernWeddingDetailTabs'
+import { ManageWeddingNotesModal } from '@/features/weddings/modern-detail/ManageWeddingNotesModal'
 import { ModernWeddingLogisticsWorkspace } from '@/features/weddings/modern-detail/ModernWeddingLogisticsWorkspace'
 import { ModernWeddingOverview } from '@/features/weddings/modern-detail/ModernWeddingOverview'
 import { CanonicalWeddingTasksCard } from '@/features/tasks/CanonicalWeddingTasksCard'
@@ -77,6 +78,7 @@ export function ModernWeddingDetailWorkspace(props: WeddingDetailSharedProps) {
   const [packageFocus, setPackageFocus] = useState(false)
   const [travelFeeOpen, setTravelFeeOpen] = useState(false)
   const [deliveryDeadlineOpen, setDeliveryDeadlineOpen] = useState(false)
+  const [notesManageOpen, setNotesManageOpen] = useState(false)
   const isContactsEditor = editing && (editorSection === 'contacts' || editorSection === 'couple')
   const [ownerContactsDraft, setOwnerContactsDraft] = useState<WeddingContactsAggregate | null>(null)
   const [ownerContactsSaving, setOwnerContactsSaving] = useState(false)
@@ -321,9 +323,8 @@ export function ModernWeddingDetailWorkspace(props: WeddingDetailSharedProps) {
           <ModernWeddingHistoriaWorkspace
             feed={feed}
             onEditTasks={undefined}
-            onEditNotes={
-              onEditSection ? () => onEditSection('notes') : undefined
-            }
+            onEditNotes={() => setNotesManageOpen(true)}
+            onAddNote={() => onHeroAction('add_note')}
           />
         ) : null}
       </div>
@@ -374,6 +375,18 @@ export function ModernWeddingDetailWorkspace(props: WeddingDetailSharedProps) {
         onSaved={(next) => {
           setDeliveryDeadlineOpen(false)
           void handleWeddingUpdated(next)
+        }}
+      />
+      <ManageWeddingNotesModal
+        key={`owner-notes:${wedding.id}`}
+        open={notesManageOpen}
+        weddingId={wedding.id}
+        notes={notes}
+        mode="owner"
+        onClose={() => setNotesManageOpen(false)}
+        onSaved={async () => {
+          await queryClient.invalidateQueries({ queryKey: ['weddings', userId, wedding.id], exact: true })
+          return queryClient.getQueryData<Wedding>(['weddings', userId, wedding.id])?.notes
         }}
       />
     </div>

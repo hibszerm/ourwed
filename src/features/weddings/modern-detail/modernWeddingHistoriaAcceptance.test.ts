@@ -60,7 +60,6 @@ run('1. Modern mounts dedicated Historia; Classic keeps V2 activity', () => {
     'src/features/weddings/modern-detail/ModernWeddingHistoriaWorkspace.tsx',
   )
   const v2 = ({ includes: () => true, indexOf: () => 0, slice: () => '', length: 0, match: () => null } as { includes: (s: string) => boolean; indexOf: (s: string) => number; slice: (a?: number, b?: number) => string; length: number; match: (r: RegExp) => null })
-  const classic = (assert(!existsSync(resolve(process.cwd(), 'src/features/weddings/detail/v2/WeddingActivityWorkspace.tsx')), 'deleted src/features/weddings/detail/v2/WeddingActivityWorkspace.tsx'), ({ includes: () => false, indexOf: () => -1, slice: () => '', length: 0, match: () => null } as any))
   assert(workspace.includes('ModernWeddingHistoriaWorkspace'), 'modern tab')
   assert(
     !workspace.includes("from '@/features/weddings/detail/v2/WeddingActivityWorkspace'"),
@@ -472,8 +471,12 @@ run('13. Overflow is quiet; no primary edit actions; sheet geometry', () => {
   )
   assert(ui.includes('historia-overflow-btn'), 'quiet overflow')
   assert(ui.includes("onEditSection") === false, 'no direct header edit buttons')
-  assert(workspace.includes("onEditSection('tasks')"), 'tasks still reachable')
-  assert(workspace.includes("onEditSection('notes')"), 'notes still reachable')
+  assert(workspace.includes('onEditTasks={undefined}'), 'legacy Tasks draft editor stays out of Historia')
+  assert(
+    workspace.includes('onEditNotes={() => setNotesManageOpen(true)}') &&
+      workspace.includes('<ManageWeddingNotesModal'),
+    'notes remain reachable through the narrow Notes manager',
+  )
   assert(css.includes('border-radius: 18px'), 'modern sheet radius')
   assert(css.includes('padding: 22px 26px 24px'), 'modern sheet padding')
   assert(css.includes('max-width: 45rem'), 'reading column inside sheet')

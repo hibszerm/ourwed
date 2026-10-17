@@ -1,5 +1,4 @@
 import { contactService } from '@/lib/api/contactService'
-import { noteService } from '@/lib/api/noteService'
 import { paymentService } from '@/lib/api/paymentService'
 import { travelService } from '@/lib/api/travelService'
 import { weddingExtraServiceService } from '@/lib/api/weddingExtraServiceService'
@@ -94,9 +93,6 @@ export function validateWeddingEditDraft(draft: WeddingEditDraft): string | null
   if (!correspondenceResult.ok) return correspondenceResult.error
   for (const contact of draft.contacts) {
     if (!contact.name.trim()) return 'Kontakt musi mieć nazwę.'
-  }
-  for (const note of draft.notes) {
-    if (!note.content.trim()) return 'Notatka nie może być pusta.'
   }
   for (const task of draft.tasks) {
     if (!task.title.trim()) return 'Zadanie musi mieć tytuł.'
@@ -246,29 +242,6 @@ export async function persistWeddingEditDraft(
       await weddingExtraServiceService.update(extra.id, {
         quantity: extra.quantity,
         priceSnapshot: extra.priceSnapshot,
-      })
-    }
-  }
-
-  // Notes
-  const origNoteIds = new Set(original.wedding.notes.map((n) => n.id))
-  const draftNoteIds = new Set(draft.notes.map((n) => n.id))
-  for (const id of origNoteIds) {
-    if (!draftNoteIds.has(id)) await noteService.delete(id)
-  }
-  for (const note of draft.notes) {
-    if (isTempId(note.id)) {
-      await noteService.create({
-        weddingId,
-        content: note.content,
-        author: note.author,
-        pinned: note.pinned,
-      })
-    } else {
-      await noteService.update(note.id, {
-        content: note.content,
-        author: note.author,
-        pinned: note.pinned,
       })
     }
   }

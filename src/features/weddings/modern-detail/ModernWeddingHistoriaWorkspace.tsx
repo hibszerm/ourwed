@@ -1,5 +1,6 @@
 import { useEffect, useId, useMemo, useRef, useState, type KeyboardEvent } from 'react'
 import { MoreHorizontal } from 'lucide-react'
+import { Button } from '@/components/ui/Button'
 import { FloatingPortal } from '@/components/ui/FloatingPortal'
 import type { ActivityFeedItem } from '@/features/weddings/detail/v2/weddingDetailV2Types'
 import {
@@ -26,6 +27,7 @@ interface Props {
   feed: ActivityFeedItem[]
   onEditTasks?: () => void
   onEditNotes?: () => void
+  onAddNote?: () => void
 }
 
 /**
@@ -36,6 +38,7 @@ export function ModernWeddingHistoriaWorkspace({
   feed,
   onEditTasks,
   onEditNotes,
+  onAddNote,
 }: Props) {
   const days = useMemo(() => composeModernHistoria(feed), [feed])
   const [expandedDays, setExpandedDays] = useState<ReadonlySet<string>>(
@@ -74,10 +77,10 @@ export function ModernWeddingHistoriaWorkspace({
             <p className={styles.eyebrow}>{HISTORIA_EYEBROW}</p>
             <h2 className={styles.headline}>{HISTORIA_HEADLINE}</h2>
           </div>
-          <HistoriaOverflow
-            onEditNotes={onEditNotes}
-            onEditTasks={onEditTasks}
-          />
+          <div className={styles.headActions}>
+            {onAddNote ? <Button type="button" variant="secondary" size="sm" onClick={onAddNote}>Dodaj notatkę</Button> : null}
+            <HistoriaOverflow onEditNotes={onEditNotes} onEditTasks={onEditTasks} />
+          </div>
         </div>
 
         {days.length === 0 ? (
@@ -176,10 +179,11 @@ function HistoriaEntryRow({
       className={styles.entry}
       data-importance={entry.importance}
       data-kind={entry.kind}
+      data-pinned={entry.pinned ? 'true' : 'false'}
       data-testid={entry.kind === 'note' ? 'historia-note' : 'historia-event'}
     >
       {entry.kind === 'note' && entry.authorEyebrow ? (
-        <p className={styles.author}>{entry.authorEyebrow}</p>
+        <p className={styles.author}>{entry.authorEyebrow}{entry.pinned ? <span className={styles.pinned}> · Przypięta</span> : null}</p>
       ) : null}
       {entry.title ? <p className={styles.title}>{entry.title}</p> : null}
       {entry.body ? <p className={styles.body}>{entry.body}</p> : null}

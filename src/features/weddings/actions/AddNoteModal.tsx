@@ -8,14 +8,19 @@ import type { Wedding } from '@/types/wedding'
 import styles from './AddNoteModal.module.css'
 import formStyles from './actionForm.module.css'
 import { getUserFacingErrorMessage } from '@/lib/errors/userFacingError'
+import { collaborativeNotesService, CollaborativeNotesError } from '@/features/collaboration/collaborativeNotesService'
 
 interface AddNoteModalProps {
   open: boolean
   onClose: () => void
   wedding: Wedding
+  mode?: 'owner' | 'shared'
+  accessVersion?: string
+  onCreated?: () => Promise<unknown> | void
+  onAuthorityLost?: (kind: 'UNAVAILABLE' | 'FORBIDDEN') => void
 }
 
-export function AddNoteModal({ open, onClose, wedding }: AddNoteModalProps) {
+export function AddNoteModal({ open, onClose, wedding, mode = 'owner', accessVersion, onCreated, onAuthorityLost }: AddNoteModalProps) {
   const invalidate = useInvalidateWedding()
   const [busy, setBusy] = useState(false)
 
@@ -24,7 +29,7 @@ export function AddNoteModal({ open, onClose, wedding }: AddNoteModalProps) {
       open={open}
       onClose={onClose}
       title="Dodaj notatkę"
-      description="Notatka pojawi się na górze listy — widoczna tylko dla Ciebie."
+      description="Notatka będzie widoczna dla osób, które mają dostęp do notatek w tym zleceniu."
       busy={busy}
       size="md"
       showClose
@@ -42,12 +47,16 @@ export function AddNoteModal({ open, onClose, wedding }: AddNoteModalProps) {
     >
       {open ? (
         <AddNoteForm
-          key={wedding.id}
+          key={`${wedding.id}:${mode}:${accessVersion ?? 'owner'}`}
           wedding={wedding}
           busy={busy}
           setBusy={setBusy}
           onClose={onClose}
           invalidate={invalidate}
+          mode={mode}
+          accessVersion={accessVersion}
+          onCreated={onCreated}
+          onAuthorityLost={onAuthorityLost}
         />
       ) : null}
     </Modal>
@@ -60,12 +69,20 @@ function AddNoteForm({
   setBusy,
   onClose,
   invalidate,
+  mode,
+  accessVersion,
+  onCreated,
+  onAuthorityLost,
 }: {
   wedding: Wedding
   busy: boolean
   setBusy: (v: boolean) => void
   onClose: () => void
   invalidate: (weddingId: string) => Promise<unknown>
+  mode: 'owner' | 'shared'
+  accessVersion?: string
+  onCreated?: () => Promise<unknown> | void
+  onAuthorityLost?: (kind: 'UNAVAILABLE' | 'FORBIDDEN') => void
 }) {
   const [content, setContent] = useState('')
   const [pinned, setPinned] = useState(false)
@@ -81,14 +98,17 @@ function AddNoteForm({
     setBusy(true)
     setError(null)
     try {
-      await weddingActionsService.addNote({
-        weddingId: wedding.id,
-        content,
-        pinned,
-      })
-      await invalidate(wedding.id)
+      if (mode === 'shared') {
+        if (!accessVersion) throw new Error('Nie można potwierdzić dostępu do notatek.')
+        await collaborativeNotesService.create({ weddingId: wedding.id, accessVersion, content, pinned })
+        await onCreated?.()
+      } else {
+        await weddingActionsService.addNote({ weddingId: wedding.id, content, pinned })
+        await invalidate(wedding.id)
+      }
       onClose()
     } catch (err) {
+      if (err instanceof CollaborativeNotesError && (err.kind === 'UNAVAILABLE' || err.kind === 'FORBIDDEN')) onAuthorityLost?.(err.kind)
       setError(getUserFacingErrorMessage(err, 'Nie udało się dodać notatki.'))
     } finally {
       setBusy(false)

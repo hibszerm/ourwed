@@ -17,6 +17,7 @@ export interface HistoriaEntry {
   title: string
   authorEyebrow?: string
   body?: string
+  pinned?: boolean
   applyDisclosure?: {
     summary: string
     fullDescription: string
@@ -323,6 +324,7 @@ function toEntry(
     importance,
     title: kind === 'note' ? '' : editorialTitle(item.title),
     authorEyebrow: kind === 'note' ? item.title : undefined,
+    pinned: kind === 'note' ? Boolean(item.pinned) : false,
     body: applyDisclosure
       ? undefined
       : presentHistoriaDescription(item.body, kind),

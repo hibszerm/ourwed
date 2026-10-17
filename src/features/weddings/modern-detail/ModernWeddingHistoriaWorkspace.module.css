@@ -52,6 +52,13 @@
   color: var(--color-text-primary);
 }
 
+.headActions {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  flex-shrink: 0;
+}
+
 .overflowWrap {
   position: relative;
   flex-shrink: 0;
@@ -196,6 +203,11 @@
   text-transform: uppercase;
   color: var(--color-text-secondary);
   line-height: 1.25;
+}
+
+.pinned {
+  color: var(--color-accent, var(--color-text-secondary));
+  font-weight: 600;
 }
 
 .entry[data-importance='3'] .author {
