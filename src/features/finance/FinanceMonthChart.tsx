@@ -26,7 +26,7 @@ export function FinanceMonthChart({
   selectedMonth,
   onSelectMonth,
 }: FinanceMonthChartProps) {
-  const max = Math.max(1, ...months.map((m) => m.contractValue))
+  const max = Math.max(1, ...months.map((m) => Math.abs(m.personalValue ?? 0)))
   const selected =
     selectedMonth != null
       ? (months.find((m) => m.month === selectedMonth) ?? null)
@@ -43,25 +43,23 @@ export function FinanceMonthChart({
   )
 
   return (
-    <section
+      <section
       className={styles.chartSection}
-      aria-label="Wartość miesięczna sezonu"
+      aria-label="Osobista wartość miesięczna sezonu"
       data-finance-chart
     >
       <div className={styles.chartHeader}>
         <div className={styles.chartHeaderText}>
           <h2 className={styles.chartTitle}>Miesiące sezonu</h2>
-          <p className={styles.chartSubtitle}>
-            Wartość zleceń według miesiąca realizacji
-          </p>
+          <p className={styles.chartSubtitle}>Wartość zleceń według miesiąca realizacji · dla mnie</p>
         </div>
         <div className={styles.chartToolbar}>
           <div className={styles.chartLegend}>
             <span>
-              <i className={styles.legendPaid} aria-hidden /> Wpłacono
+                <i className={styles.legendPaid} aria-hidden /> Otrzymano dla mnie
             </span>
             <span>
-              <i className={styles.legendRemain} aria-hidden /> Pozostało
+                <i className={styles.legendRemain} aria-hidden /> Saldo dla mnie
             </span>
           </div>
           <button
@@ -84,10 +82,12 @@ export function FinanceMonthChart({
         >
           {months.map((m, index) => {
             /* Tallest bar ~84% of plot — denser vertical use, breathing room above. */
-            const heightPct = (m.contractValue / max) * 84
+            const personalValue = m.personalValue ?? 0
+            const personalReceived = m.personalReceived ?? 0
+            const heightPct = (Math.abs(personalValue) / max) * 84
             const paidPct =
-              m.contractValue > 0
-                ? Math.min(100, (m.totalPaid / m.contractValue) * 100)
+              personalValue > 0
+                ? Math.min(100, (personalReceived / personalValue) * 100)
                 : 0
             const isSelected = selectedMonth === m.month
             const empty = m.assignmentCount === 0
@@ -107,12 +107,12 @@ export function FinanceMonthChart({
                 title={
                   empty
                     ? `${full}: brak zleceń`
-                    : `${full}: ${countLabel}, wartość ${formatCurrency(m.contractValue)}, wpłacono ${formatCurrency(m.totalPaid)}, pozostało ${formatCurrency(m.remaining)}`
+                    : `${full}: ${countLabel}, wartość dla mnie ${m.personalValueKnownCount ? formatCurrency(personalValue) : 'nieustalona'}, otrzymano ${formatCurrency(personalReceived)}, saldo ${m.personalBalance == null ? 'nieustalone' : formatCurrency(m.personalBalance)}`
                 }
                 aria-label={
                   empty
                     ? `${full}, brak zleceń`
-                    : `${full}, ${countLabel}, wartość ${Math.round(m.contractValue)} zł, wpłacono ${Math.round(m.totalPaid)} zł, pozostało ${Math.round(m.remaining)} zł`
+                    : `${full}, ${countLabel}, wartość dla mnie ${m.personalValueKnownCount ? `${Math.round(personalValue)} zł` : 'nieustalona'}, otrzymano ${Math.round(personalReceived)} zł`
                 }
                 onClick={() => {
                   if (empty) return
@@ -124,7 +124,7 @@ export function FinanceMonthChart({
                     <div
                       className={styles.chartBarStack}
                       style={{
-                        height: `${Math.max(6, heightPct)}%`,
+                        height: `${heightPct > 0 ? Math.max(6, heightPct) : 0}%`,
                         ['--finance-bar-delay' as string]: `${barDelayMs}ms`,
                       }}
                       aria-hidden
@@ -165,18 +165,21 @@ export function FinanceMonthChart({
           </p>
           <div className={styles.monthDetailHero}>
             <p className={styles.monthDetailHeroValue}>
-              {formatCurrency(selected.contractValue)}
+              {selected.personalValueKnownCount ? formatCurrency(selected.personalValue ?? 0) : 'Nieustalona'}
             </p>
-            <p className={styles.monthDetailHeroLabel}>Wartość zleceń</p>
+            <p className={styles.monthDetailHeroLabel}>Wartość dla mnie</p>
           </div>
+          {(selected.personalValueKnownCount ?? 0) < selected.assignmentCount ? (
+            <p>{selected.assignmentCount - (selected.personalValueKnownCount ?? 0)} zleceń bez ustalonej wartości osobistej</p>
+          ) : null}
           <dl className={styles.monthDetailMetrics}>
             <div>
-              <dt>Wpłacono</dt>
-              <dd>{formatCurrency(selected.totalPaid)}</dd>
+              <dt>Otrzymano dla mnie</dt>
+              <dd>{formatCurrency(selected.personalReceived ?? 0)}</dd>
             </div>
             <div>
-              <dt>Pozostało</dt>
-              <dd>{formatCurrency(selected.remaining)}</dd>
+              <dt>Saldo dla mnie</dt>
+              <dd>{selected.personalBalance == null ? '—' : formatCurrency(selected.personalBalance)}</dd>
             </div>
           </dl>
         </div>

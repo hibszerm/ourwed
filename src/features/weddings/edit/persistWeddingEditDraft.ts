@@ -265,15 +265,20 @@ export async function persistWeddingEditDraft(
         method: payment.method,
         note: payment.note,
         paid: payment.paid,
+        receivedByUserId: payment.receivedByUserId,
+        receiverRelationshipId: payment.receiverRelationshipId ?? null,
       })
     } else {
       await paymentService.update(payment.id, {
+        expectedRevision: payment.receiverRevision ?? '1',
         type: payment.type,
         amount: payment.amount,
         paymentDate: payment.paidAt ?? null,
         method: payment.method ?? null,
         note: payment.note ?? null,
         paid: payment.paid,
+        receivedByUserId: payment.paid ? payment.receivedByUserId ?? undefined : undefined,
+        receiverRelationshipId: payment.paid ? payment.receiverRelationshipId ?? null : undefined,
       })
     }
   }

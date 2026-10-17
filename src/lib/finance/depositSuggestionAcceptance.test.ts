@@ -4,7 +4,7 @@
  * Run via: npm run test:finance-center (included)
  */
 
-import { existsSync,  readFileSync  } from 'node:fs'
+import { readFileSync } from 'node:fs'
 import { resolve } from 'node:path'
 import { getAgreedDeposit } from '@/lib/utils/commercial'
 
@@ -61,8 +61,8 @@ function assertNotIncludes(src: string, needle: string, m: string) {
   assertNotIncludes(modal, 'readOnly', 'D: amount not readOnly')
   assertIncludes(
     modal,
-    'amount: Math.round(parsed)',
-    'D: saved amount from form parse (manual 800 ok)',
+    'amount: parsed',
+    'D: validated decimal amount is saved without floating-point rounding',
   )
   console.log('PASS  D  suggested amount remains editable')
 }
@@ -71,10 +71,10 @@ function assertNotIncludes(src: string, needle: string, m: string) {
   // E — saving creates deposit payment type; CTA flips via hasPaidDepositPayment
   const modal = read('src/features/weddings/actions/AddPaymentModal.tsx')
   assertIncludes(modal, "type: asDeposit ? 'deposit' : 'installment'", 'E: deposit type on save')
-  const finance = (assert(!existsSync(resolve(process.cwd(), 'src/features/weddings/detail/v2/WeddingContractFinanceWorkspace.tsx')), 'deleted src/features/weddings/detail/v2/WeddingContractFinanceWorkspace.tsx'), ({ includes: () => false, indexOf: () => -1, slice: () => '', length: 0, match: () => null } as any))
+  const finance = read('src/features/weddings/modern-detail/ModernWeddingContractFinanceWorkspace.tsx')
   assertIncludes(
     finance,
-    'hasPaidDepositPayment(payments) ? (',
+    'const addDeposit = !hasPaidDepositPayment(payments)',
     'E: CTA becomes Dodaj wpłatę after paid deposit',
   )
   console.log('PASS  E  save creates deposit payment; CTA sequencing')

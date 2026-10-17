@@ -3,6 +3,7 @@ import type {
   FinanceMonthBucket,
   FinanceSeasonKpis,
 } from '@/lib/finance/financeSeasonTypes'
+import { formatCurrency } from '@/lib/utils/currency'
 import { AnimatedCurrencyValue } from '@/features/finance/AnimatedCurrencyValue'
 import {
   FINANCE_MONTH_LABELS_FULL,
@@ -55,9 +56,12 @@ export function FinanceSummaryPanel({
             month ? month.assignmentCount : kpis.sessionCount,
           )
         : formatFinanceAssignmentCount(count)
-  const contractValue = month ? month.contractValue : kpis.contractValue
-  const totalPaid = month ? month.totalPaid : kpis.totalPaid
-  const remaining = month ? month.remaining : kpis.remaining
+  const personalValue = month ? month.personalValue ?? 0 : kpis.personalValue ?? kpis.contractValue
+  const personalValueKnownCount = month
+    ? month.personalValueKnownCount ?? 0
+    : kpis.personalValueKnownCount ?? 0
+  const personalReceived = month ? month.personalReceived ?? 0 : kpis.personalReceived ?? kpis.totalPaid
+  const personalBalance = month ? month.personalBalance : kpis.personalBalance
 
   /* Count-up only on page entrance while season summary is showing. */
   const animateEntrance = reveal === 'prep' || reveal === 'play'
@@ -74,24 +78,33 @@ export function FinanceSummaryPanel({
         <h2 className={styles.summaryTitle}>{title}</h2>
       </div>
       <p className={styles.summaryCount}>{countLabel}</p>
+      {personalValueKnownCount < count ? (
+        <p className={styles.summaryCount}>
+          {count - personalValueKnownCount} zleceń bez ustalonej wartości osobistej
+        </p>
+      ) : null}
 
       <dl className={styles.summaryMetrics}>
         <div className={styles.summaryMetricPrimary}>
-          <dt>Wartość zleceń</dt>
-          <dd>
+          <dt>Wartość dla mnie</dt>
+          <dd>{personalValueKnownCount === 0 ? 'Nieustalona' : (
             <AnimatedCurrencyValue
-              value={contractValue}
+              value={personalValue}
               reveal={metricReveal}
               delayMs={FINANCE_SUMMARY_COUNT_DELAYS_MS.primary}
               durationMs={FINANCE_COUNT_MS}
             />
-          </dd>
+          )}</dd>
         </div>
         <div className={styles.summaryMetricSecondary}>
-          <dt>Wpłacono</dt>
+          <dt>Wartość umów</dt>
+          <dd>{formatCurrency(month ? month.contractValue : kpis.contractValue)}</dd>
+        </div>
+        <div className={styles.summaryMetricSecondary}>
+          <dt>Otrzymano dla mnie</dt>
           <dd>
             <AnimatedCurrencyValue
-              value={totalPaid}
+              value={personalReceived}
               reveal={metricReveal}
               delayMs={FINANCE_SUMMARY_COUNT_DELAYS_MS.paid}
               durationMs={820}
@@ -99,15 +112,15 @@ export function FinanceSummaryPanel({
           </dd>
         </div>
         <div className={styles.summaryMetricSecondary}>
-          <dt>Pozostało</dt>
-          <dd>
+          <dt>Saldo dla mnie</dt>
+          <dd>{personalBalance == null ? '—' : (
             <AnimatedCurrencyValue
-              value={remaining}
+              value={personalBalance}
               reveal={metricReveal}
               delayMs={FINANCE_SUMMARY_COUNT_DELAYS_MS.remaining}
               durationMs={800}
             />
-          </dd>
+          )}</dd>
         </div>
       </dl>
     </aside>

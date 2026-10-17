@@ -73,6 +73,11 @@ async function invalidateCollaboration(
   if (input.weddingId) jobs.push(queryClient.invalidateQueries({
     queryKey: weddingCollaborationQueryKeys.ownerState(userId, input.weddingId),
   }))
+  if (input.weddingId) {
+    jobs.push(queryClient.invalidateQueries({ queryKey: ['wedding-payment-receivers-v3', userId, input.weddingId] }))
+    jobs.push(queryClient.invalidateQueries({ queryKey: ['collaboration-compensation-v3', 'owner', userId, input.weddingId] }))
+    jobs.push(queryClient.invalidateQueries({ queryKey: ['finance'] }))
+  }
   if (input.incoming) jobs.push(queryClient.invalidateQueries({
     queryKey: weddingCollaborationQueryKeys.incoming(userId),
   }))

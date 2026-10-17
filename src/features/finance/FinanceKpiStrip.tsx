@@ -27,21 +27,17 @@ export function FinanceKpiStrip({
 
   const items = [
     {
-      key: 'cv',
-      label: 'Wartość zleceń',
-      amount: kpis.contractValue,
+      key: 'personal',
+      label: 'Wartość zleceń dla mnie',
+      amount: kpis.personalValue ?? kpis.contractValue,
     },
-    { key: 'paid', label: 'Wpłacono', amount: kpis.totalPaid },
+    { key: 'paid', label: 'Wpłacono · otrzymano dla mnie', amount: kpis.personalReceived ?? kpis.totalPaid },
     {
       key: 'remain',
-      label: 'Pozostało',
-      amount: kpis.remaining,
+      label: 'Pozostało · saldo dla mnie',
+      amount: kpis.personalBalance ?? kpis.remaining,
     },
-    {
-      key: 'dep',
-      label: FINANCE_KPI_DEPOSITS_LABEL,
-      amount: kpis.depositsReceived,
-    },
+    { key: 'deposits', label: FINANCE_KPI_DEPOSITS_LABEL, amount: kpis.depositsReceived },
   ]
 
   const secondary = getFinanceSecondarySummaryParts({
@@ -49,7 +45,9 @@ export function FinanceKpiStrip({
     assignmentCount: kpis.assignmentCount,
     weddingCount: kpis.weddingCount,
     sessionCount: kpis.sessionCount,
-    averageContractValue: kpis.averageContractValue,
+    averageContractValue: kpis.averagePersonalValue !== undefined
+      ? kpis.averagePersonalValue
+      : kpis.averageContractValue,
     formatMoney: formatCurrency,
   })
 
@@ -60,11 +58,13 @@ export function FinanceKpiStrip({
           <div key={item.key} className={styles.kpiCard}>
             <p className={styles.kpiLabel}>{item.label}</p>
             <p className={styles.kpiValue}>
-              <AnimatedCurrencyValue
-                value={item.amount}
-                reveal={reveal}
-                delayMs={FINANCE_KPI_COUNT_DELAYS_MS[index] ?? 0}
-              />
+              {item.key === 'personal' && (kpis.personalValueKnownCount ?? 0) === 0
+                ? 'Nieustalona'
+                : <AnimatedCurrencyValue
+                    value={item.amount}
+                    reveal={reveal}
+                    delayMs={FINANCE_KPI_COUNT_DELAYS_MS[index] ?? 0}
+                  />}
             </p>
           </div>
         ))}
@@ -84,6 +84,9 @@ export function FinanceKpiStrip({
         </span>
         {secondary.average != null ? (
           <span className={styles.kpiSecondaryAverage}>{secondary.average}</span>
+        ) : null}
+        {(kpis.personalValueKnownCount ?? 0) < kpis.assignmentCount ? (
+          <span>{kpis.assignmentCount - (kpis.personalValueKnownCount ?? 0)} zleceń z nieustaloną wartością osobistą</span>
         ) : null}
       </p>
     </section>

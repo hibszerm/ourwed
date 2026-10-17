@@ -1,3 +1,4 @@
+import { useQuery } from '@tanstack/react-query'
 import { Button } from '@/components/ui/Button'
 import { Card, CardHeader } from '@/components/ui/Card'
 import { Input, Select } from '@/components/ui/Input'
@@ -9,6 +10,8 @@ import {
   getTotalPaid,
 } from '@/lib/utils/finance'
 import { createBrowserSafeId } from '@/lib/utils/createBrowserSafeId'
+import { paymentService } from '@/lib/api/paymentService'
+import { useAuth } from '@/features/auth/AuthProvider'
 import type { Payment, PaymentType, Wedding } from '@/types/wedding'
 import editStyles from '@/features/weddings/edit/WeddingEdit.module.css'
 import styles from './WeddingDetailFinances.module.css'
@@ -40,6 +43,7 @@ export function WeddingDetailFinances({
   onChangeWedding,
   onChangePayments,
 }: WeddingDetailFinancesProps) {
+  const { user } = useAuth()
   const contractValue = contractPrice || getContractValue(wedding)
   const agreedDeposit = getAgreedDeposit(wedding)
   const totalPaid = getTotalPaid(payments)
@@ -48,6 +52,12 @@ export function WeddingDetailFinances({
     contractValue,
     agreedDeposit,
   )
+  const receiverQuery = useQuery({
+    queryKey: ['wedding-payment-receivers-v3', user?.id, wedding.id],
+    queryFn: () => paymentService.listReceivers(wedding.id),
+    enabled: editing,
+    staleTime: 0,
+  })
 
   function updatePayment(id: string, patch: Partial<Payment>) {
     onChangePayments?.(
@@ -59,6 +69,18 @@ export function WeddingDetailFinances({
         }
         if (patch.paid === false) {
           next.paidAt = undefined
+          next.receivedByUserId = undefined
+          next.receiverRelationshipId = undefined
+          next.receiverKind = undefined
+          next.receiverLabel = undefined
+        }
+        if (patch.paid === true && !next.receivedByUserId) {
+          const owner = receiverQuery.data?.find((option) => option.kind === 'owner')
+          if (owner) {
+            next.receivedByUserId = owner.userId
+            next.receiverKind = 'owner'
+            next.receiverLabel = owner.label
+          }
         }
         if (patch.type) next.label = TYPE_LABELS[patch.type]
         return next
@@ -211,6 +233,39 @@ export function WeddingDetailFinances({
                   Opłacona
                 </label>
               </div>
+              {payment.paid ? (
+                <Select
+                  label="Otrzymał"
+                  value={payment.receiverRelationshipId
+                    ? `collaborator:${payment.receiverRelationshipId}`
+                    : payment.receivedByUserId ? `owner:${payment.receivedByUserId}` : ''}
+                  disabled={receiverQuery.isPending || receiverQuery.isError}
+                  onChange={(event) => {
+                    const selected = receiverQuery.data?.find((option) => option.kind === 'owner'
+                      ? event.target.value === `owner:${option.userId}`
+                      : event.target.value === `collaborator:${option.relationshipId}`)
+                    if (selected) updatePayment(payment.id, {
+                      receivedByUserId: selected.userId,
+                      receiverRelationshipId: selected.relationshipId ?? undefined,
+                      receiverKind: selected.kind,
+                      receiverLabel: selected.label,
+                    })
+                  }}
+                >
+                  <option value="">Wybierz osobę</option>
+                  {payment.receivedByUserId && !(receiverQuery.data ?? []).some((option) => option.userId === payment.receivedByUserId && option.relationshipId === (payment.receiverRelationshipId ?? null)) ? (
+                    <option value={payment.receiverRelationshipId ? `collaborator:${payment.receiverRelationshipId}` : `owner:${payment.receivedByUserId}`}>
+                      {payment.receiverLabel ?? 'Historyczny odbiorca'}
+                    </option>
+                  ) : null}
+                  {(receiverQuery.data ?? []).map((option) => (
+                    <option key={option.relationshipId ?? option.userId}
+                      value={option.kind === 'owner' ? `owner:${option.userId}` : `collaborator:${option.relationshipId}`}>
+                      {option.label}
+                    </option>
+                  ))}
+                </Select>
+              ) : null}
               <div className={editStyles.inlineActions}>
                 <Button
                   type="button"

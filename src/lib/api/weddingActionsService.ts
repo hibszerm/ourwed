@@ -43,13 +43,15 @@ export interface SendQuestionnaireInput {
 
 export interface AddPaymentInput {
   weddingId: string
-  amount: number
+  amount: number | string
   date: string
   method: PaymentMethod
   note?: string
   /** Defaults to installment; use deposit for zadatek. */
   type?: PaymentType
   label?: string
+  receivedByUserId?: string
+  receiverRelationshipId?: string | null
 }
 
 export interface AddNoteInput {
@@ -157,6 +159,8 @@ export const weddingActionsService = {
       paymentDate,
       method: input.method,
       note: input.note?.trim() || undefined,
+      receivedByUserId: input.receivedByUserId,
+      receiverRelationshipId: input.receiverRelationshipId,
     })
 
     const methodLabel = PAYMENT_METHOD_LABELS[input.method]

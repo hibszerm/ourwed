@@ -8,6 +8,7 @@ import { useActiveWeddingCollaborators, useCreateWeddingInvitation, useWeddingCo
 import type { WeddingInvitationStatus } from '@/features/collaboration/weddingCollaborationService'
 import type { Wedding } from '@/types/wedding'
 import styles from './WeddingCollaboration.module.css'
+import { OwnerCompensationTermsPanel } from './OwnerCompensationTermsPanel'
 
 const STATUS_LABELS: Record<WeddingInvitationStatus, string> = {
   pending: 'Oczekuje',
@@ -90,6 +91,7 @@ export function WeddingCollaborationOwnerPanel({ wedding }: { wedding: Wedding }
       </div>
 
       {state.isLoading ? <p className={styles.muted}>Ładowanie współpracy…</p> : null}
+      <OwnerCompensationTermsPanel weddingId={wedding.id} currency={currency} />
       {state.isError ? <p className={styles.error} role="alert">Nie udało się załadować współpracy. Odśwież zlecenie.</p> : null}
       {!state.isLoading && !state.isError && (state.data?.invitations.length ?? 0) === 0 ? (
         <p className={styles.muted}>Nie ma jeszcze zaproszeń do tego zlecenia.</p>

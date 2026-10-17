@@ -1,7 +1,10 @@
+import { useQuery } from '@tanstack/react-query'
 import { Button } from '@/components/ui/Button'
 import { Input, Select } from '@/components/ui/Input'
 import { rebaseEffectivePackageBase, sumExtraPriceSnapshots } from '@/lib/forms/weddingExtraPricing'
 import { createBrowserSafeId } from '@/lib/utils/createBrowserSafeId'
+import { paymentService } from '@/lib/api/paymentService'
+import { useAuth } from '@/features/auth/AuthProvider'
 import { getEffectiveTravelFeeAmount } from '@/lib/utils/travelFeeCommercial'
 import type { WeddingExtraService } from '@/types/package'
 import type { Payment, PaymentType, Wedding } from '@/types/wedding'
@@ -32,6 +35,12 @@ export function FinanceFields({
   onChangePayments: (payments: Payment[]) => void
   onChangePackageBasePrice?: (price: number) => void
 }) {
+  const { user } = useAuth()
+  const receiverQuery = useQuery({
+    queryKey: ['wedding-payment-receivers-v3', user?.id, wedding.id],
+    queryFn: () => paymentService.listReceivers(wedding.id),
+    staleTime: 0,
+  })
   function applyManualContractValue(enteredCv: number) {
     onChangeWedding({ price: enteredCv })
     onChangePackageBasePrice?.(
@@ -57,6 +66,20 @@ export function FinanceFields({
           next.paidAt = new Date().toISOString().slice(0, 10)
         }
         if (patch.paid === false) next.paidAt = undefined
+        if (patch.paid === false) {
+          next.receivedByUserId = undefined
+          next.receiverRelationshipId = undefined
+          next.receiverKind = undefined
+          next.receiverLabel = undefined
+        }
+        if (patch.paid === true && !next.receivedByUserId) {
+          const owner = receiverQuery.data?.find((option) => option.kind === 'owner')
+          if (owner) {
+            next.receivedByUserId = owner.userId
+            next.receiverKind = 'owner'
+            next.receiverLabel = owner.label
+          }
+        }
         if (patch.type) next.label = TYPE_LABELS[patch.type]
         return next
       }),
@@ -176,6 +199,39 @@ export function FinanceFields({
                   />{' '}
                   Opłacone
                 </label>
+                {p.paid ? (
+                  <Select
+                    label="Otrzymał"
+                    value={p.receiverRelationshipId
+                      ? `collaborator:${p.receiverRelationshipId}`
+                      : p.receivedByUserId ? `owner:${p.receivedByUserId}` : ''}
+                    disabled={receiverQuery.isPending || receiverQuery.isError}
+                    onChange={(e) => {
+                      const selected = receiverQuery.data?.find((option) => option.kind === 'owner'
+                        ? e.target.value === `owner:${option.userId}`
+                        : e.target.value === `collaborator:${option.relationshipId}`)
+                      if (selected) updatePayment(p.id, {
+                        receivedByUserId: selected.userId,
+                        receiverRelationshipId: selected.relationshipId ?? undefined,
+                        receiverKind: selected.kind,
+                        receiverLabel: selected.label,
+                      })
+                    }}
+                  >
+                    <option value="">Wybierz osobę</option>
+                    {p.receivedByUserId && !(receiverQuery.data ?? []).some((option) => option.userId === p.receivedByUserId && option.relationshipId === (p.receiverRelationshipId ?? null)) ? (
+                      <option value={p.receiverRelationshipId ? `collaborator:${p.receiverRelationshipId}` : `owner:${p.receivedByUserId}`}>
+                        {p.receiverLabel ?? 'Historyczny odbiorca'}
+                      </option>
+                    ) : null}
+                    {(receiverQuery.data ?? []).map((option) => (
+                      <option key={option.relationshipId ?? option.userId}
+                        value={option.kind === 'owner' ? `owner:${option.userId}` : `collaborator:${option.relationshipId}`}>
+                        {option.label}
+                      </option>
+                    ))}
+                  </Select>
+                ) : null}
                 <Button
                   type="button"
                   variant="ghost"

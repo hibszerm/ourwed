@@ -3,7 +3,7 @@
  * Run via: npm run test:finance-center (included)
  */
 
-import { existsSync,  readFileSync  } from 'node:fs'
+import { readFileSync } from 'node:fs'
 import { resolve } from 'node:path'
 import { hasPaidDepositPayment } from '@/lib/finance/hasPaidDepositPayment'
 import {
@@ -116,7 +116,7 @@ function pay(
 
 {
   // F — Finance Center invalidation via useInvalidateWedding
-  const workspace = (assert(!existsSync(resolve(process.cwd(), 'src/features/weddings/detail/v2/WeddingContractFinanceWorkspace.tsx')), 'deleted src/features/weddings/detail/v2/WeddingContractFinanceWorkspace.tsx'), ({ includes: () => false, indexOf: () => -1, slice: () => '', length: 0, match: () => null } as any))
+  const workspace = read('src/features/weddings/modern-detail/ModernWeddingContractFinanceWorkspace.tsx')
   assertIncludes(workspace, 'useInvalidateWedding', 'F: invalidates wedding')
   assertIncludes(workspace, 'paymentService.delete', 'F: deletes via service')
   const invalidate = read('src/features/weddings/hooks/useInvalidateWedding.ts')
@@ -128,7 +128,7 @@ function pay(
 
 {
   // G — delete does not mutate commercial snapshot fields
-  const workspace = (assert(!existsSync(resolve(process.cwd(), 'src/features/weddings/detail/v2/WeddingContractFinanceWorkspace.tsx')), 'deleted src/features/weddings/detail/v2/WeddingContractFinanceWorkspace.tsx'), ({ includes: () => false, indexOf: () => -1, slice: () => '', length: 0, match: () => null } as any))
+  const workspace = read('src/features/weddings/modern-detail/ModernWeddingContractFinanceWorkspace.tsx')
   assertIncludes(workspace, 'paymentService.delete', 'G: only payment delete')
   assertIncludes(
     workspace,
@@ -168,7 +168,7 @@ function pay(
 }
 
 {
-  const workspace = (assert(!existsSync(resolve(process.cwd(), 'src/features/weddings/detail/v2/WeddingContractFinanceWorkspace.tsx')), 'deleted src/features/weddings/detail/v2/WeddingContractFinanceWorkspace.tsx'), ({ includes: () => false, indexOf: () => -1, slice: () => '', length: 0, match: () => null } as any))
+  const workspace = read('src/features/weddings/modern-detail/ModernWeddingContractFinanceWorkspace.tsx')
   assertIncludes(workspace, 'finance-edit-payment', 'UX: edit control')
   assertIncludes(workspace, 'finance-delete-payment', 'UX: delete control')
   assertIncludes(workspace, 'Usunąć zadatek?', 'UX: deposit confirm title')
@@ -182,7 +182,7 @@ function pay(
 }
 
 {
-  const workspace = (assert(!existsSync(resolve(process.cwd(), 'src/features/weddings/detail/v2/WeddingContractFinanceWorkspace.tsx')), 'deleted src/features/weddings/detail/v2/WeddingContractFinanceWorkspace.tsx'), ({ includes: () => false, indexOf: () => -1, slice: () => '', length: 0, match: () => null } as any))
+  const workspace = read('src/features/weddings/modern-detail/ModernWeddingContractFinanceWorkspace.tsx')
   const deleteFn = workspace.slice(
     workspace.indexOf('async function confirmDeletePayment()'),
     workspace.indexOf('return (', workspace.indexOf('async function confirmDeletePayment()')),

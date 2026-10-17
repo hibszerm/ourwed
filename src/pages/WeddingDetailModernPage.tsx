@@ -6,6 +6,7 @@ import { Button } from '@/components/ui/Button'
 import { PageContainer } from '@/components/ui/PageContainer'
 import { useAuth } from '@/features/auth/AuthProvider'
 import { useCollaborativeWeddingIdentity } from '@/features/collaboration/useCollaborativeWeddingIdentity'
+import { CollaborativeCompensationCard } from '@/features/collaboration/CollaborativeCompensationCard'
 import { useWeddingDetailAuthority, useEvictIncompatibleWeddingDetailCaches, weddingDetailAuthorityQueryKey } from '@/features/weddings/detail/weddingDetailAuthority'
 import { resolveWeddingDetailHostBranch } from '@/features/weddings/detail/weddingDetailHostBranch'
 import { WeddingDetailHostModals } from '@/features/weddings/detail/WeddingDetailHostModals'
@@ -60,7 +61,8 @@ export function WeddingDetailModernPage() {
       weddingId={authority.weddingId} userId={user?.id}
       accessVersion={authority.accessVersion} logisticsLevel={authority.effectiveAreas.logistics}
       preweddingLevel={authority.effectiveAreas.prewedding} contactsLevel={authority.effectiveAreas.contacts}
-      tasksLevel={authority.effectiveAreas.tasks} notesLevel={authority.effectiveAreas.notes} />
+      tasksLevel={authority.effectiveAreas.tasks} notesLevel={authority.effectiveAreas.notes}
+      compensationLevel={authority.effectiveAreas.compensation} />
   }
   return <UnavailableDetail />
 }
@@ -90,8 +92,8 @@ function OwnedWeddingDetail() {
   )
 }
 
-function SharedWeddingDetail({ weddingId, userId, accessVersion, logisticsLevel, preweddingLevel, contactsLevel, tasksLevel, notesLevel }: {
-  weddingId: string; userId: string | undefined; accessVersion: string; logisticsLevel: 0 | 1 | 2; preweddingLevel: 0 | 1 | 2; contactsLevel: 0 | 1 | 2; tasksLevel: 0 | 1 | 2; notesLevel: 0 | 1 | 2
+function SharedWeddingDetail({ weddingId, userId, accessVersion, logisticsLevel, preweddingLevel, contactsLevel, tasksLevel, notesLevel, compensationLevel }: {
+  weddingId: string; userId: string | undefined; accessVersion: string; logisticsLevel: 0 | 1 | 2; preweddingLevel: 0 | 1 | 2; contactsLevel: 0 | 1 | 2; tasksLevel: 0 | 1 | 2; notesLevel: 0 | 1 | 2; compensationLevel: 0 | 1 | 2
 }) {
   const queryClient = useQueryClient()
   const [searchParams, setSearchParams] = useSearchParams()
@@ -192,6 +194,8 @@ function SharedWeddingDetail({ weddingId, userId, accessVersion, logisticsLevel,
         <div className={styles.page} data-testid="wedding-detail-modern" data-authority="shared">
           <div className={workspaceStyles.workspace} data-testid="shared-canonical-wedding-detail">
             <ModernWeddingIdentityHero wedding={wedding} places={[]} testId="modern-wedding-detail-header" />
+            {userId ? <CollaborativeCompensationCard key={`${userId}:${weddingId}:${accessVersion}:${compensationLevel}`} weddingId={weddingId} userId={userId}
+              accessVersion={accessVersion} compensationLevel={compensationLevel} /> : null}
             {contactsLevel > 0 && contactsQuery.data ? (
               <CanonicalCoupleCard
                 couple={contactsToCouple(contactsQuery.data)}

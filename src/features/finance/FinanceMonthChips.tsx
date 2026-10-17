@@ -45,7 +45,7 @@ export function FinanceMonthChips({
           <span>{FINANCE_MONTH_LABELS_SHORT[m.month - 1]}</span>
           {m.assignmentCount > 0 ? (
             <span className={styles.monthChipMeta}>
-              {formatCurrency(m.contractValue)}
+              {m.personalValueKnownCount ? formatCurrency(m.personalValue ?? 0) : 'Nieustalona'}
             </span>
           ) : null}
         </button>

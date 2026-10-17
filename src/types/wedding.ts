@@ -98,6 +98,12 @@ export interface Payment {
   dueDate?: string
   method?: PaymentMethod
   note?: string
+  /** Owner-known physical receipt attribution; relationship ID is used only in service calls. */
+  receivedByUserId?: string
+  receiverRelationshipId?: string
+  receiverLabel?: string
+  receiverKind?: 'owner' | 'collaborator'
+  receiverRevision?: string
 }
 
 /** Koszty operacyjne (sprzęt, podwykonawcy) — nie wliczane do wartości umowy. */

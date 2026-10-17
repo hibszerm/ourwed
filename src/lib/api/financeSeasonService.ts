@@ -11,7 +11,10 @@ import { supabase } from '@/lib/supabase'
 import { throwOnError, toDateString } from '@/lib/supabase/helpers'
 import {
   FINANCE_INCLUDED_STATUSES,
+  buildFinanceMonthBuckets,
+  buildFinanceSeasonKpis,
   buildFinanceSeasonModel,
+  resolvePersonalFinanceStatus,
   seasonDateRange,
   type FinanceSessionScalarRow,
   type FinanceWeddingScalarRow,
@@ -92,6 +95,28 @@ function mapSessionRow(row: FinanceSessionDbRow): FinanceSessionScalarRow | null
   }
 }
 
+interface PersonalCompensationRow {
+  wedding_id: string
+  wedding_label: string
+  wedding_date: string | null
+  status: string
+  collaborative: boolean
+  relationship_id?: string
+  value_known: boolean
+  personal_value: number | string | null
+  currency: string | null
+  source: 'owner_net' | 'official_compensation' | 'private_fallback' | 'unknown'
+  received_total: number | string | null
+  balance: number | string | null
+  balance_known: boolean
+}
+
+function nullableMoney(value: number | string | null): number | null {
+  if (value == null || value === '') return null
+  const parsed = typeof value === 'number' ? value : Number(value)
+  return Number.isFinite(parsed) ? Math.round(parsed * 100) / 100 : null
+}
+
 export const financeSeasonService = {
   /**
    * Load one season: light weddings + light sessions + two payment batches.
@@ -142,14 +167,98 @@ export const financeSeasonService = {
       paymentService.listByWeddingIds(weddingIds),
       sessionPaymentService.listBySessionIds(sessionIds),
     ])
+    const personalValuesRes = await supabase.rpc('get_my_personal_compensation_values_v3', { p_wedding_ids: null })
+    throwOnError(personalValuesRes.error)
 
-    return buildFinanceSeasonModel(
+    const model = buildFinanceSeasonModel(
       seasonYear,
       weddingRows,
       paymentsByWeddingId,
       sessionRows,
       paymentsBySessionId,
     )
+    const personalRows = (Array.isArray(personalValuesRes.data) ? personalValuesRes.data : []) as PersonalCompensationRow[]
+    const seasonFrom = `${seasonYear}-01-01`
+    const seasonTo = `${seasonYear}-12-31`
+    const personalById = new Map(personalRows.map((row) => [row.wedding_id, row]))
+    const assignments = model.assignments.map((assignment) => {
+      if (assignment.kind !== 'wedding') return assignment
+      const row = personalById.get(assignment.id)
+      if (!row) return { ...assignment, personalValue: null, personalValueKnown: false, personalValueSource: 'unknown' as const }
+      const personalValue = row.value_known ? nullableMoney(row.personal_value) : null
+      const ownedPayments = paymentsByWeddingId.get(assignment.id) ?? []
+      const ownerReceived = ownedPayments
+        .filter((payment) => payment.paid && payment.receivedByUserId === userId)
+        .reduce((sum, payment) => sum + Math.round(payment.amount * 100), 0) / 100
+      const received = row.collaborative ? nullableMoney(row.received_total) ?? 0 : ownerReceived
+      const balance = row.collaborative
+        ? row.balance_known ? nullableMoney(row.balance) : null
+        : personalValue == null ? null : Math.round((personalValue - ownerReceived) * 100) / 100
+      return {
+        ...assignment,
+        displayName: row.wedding_label || assignment.displayName,
+        personalValue,
+        personalValueKnown: row.value_known && personalValue != null,
+        personalValueSource: row.source,
+        personalReceived: received,
+        personalBalance: balance,
+        ...(row.collaborative ? {} : {
+          paymentStatus: resolvePersonalFinanceStatus(row.value_known && personalValue != null, balance, received),
+          overpayment: balance != null && balance < 0 ? Math.abs(balance) : 0,
+        }),
+        collaborative: row.collaborative,
+        ...(row.collaborative && row.relationship_id ? { compensationRelationshipId: row.relationship_id } : {}),
+        ...(row.collaborative ? {
+          contractValue: 0,
+          totalPaid: 0,
+          remaining: 0,
+          depositPaid: 0,
+          agreedDeposit: 0,
+          paymentStatus: resolvePersonalFinanceStatus(row.value_known && personalValue != null, balance, received),
+          depositStatus: 'none' as const,
+          overpayment: balance != null && balance < 0 ? Math.abs(balance) : 0,
+        } : {}),
+      }
+    })
+    const knownIds = new Set(assignments.filter((a) => a.kind === 'wedding').map((a) => a.id))
+    for (const row of personalRows) {
+      if (!row.collaborative || knownIds.has(row.wedding_id) || !row.wedding_date) continue
+      const date = toDateString(row.wedding_date)
+      if (!date || date < seasonFrom || date > seasonTo || !FINANCE_INCLUDED_STATUSES.includes(row.status as 'active' | 'archived')) continue
+      const personalValue = row.value_known ? nullableMoney(row.personal_value) : null
+      const received = nullableMoney(row.received_total) ?? 0
+      const balance = row.balance_known ? nullableMoney(row.balance) : null
+      assignments.push({
+        id: row.wedding_id,
+        kind: 'wedding',
+        date,
+        displayName: row.wedding_label || 'Wesele',
+        contractValue: 0,
+        personalValue,
+        personalValueKnown: row.value_known && personalValue != null,
+        personalValueSource: row.source,
+        personalReceived: received,
+        personalBalance: balance,
+        collaborative: true,
+        compensationRelationshipId: row.relationship_id,
+        agreedDeposit: 0,
+        depositPaid: 0,
+        totalPaid: 0,
+        remaining: 0,
+        overpayment: balance != null && balance < 0 ? Math.abs(balance) : 0,
+        currency: row.currency?.trim() || 'PLN',
+        paymentStatus: resolvePersonalFinanceStatus(row.value_known && personalValue != null, balance, received),
+        depositStatus: 'none',
+        deepLink: `/wedding/${row.wedding_id}`,
+        weddingStatus: row.status === 'archived' ? 'archived' : 'active',
+      })
+      knownIds.add(row.wedding_id)
+    }
+    model.assignments = assignments.sort((a, b) => a.date.localeCompare(b.date))
+    model.weddings = model.assignments
+    model.months = buildFinanceMonthBuckets(model.assignments)
+    model.kpis = buildFinanceSeasonKpis(model.assignments)
+    return model
   },
 
   /**
@@ -190,6 +299,14 @@ export const financeSeasonService = {
       const d = toDateString(row.session_date)
       if (!d) continue
       const y = Number(d.slice(0, 4))
+      if (Number.isInteger(y) && y >= 2000 && y <= 2100) years.add(y)
+    }
+    const personalValuesRes = await supabase.rpc('get_my_personal_compensation_values_v3', { p_wedding_ids: null })
+    throwOnError(personalValuesRes.error)
+    for (const row of (Array.isArray(personalValuesRes.data) ? personalValuesRes.data : []) as PersonalCompensationRow[]) {
+      const date = toDateString(row.wedding_date)
+      if (!date) continue
+      const y = Number(date.slice(0, 4))
       if (Number.isInteger(y) && y >= 2000 && y <= 2100) years.add(y)
     }
     return [...years].sort((a, b) => a - b)

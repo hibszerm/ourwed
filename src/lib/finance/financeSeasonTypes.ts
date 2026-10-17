@@ -37,6 +37,14 @@ export interface FinanceAssignment {
   date: string
   displayName: string
   contractValue: number
+  /** Actor-specific economic value; null means unknown, explicit zero is known. */
+  personalValue?: number | null
+  personalValueKnown?: boolean
+  personalValueSource?: 'owner_net' | 'official_compensation' | 'private_fallback' | 'contract' | 'unknown'
+  personalReceived?: number
+  personalBalance?: number | null
+  collaborative?: boolean
+  compensationRelationshipId?: string
   agreedDeposit: number
   depositPaid: number
   totalPaid: number
@@ -62,6 +70,11 @@ export interface FinanceMonthBucket {
   /** @deprecated alias of assignmentCount for older UI */
   weddingCount: number
   contractValue: number
+  personalValue?: number
+  personalValueKnownCount?: number
+  personalReceived?: number
+  personalBalance?: number | null
+  personalBalanceKnownCount?: number
   totalPaid: number
   remaining: number
   depositsReceived: number
@@ -69,6 +82,12 @@ export interface FinanceMonthBucket {
 
 export interface FinanceSeasonKpis {
   contractValue: number
+  personalValue?: number
+  personalValueKnownCount?: number
+  personalReceived?: number
+  personalBalance?: number | null
+  personalBalanceKnownCount?: number
+  averagePersonalValue?: number | null
   totalPaid: number
   remaining: number
   depositsReceived: number

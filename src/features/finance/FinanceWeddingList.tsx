@@ -1,4 +1,7 @@
+import { useState } from 'react'
 import { useNavigate } from 'react-router-dom'
+import { useAuth } from '@/features/auth/AuthProvider'
+import { CollaborativeCompensationArchiveDialog } from '@/features/collaboration/CollaborativeCompensationArchiveDialog'
 import { formatCurrency } from '@/lib/utils/currency'
 import { formatDate } from '@/lib/utils/dates'
 import type { FinanceAssignment } from '@/lib/finance/financeSeasonTypes'
@@ -25,6 +28,14 @@ export function FinanceWeddingTable({
 }: Partial<FinanceAssignmentListProps> & Partial<LegacyProps>) {
   const rows = assignments ?? weddings ?? []
   const navigate = useNavigate()
+  const { user } = useAuth()
+  const [archiveRelationshipId, setArchiveRelationshipId] = useState<string | null>(null)
+
+  function openAssignment(assignment: FinanceAssignment) {
+    if (assignment.collaborative && assignment.compensationRelationshipId) {
+      setArchiveRelationshipId(assignment.compensationRelationshipId)
+    } else navigate(assignment.deepLink)
+  }
 
   return (
     <div className={styles.tableWrap} data-finance-table>
@@ -34,7 +45,7 @@ export function FinanceWeddingTable({
           <col className={styles.colDate} />
           <col className={styles.colName} />
           <col className={styles.colMoney} />
-          <col className={styles.colDeposit} />
+          <col className={styles.colMoney} />
           <col className={styles.colMoney} />
           <col className={styles.colMoney} />
           <col className={styles.colStatus} />
@@ -51,16 +62,16 @@ export function FinanceWeddingTable({
               Zlecenie
             </th>
             <th scope="col" className={styles.num}>
-              Wartość
+              Wartość dla mnie
             </th>
-            <th scope="col" className={`${styles.num} ${styles.colDeposit}`}>
+            <th scope="col" className={styles.num}>
               {FINANCE_TABLE_DEPOSIT_PAID_LABEL}
             </th>
             <th scope="col" className={styles.num}>
-              Wpłacono
+              Wpłacono · otrzymano dla mnie
             </th>
             <th scope="col" className={styles.num}>
-              Pozostało
+              Pozostało · saldo dla mnie
             </th>
             <th scope="col" className={styles.colStatus}>
               Status
@@ -74,11 +85,11 @@ export function FinanceWeddingTable({
               className={styles.tableRow}
               tabIndex={0}
               role="link"
-              onClick={() => navigate(a.deepLink)}
+              onClick={() => openAssignment(a)}
               onKeyDown={(e) => {
                 if (e.key === 'Enter' || e.key === ' ') {
                   e.preventDefault()
-                  navigate(a.deepLink)
+                  openAssignment(a)
                 }
               }}
             >
@@ -92,14 +103,14 @@ export function FinanceWeddingTable({
                 <span className={styles.couple}>{a.displayName}</span>
                 {a.overpayment > 0 ? (
                   <span className={styles.overpay}>
-                    Nadpłata {formatCurrency(a.overpayment)}
+                    Nadpłata · do przekazania {formatCurrency(a.overpayment)}
                   </span>
                 ) : null}
               </td>
-              <td className={styles.num}>{formatCurrency(a.contractValue)}</td>
-              <td className={styles.num}>{formatCurrency(a.depositPaid)}</td>
-              <td className={styles.num}>{formatCurrency(a.totalPaid)}</td>
-              <td className={styles.num}>{formatCurrency(a.remaining)}</td>
+              <td className={styles.num}>{a.personalValueKnown && a.personalValue != null ? formatCurrency(a.personalValue) : 'Nieustalona'}</td>
+              <td className={styles.num}>{a.collaborative ? '—' : formatCurrency(a.depositPaid)}</td>
+              <td className={styles.num}>{formatCurrency(a.personalReceived ?? 0)}</td>
+              <td className={styles.num}>{a.personalBalance == null ? '—' : formatCurrency(a.personalBalance)}</td>
               <td className={styles.colStatus}>
                 <span
                   className={`${styles.status} ${styles[`status_${a.paymentStatus}`]}`}
@@ -113,6 +124,7 @@ export function FinanceWeddingTable({
           ))}
         </tbody>
       </table>
+      <CollaborativeCompensationArchiveDialog relationshipId={archiveRelationshipId} userId={user?.id} onClose={() => setArchiveRelationshipId(null)} />
     </div>
   )
 }
@@ -127,6 +139,8 @@ export function FinanceWeddingCards({
 }: Partial<FinanceAssignmentListProps> & Partial<LegacyProps>) {
   const rows = assignments ?? weddings ?? []
   const navigate = useNavigate()
+  const { user } = useAuth()
+  const [archiveRelationshipId, setArchiveRelationshipId] = useState<string | null>(null)
 
   return (
     <ul className={styles.cardList} data-finance-cards>
@@ -135,7 +149,10 @@ export function FinanceWeddingCards({
           <button
             type="button"
             className={styles.card}
-            onClick={() => navigate(a.deepLink)}
+            onClick={() => {
+              if (a.collaborative && a.compensationRelationshipId) setArchiveRelationshipId(a.compensationRelationshipId)
+              else navigate(a.deepLink)
+            }}
           >
             <div className={styles.cardTop}>
               <p className={styles.cardCouple}>
@@ -157,26 +174,27 @@ export function FinanceWeddingCards({
             <p className={styles.cardDate}>{formatDate(a.date)}</p>
             <dl className={styles.cardMetrics}>
               <div>
-                <dt>Wartość</dt>
-                <dd>{formatCurrency(a.contractValue)}</dd>
+                <dt>Wartość dla mnie</dt>
+                <dd>{a.personalValueKnown && a.personalValue != null ? formatCurrency(a.personalValue) : 'Nieustalona'}</dd>
               </div>
               <div>
-                <dt>Wpłacono</dt>
-                <dd>{formatCurrency(a.totalPaid)}</dd>
+                <dt>Otrzymano dla mnie</dt>
+                <dd>{formatCurrency(a.personalReceived ?? 0)}</dd>
               </div>
               <div>
-                <dt>Pozostało</dt>
-                <dd>{formatCurrency(a.remaining)}</dd>
+                <dt>Saldo dla mnie</dt>
+                <dd>{a.personalBalance == null ? '—' : formatCurrency(a.personalBalance)}</dd>
               </div>
             </dl>
             {a.overpayment > 0 ? (
               <p className={styles.overpay}>
-                Nadpłata {formatCurrency(a.overpayment)}
+                Nadpłata · do przekazania {formatCurrency(a.overpayment)}
               </p>
             ) : null}
           </button>
         </li>
       ))}
+      <CollaborativeCompensationArchiveDialog relationshipId={archiveRelationshipId} userId={user?.id} onClose={() => setArchiveRelationshipId(null)} />
     </ul>
   )
 }

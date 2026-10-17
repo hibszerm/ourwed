@@ -1,8 +1,17 @@
-import { useState } from 'react'
+import { useMemo, useState } from 'react'
+import { useQuery } from '@tanstack/react-query'
 import { Button } from '@/components/ui/Button'
 import { Input, Select, Textarea } from '@/components/ui/Input'
 import { Modal } from '@/components/ui/Modal'
-import { paymentService } from '@/lib/api/paymentService'
+import {
+  defaultPaymentReceiverKey,
+  paymentReceiverFields,
+  paymentReceiverOptionKey,
+  paymentService,
+  resolvePaymentReceiverOption,
+  type PaymentReceiverOption,
+} from '@/lib/api/paymentService'
+import { useAuth } from '@/features/auth/AuthProvider'
 import { weddingActionsService } from '@/lib/api/weddingActionsService'
 import { useInvalidateWedding } from '@/features/weddings/hooks/useInvalidateWedding'
 import type { Payment, PaymentMethod, Wedding } from '@/types/wedding'
@@ -131,6 +140,7 @@ function AddPaymentForm({
   onClose: () => void
 }) {
   const invalidate = useInvalidateWedding()
+  const { user } = useAuth()
   const [amount, setAmount] = useState(() => {
     if (payment) return String(payment.amount)
     return asDeposit && suggested > 0 ? String(suggested) : ''
@@ -144,17 +154,52 @@ function AddPaymentForm({
     () => payment?.method ?? 'transfer',
   )
   const [note, setNote] = useState(() => payment?.note ?? '')
+  const [receiverKey, setReceiverKey] = useState<string | null>(() => {
+    if (!payment?.receivedByUserId) return null
+    return payment.receiverRelationshipId
+      ? `collaborator:${payment.receiverRelationshipId}`
+      : `owner:${payment.receivedByUserId}`
+  })
   const [error, setError] = useState<string | null>(null)
+  const receiversQuery = useQuery({
+    queryKey: ['wedding-payment-receivers-v3', user?.id, wedding.id],
+    queryFn: () => paymentService.listReceivers(wedding.id),
+    enabled: true,
+    staleTime: 0,
+  })
+  const receiverOptions = useMemo(() => {
+    const options = [...(receiversQuery.data ?? [])]
+    if (payment?.receivedByUserId && !options.some((option) =>
+      option.relationshipId === (payment.receiverRelationshipId ?? null)
+        && option.userId === payment.receivedByUserId,
+    )) {
+      options.push({
+        userId: payment.receivedByUserId,
+        relationshipId: payment.receiverRelationshipId ?? null,
+        label: payment.receiverLabel ?? 'Historyczny odbiorca',
+        kind: payment.receiverKind === 'collaborator' ? 'collaborator' as const : 'owner' as const,
+      })
+    }
+    return options
+  }, [payment, receiversQuery.data])
+  const selectedReceiverKey = receiverKey ?? (() => {
+    return defaultPaymentReceiverKey(receiverOptions)
+  })()
 
   async function handleSubmit(event: React.FormEvent) {
     event.preventDefault()
-    const parsed = Number(amount.replace(',', '.'))
-    if (!Number.isFinite(parsed) || parsed <= 0) {
+    const parsed = amount.trim().replace(',', '.')
+    if (!/^(?:0|[1-9]\d{0,9})(?:\.\d{1,2})?$/.test(parsed) || Number(parsed) <= 0) {
       setError('Podaj poprawną kwotę.')
       return
     }
     if (!date) {
       setError('Podaj datę wpłaty.')
+      return
+    }
+    const receiver = resolvePaymentReceiverOption(receiverOptions, selectedReceiverKey)
+    if (!receiver) {
+      setError('Wybierz osobę, która otrzymała wpłatę.')
       return
     }
 
@@ -163,22 +208,25 @@ function AddPaymentForm({
     try {
       if (payment) {
         await paymentService.update(payment.id, {
-          amount: Math.round(parsed),
+          expectedRevision: payment.receiverRevision ?? '1',
+          amount: parsed,
           paymentDate: date,
           method,
           note: note.trim() || null,
           paid: true,
           type: payment.type,
+          ...paymentReceiverFields(receiver),
         })
       } else {
         await weddingActionsService.addPayment({
           weddingId: wedding.id,
-          amount: Math.round(parsed),
+          amount: parsed,
           date,
           method,
           note: note.trim() || undefined,
           type: asDeposit ? 'deposit' : 'installment',
           label: asDeposit ? 'Zadatek' : 'Wpłata',
+          ...paymentReceiverFields(receiver),
         })
       }
       await invalidate(wedding.id)
@@ -205,15 +253,33 @@ function AddPaymentForm({
     >
       <Input
         id="payment-amount"
-        label="Kwota (PLN)"
+        label={`Kwota (${wedding.currency || 'PLN'})`}
         type="number"
         min={1}
-        step={1}
+        step="0.01"
         value={amount}
         onChange={(e) => setAmount(e.target.value)}
         required
         disabled={busy}
       />
+      <Select
+        id="payment-receiver"
+        label="Otrzymał"
+        value={selectedReceiverKey}
+        onChange={(event) => setReceiverKey(event.target.value)}
+        disabled={busy || receiversQuery.isPending || receiversQuery.isError}
+        required
+      >
+        <option value="">Wybierz osobę</option>
+        {receiverOptions.map((option: PaymentReceiverOption) => (
+          <option
+            key={option.relationshipId ?? option.userId}
+            value={paymentReceiverOptionKey(option)}
+          >
+            {option.label}
+          </option>
+        ))}
+      </Select>
       <Input
         id="payment-date"
         label="Data"

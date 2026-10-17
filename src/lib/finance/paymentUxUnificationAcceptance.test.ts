@@ -3,7 +3,7 @@
  * Run via: npm run test:finance-center (included) or npx tsx …
  */
 
-import { existsSync,  readFileSync  } from 'node:fs'
+import { readFileSync } from 'node:fs'
 import { resolve } from 'node:path'
 import { hasPaidDepositPayment } from '@/lib/finance/hasPaidDepositPayment'
 
@@ -48,20 +48,20 @@ function assertNotIncludes(src: string, needle: string, m: string) {
 }
 
 {
-  const finance = (assert(!existsSync(resolve(process.cwd(), 'src/features/weddings/detail/v2/WeddingContractFinanceWorkspace.tsx')), 'deleted src/features/weddings/detail/v2/WeddingContractFinanceWorkspace.tsx'), ({ includes: () => false, indexOf: () => -1, slice: () => '', length: 0, match: () => null } as any))
+  const finance = read('src/features/weddings/modern-detail/ModernWeddingContractFinanceWorkspace.tsx')
   assertIncludes(finance, 'hasPaidDepositPayment', 'uses paid-deposit condition')
   assertIncludes(finance, 'Dodaj zadatek', 'deposit CTA label')
   assertIncludes(finance, 'Dodaj wpłatę', 'payment CTA label')
   assertIncludes(
     finance,
-    'hasPaidDepositPayment(payments) ? (',
+    'const addDeposit = !hasPaidDepositPayment(payments)',
     'single contextual CTA branch',
   )
   // Both labels exist in ternary — but must not render both buttons unconditionally
   const dualBlock =
     finance.includes('finance-add-payment') &&
     finance.includes('finance-add-deposit') &&
-    !finance.includes('hasPaidDepositPayment(payments)')
+    !finance.includes('const addDeposit = !hasPaidDepositPayment(payments)')
   assert(!dualBlock, 'no unconditional dual CTAs')
   console.log('PASS  wedding finance CTA contextual')
 }

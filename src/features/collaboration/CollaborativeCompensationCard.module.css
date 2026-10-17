@@ -1,0 +1,48 @@
+.card {
+  max-width: 100%;
+  margin-block: 1rem;
+  border: 1px solid var(--color-border-subtle, rgba(76, 63, 52, 0.12));
+}
+
+.metrics {
+  display: grid;
+  grid-template-columns: repeat(3, minmax(0, 1fr));
+  gap: 0.75rem;
+  margin: 1rem 0 0;
+}
+
+.metrics > div { min-width: 0; }
+.metrics dt { color: var(--color-text-muted, #766d64); font-size: 0.78rem; }
+.metrics dd { margin: 0.25rem 0 0; font-size: 1.05rem; font-weight: 600; overflow-wrap: anywhere; }
+.status { margin: 0.75rem 0 0; color: var(--color-text-muted, #766d64); font-size: 0.875rem; }
+.dueDate, .note { color: var(--color-text-muted, #766d64); font-size: 0.82rem; }
+.editor, .receipts { display: grid; gap: 0.65rem; padding-top: 1rem; margin-top: 1rem; border-top: 1px solid var(--color-border-subtle, rgba(76, 63, 52, 0.12)); }
+.editor h4, .receipts h4 { margin: 0; font-size: 0.92rem; }
+.receiptForm { display: grid; grid-template-columns: repeat(2, minmax(0, 1fr)); gap: 0.75rem; }
+.receiptRow { display: grid; grid-template-columns: minmax(0, 1fr) auto auto; align-items: center; gap: 0.75rem; padding-block: 0.25rem; }
+.receiptRow span { min-width: 0; overflow-wrap: anywhere; }
+.receiptRow small { display: block; margin-top: 0.15rem; color: var(--color-text-muted, #766d64); font-size: 0.76rem; }
+.receiptRow strong { white-space: nowrap; font-size: 0.9rem; }
+.remove { border: 0; background: transparent; color: var(--color-text-muted, #766d64); cursor: pointer; font: inherit; font-size: 0.78rem; }
+.error { color: var(--color-error, #a33b35); font-size: 0.86rem; }
+.ownerTerms { display: grid; gap: 0.65rem; padding-top: 1rem; margin-top: 1rem; border-top: 1px solid var(--color-border-subtle, rgba(76, 63, 52, 0.12)); }
+.ownerTerms h3 { margin: 0; font-size: 0.95rem; }
+.ownerTermsList { display: grid; gap: 0.5rem; list-style: none; padding: 0; margin: 0; }
+.ownerTermsList li { display: flex; align-items: center; justify-content: space-between; gap: 0.75rem; min-width: 0; }
+.ownerTermsList li > span { display: grid; min-width: 0; gap: 0.2rem; }
+.ownerTermsList small { color: var(--color-text-muted, #766d64); font-size: 0.78rem; }
+.ownerTermsEditor { display: grid; gap: 0.9rem; }
+.ownerTermsToggle { display: flex; align-items: center; gap: 0.55rem; font-size: 0.9rem; }
+.archiveReceipt { display: flex; justify-content: space-between; align-items: center; gap: 0.75rem; margin: 0; padding-block: 0.4rem; }
+.archiveReceipt span { min-width: 0; overflow-wrap: anywhere; }
+.archiveReceipt small { display: block; color: var(--color-text-muted, #766d64); font-size: 0.76rem; }
+.archiveReceipt strong { white-space: nowrap; }
+
+@media (max-width: 560px) {
+  .metrics { grid-template-columns: minmax(0, 1fr); gap: 0.65rem; }
+  .metrics > div { display: flex; justify-content: space-between; gap: 0.75rem; }
+  .metrics dd { margin: 0; text-align: right; }
+  .receiptForm { grid-template-columns: minmax(0, 1fr); }
+  .receiptRow { grid-template-columns: minmax(0, 1fr) auto; }
+  .receiptRow .remove { grid-column: 2; }
+}

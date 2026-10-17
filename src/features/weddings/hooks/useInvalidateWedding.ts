@@ -1,6 +1,6 @@
 import { useQueryClient } from '@tanstack/react-query'
-import { invalidateFinanceQueries } from '@/features/finance/invalidateFinanceQueries'
 import { useStudioAuthId } from '@/features/auth/useStudioAuthId'
+import { invalidateCompensationPaymentMutation } from '@/features/collaboration/compensationV3Cache'
 
 /** Invalidate wedding detail, list, dashboard, Calendar, and Finance after a studio action. */
 export function useInvalidateWedding() {
@@ -19,7 +19,7 @@ export function useInvalidateWedding() {
       queryClient.invalidateQueries({ queryKey: ['wedding-contract-package-snapshots', weddingId] }),
       queryClient.invalidateQueries({ queryKey: ['wedding-source-contracts', weddingId] }),
       queryClient.invalidateQueries({ queryKey: ['package-contract-for-wedding', weddingId] }),
-      invalidateFinanceQueries(queryClient),
+      invalidateCompensationPaymentMutation(queryClient),
     ])
   }
 }

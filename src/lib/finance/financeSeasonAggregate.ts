@@ -128,6 +128,17 @@ export function resolveFinanceDepositStatus(
   return 'none'
 }
 
+/** Presentation status for actor-specific settlement. Unknown is never treated as zero. */
+export function resolvePersonalFinanceStatus(
+  valueKnown: boolean,
+  balance: number | null,
+  received: number,
+): FinancePaymentStatus {
+  if (!valueKnown || balance == null) return 'value_unset'
+  if (balance <= 0) return 'paid'
+  return received > 0 ? 'partial' : 'unpaid'
+}
+
 export function buildFinanceWeddingAssignment(
   row: FinanceWeddingScalarRow,
   payments: Payment[],
@@ -148,6 +159,11 @@ export function buildFinanceWeddingAssignment(
     date: row.wedding_date.slice(0, 10),
     displayName: financeCoupleName(row),
     contractValue,
+    personalValue: contractValue,
+    personalValueKnown: true,
+    personalValueSource: 'contract',
+    personalReceived: totalPaid,
+    personalBalance: contractValue - totalPaid,
     agreedDeposit,
     depositPaid,
     totalPaid,
@@ -188,6 +204,11 @@ export function buildFinanceSessionAssignment(
     date: row.session_date.slice(0, 10),
     displayName: financeSessionDisplayName(row),
     contractValue,
+    personalValue: contractValue,
+    personalValueKnown: true,
+    personalValueSource: 'contract',
+    personalReceived: totalPaid,
+    personalBalance: remaining,
     agreedDeposit,
     depositPaid,
     totalPaid,
@@ -206,6 +227,10 @@ export function buildEmptyMonthBuckets(): FinanceMonthBucket[] {
     assignmentCount: 0,
     weddingCount: 0,
     contractValue: 0,
+    personalValue: 0,
+    personalValueKnownCount: 0,
+    personalReceived: 0,
+    personalBalance: null,
     totalPaid: 0,
     remaining: 0,
     depositsReceived: 0,
@@ -228,6 +253,11 @@ export function buildFinanceSeasonKpis(
   assignments: FinanceAssignment[],
 ): FinanceSeasonKpis {
   let contractValue = 0
+  let personalValue = 0
+  let personalValueKnownCount = 0
+  let personalReceived = 0
+  let personalBalance = 0
+  let personalBalanceKnownCount = 0
   let totalPaid = 0
   let remaining = 0
   let depositsReceived = 0
@@ -243,6 +273,15 @@ export function buildFinanceSeasonKpis(
 
   for (const a of assignments) {
     contractValue += a.contractValue
+    if (a.personalValueKnown && a.personalValue != null) {
+      personalValue += a.personalValue
+      personalValueKnownCount += 1
+    }
+    personalReceived += a.personalReceived ?? 0
+    if (a.personalBalance != null) {
+      personalBalance += a.personalBalance
+      personalBalanceKnownCount += 1
+    }
     totalPaid += a.totalPaid
     remaining += a.remaining
     depositsReceived += a.depositPaid
@@ -261,6 +300,12 @@ export function buildFinanceSeasonKpis(
 
   return {
     contractValue,
+    personalValue,
+    personalValueKnownCount,
+    personalReceived,
+    personalBalance: personalBalanceKnownCount > 0 ? personalBalance : null,
+    personalBalanceKnownCount,
+    averagePersonalValue: personalValueKnownCount > 0 ? personalValue / personalValueKnownCount : null,
     totalPaid,
     remaining,
     depositsReceived,
@@ -287,6 +332,15 @@ export function buildFinanceMonthBuckets(
     bucket.assignmentCount += 1
     bucket.weddingCount = bucket.assignmentCount
     bucket.contractValue += a.contractValue
+    if (a.personalValueKnown && a.personalValue != null) {
+      bucket.personalValue = (bucket.personalValue ?? 0) + a.personalValue
+      bucket.personalValueKnownCount = (bucket.personalValueKnownCount ?? 0) + 1
+    }
+    bucket.personalReceived = (bucket.personalReceived ?? 0) + (a.personalReceived ?? 0)
+    if (a.personalBalance != null) {
+      bucket.personalBalance = (bucket.personalBalance ?? 0) + a.personalBalance
+      bucket.personalBalanceKnownCount = (bucket.personalBalanceKnownCount ?? 0) + 1
+    }
     bucket.totalPaid += a.totalPaid
     bucket.remaining += a.remaining
     bucket.depositsReceived += a.depositPaid
