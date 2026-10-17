@@ -87,6 +87,26 @@ revoke all on function collaboration_private.format_effective_contact_address_v3
 -- Match the application merge precedence (latest submitted/approved Contract
 -- form; nonblank answer wins), then snapshot those effective values into the
 -- operational wedding row. Historical form_answers are never modified.
+-- The preceding ADD COLUMN DDL already holds an ACCESS EXCLUSIVE lock on
+-- public.weddings for this transaction. Keep that lock explicit at the trust
+-- boundary below: only the owner guard is disabled for the migration backfill,
+-- while collaboration-term and other wedding triggers remain active. The
+-- transactional DDL is rolled back with the backfill if any statement fails.
+lock table public.weddings in access exclusive mode;
+do $$
+begin
+  if not exists (
+    select 1 from pg_catalog.pg_trigger t
+    where t.tgrelid='public.weddings'::regclass
+      and t.tgname='weddings_enforce_owner'
+      and not t.tgisinternal
+      and t.tgenabled='O'
+  ) then
+    raise exception 'expected enabled public.weddings owner trigger before Contacts backfill';
+  end if;
+end $$;
+alter table public.weddings disable trigger weddings_enforce_owner;
+
 with latest_answer as (
   select distinct on (fi.wedding_id) fi.wedding_id, fa.answer_json
   from public.form_instances fi
@@ -173,6 +193,8 @@ update public.weddings w set
   contract_address=e.contract_address,contract_postal_code=e.contract_postal_code,contract_city=e.contract_city
 from effective e where e.id=w.id;
 
+alter table public.weddings enable trigger weddings_enforce_owner;
+
 create function collaboration_private.bump_wedding_contacts_revision()
 returns trigger language plpgsql set search_path = '' as $$
 begin
@@ -198,8 +220,9 @@ create function collaboration_private.write_wedding_contacts_v3(
 declare v_w public.weddings%rowtype; v_corr jsonb; v_normalized_corr jsonb:='[]'::jsonb;
   v_entry jsonb; v_channel text; v_value text; v_id text;
   v_first jsonb; v_seen text[]:='{}'; v_seen_ids text[]:='{}'; v_key text; v_next_revision bigint;
+  v_actor uuid:=auth.uid(); v_original_claim_sub text; v_context jsonb; v_contacts_level smallint;
 begin
-  if p_wedding_id is null or p_expected_revision !~ '^(0|[1-9][0-9]*)$'
+  if v_actor is null or p_wedding_id is null or p_expected_revision !~ '^(0|[1-9][0-9]*)$'
     or jsonb_typeof(p_contacts) is distinct from 'object'
     or (select count(*) from jsonb_object_keys(p_contacts))<>4
     or not(p_contacts ?& array['bride','groom','contract_address','correspondence']) then
@@ -262,8 +285,23 @@ begin
   end loop;
   select * into v_w from public.weddings w where w.id=p_wedding_id and w.status='active' for update;
   if not found then raise exception using errcode='P0001',message='UNAVAILABLE'; end if;
+  if v_w.user_id is distinct from v_actor then
+    v_context:=collaboration_private.resolve_wedding_actor_access(p_wedding_id);
+    if v_context is null or v_context->>'relationship' is distinct from 'collaborator' then
+      raise exception using errcode='P0001',message='UNAVAILABLE'; end if;
+    v_contacts_level:=collaboration_private.resolve_wedding_area_level(p_wedding_id,'contacts');
+    if v_contacts_level is null or v_contacts_level<2 then
+      raise exception using errcode='P0001',message='FORBIDDEN'; end if;
+  end if;
   if v_w.contacts_revision::text<>p_expected_revision then raise exception using errcode='P0001',message='CONFLICT'; end if;
   v_first:=p_contacts->'bride';
+  -- Only this revoked, internal writer reaches the owner-guarded row update.
+  -- Its public callers have already authenticated the actor and checked either
+  -- wedding ownership or level-two Contacts authority. Present the persisted
+  -- owner to the existing trigger for this one update, then restore the actor
+  -- claim before returning. No caller-supplied identity reaches this context.
+  v_original_claim_sub:=coalesce(pg_catalog.current_setting('request.jwt.claim.sub',true),'');
+  perform pg_catalog.set_config('request.jwt.claim.sub',v_w.user_id::text,true);
   update public.weddings w set
     bride_first_name=nullif(btrim(v_first->>'first_name'),''), bride_last_name=nullif(btrim(v_first->>'last_name'),''),
     groom_first_name=nullif(btrim(p_contacts#>>'{groom,first_name}'),''), groom_last_name=nullif(btrim(p_contacts#>>'{groom,last_name}'),''),
@@ -276,6 +314,7 @@ begin
     correspondence_channel=nullif(v_normalized_corr->0->>'channel',''),correspondence_value=nullif(v_normalized_corr->0->>'value','')
   where w.id=p_wedding_id and w.contacts_revision::text=p_expected_revision
   returning w.contacts_revision into v_next_revision;
+  perform pg_catalog.set_config('request.jwt.claim.sub',v_original_claim_sub,true);
   if not found then raise exception using errcode='P0001',message='CONFLICT'; end if;
   return jsonb_build_object('status','ok','contacts_revision',v_next_revision::text);
 end $$;

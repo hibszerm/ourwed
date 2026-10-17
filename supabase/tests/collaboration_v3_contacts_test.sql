@@ -105,11 +105,15 @@ insert into auth.users(instance_id,id,aud,role,email,encrypted_password,email_co
  ('00000000-0000-0000-0000-000000000000','e8100000-0000-4000-8000-000000000002','authenticated','authenticated','v3-contacts-member@example.test','x',now(),'{}','{"legal_registration_accepted":"true","terms_version":"1.1","privacy_version":"1.1"}',now(),now()),
  ('00000000-0000-0000-0000-000000000000','e8100000-0000-4000-8000-000000000003','authenticated','authenticated','v3-contacts-outsider@example.test','x',now(),'{}','{"legal_registration_accepted":"true","terms_version":"1.1","privacy_version":"1.1"}',now(),now()),
  ('00000000-0000-0000-0000-000000000000','e8100000-0000-4000-8000-000000000004','authenticated','authenticated','v3-contacts-other-owner@example.test','x',now(),'{}','{"legal_registration_accepted":"true","terms_version":"1.1","privacy_version":"1.1"}',now(),now());
+select set_config('request.jwt.claim.sub','e8100000-0000-4000-8000-000000000001',true);
 insert into public.weddings(id,user_id,bride_name,groom_name,bride_first_name,bride_last_name,groom_first_name,groom_last_name,wedding_date,status,email,phone,groom_phone,contract_address,contract_postal_code,contract_city,correspondence,contract_value)
 values ('e8200000-0000-4000-8000-000000000001','e8100000-0000-4000-8000-000000000001','Anna Nowak','Jan Kowalski','Anna','Nowak','Jan','Kowalski','2027-09-01','active','anna@old.test','111','222','ul. Stara 1','00-001','Warszawa','[{"id":"e8600000-0000-4000-8000-000000000001","channel":"email","value":"studio@example.test"}]',1234),
        ('e8200000-0000-4000-8000-000000000002','e8100000-0000-4000-8000-000000000001','Other','Wedding','Other','Wedding','Other','Wedding','2027-09-02','active','other@example.test','333','444','Other address',null,null,'[]',999),
-       ('e8200000-0000-4000-8000-000000000003','e8100000-0000-4000-8000-000000000001','Inactive','Wedding','Inactive','Wedding','Inactive','Wedding','2027-09-03','archived','inactive@example.test','555','666','Inactive address',null,null,'[]',888),
-       ('e8200000-0000-4000-8000-000000000004','e8100000-0000-4000-8000-000000000004','Foreign','Owner','Foreign','Owner','Foreign','Owner','2027-09-04','active','foreign@example.test','777','888','Foreign address',null,null,'[]',777);
+       ('e8200000-0000-4000-8000-000000000003','e8100000-0000-4000-8000-000000000001','Inactive','Wedding','Inactive','Wedding','Inactive','Wedding','2027-09-03','archived','inactive@example.test','555','666','Inactive address',null,null,'[]',888);
+select set_config('request.jwt.claim.sub','e8100000-0000-4000-8000-000000000004',true);
+insert into public.weddings(id,user_id,bride_name,groom_name,bride_first_name,bride_last_name,groom_first_name,groom_last_name,wedding_date,status,email,phone,groom_phone,contract_address,contract_postal_code,contract_city,correspondence,contract_value)
+values ('e8200000-0000-4000-8000-000000000004','e8100000-0000-4000-8000-000000000004','Foreign','Owner','Foreign','Owner','Foreign','Owner','2027-09-04','active','foreign@example.test','777','888','Foreign address',null,null,'[]',777);
+select set_config('request.jwt.claim.sub','e8100000-0000-4000-8000-000000000001',true);
 insert into public.collaboration_connections(id,participant_low_id,participant_high_id,participant_low_name_snapshot,participant_high_name_snapshot,status)
 values ('e8300000-0000-4000-8000-000000000001','e8100000-0000-4000-8000-000000000001','e8100000-0000-4000-8000-000000000002','Contacts Owner','Contacts Member','active');
 
@@ -218,6 +222,43 @@ set local role authenticated;
 select set_config('request.jwt.claim.sub','e8100000-0000-4000-8000-000000000002',true);
 select throws_ok($$select public.get_my_collaborative_contacts_v3('e8200000-0000-4000-8000-000000000001')$$,'P0001','UNAVAILABLE','revoked member cannot read Contacts');
 reset role;
+
+-- The trusted migration backfill must bypass only weddings_enforce_owner.
+-- Runtime owner enforcement and the other wedding triggers remain enabled.
+select is((select count(*)::int from public.contacts_backfill_expected e
+  join public.weddings w on w.id=e.wedding_id where w.user_id<>'e8810000-0000-4000-8000-000000000001'),0,
+  'trusted Contacts backfill leaves every fixture wedding owner unchanged');
+select ok((select t.tgenabled='O' from pg_catalog.pg_trigger t
+  where t.tgrelid='public.weddings'::regclass and t.tgname='weddings_enforce_owner' and not t.tgisinternal),
+  'wedding owner trigger is restored and enabled after the migration');
+select is((select count(*)::int from pg_catalog.pg_trigger t
+  where t.tgrelid='public.weddings'::regclass
+    and t.tgname in ('weddings_collaboration_terms_before','weddings_collaboration_terms_after')
+    and t.tgenabled='O'),2,'collaboration terms triggers remain active after the Contacts backfill');
+
+reset role;
+select set_config('request.jwt.claim.sub','',true);
+select throws_ok($$update public.weddings set phone='unauthenticated-trigger-regression'
+  where id='e8820000-0000-4000-8000-000000000010'$$,
+  'P0001','Authentication required to modify weddings',
+  'unauthenticated direct wedding mutation remains rejected after migration');
+select set_config('request.jwt.claim.sub','e8810000-0000-4000-8000-000000000002',true);
+select throws_ok($$update public.weddings set phone='wrong-owner-trigger-regression'
+  where id='e8820000-0000-4000-8000-000000000010'$$,
+  'P0001','Cannot modify a wedding owned by another studio',
+  'wrong-owner direct wedding mutation remains rejected after migration');
+
+set local role authenticated;
+select set_config('request.jwt.claim.sub','e8810000-0000-4000-8000-000000000001',true);
+update public.weddings set phone='owner-trigger-regression'
+where id='e8820000-0000-4000-8000-000000000010';
+select is((select phone from public.weddings where id='e8820000-0000-4000-8000-000000000010'),
+  'owner-trigger-regression',
+  'correct-owner direct wedding mutation remains allowed after migration');
+reset role;
+select is((select user_id::text from public.weddings
+  where id='e8820000-0000-4000-8000-000000000010'),'e8810000-0000-4000-8000-000000000001',
+  'normal owner mutation cannot change wedding ownership');
 
 select * from finish();
 rollback;
